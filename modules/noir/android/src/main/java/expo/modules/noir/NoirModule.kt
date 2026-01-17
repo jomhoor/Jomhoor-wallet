@@ -26,19 +26,20 @@ class NoirModule : Module() {
         ?: throw IllegalArgumentException("Invalid URI: $trustedSetupUri")
 
       val circuit = Circuit.fromJsonManifest(manifestJson).apply {
-        setupSrs(rawPath, false)
+        setupSrs(rawPath)
       }
 
       val type = object : TypeToken<Map<String, Any>>() {}.type
       val inputsMap: Map<String, Any> = Gson().fromJson(inputsJson, type)
 
+      // prove() returns the proof string directly in this version
       val proof = circuit.prove(
         inputsMap,
-        proofType = "plonk",
-        recursive = false
+        "plonk",
+        "false"  // recursive as string
       )
 
-      return@AsyncFunction proof.proof
+      return@AsyncFunction proof
     }
   }
 }

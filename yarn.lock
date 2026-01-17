@@ -12694,7 +12694,7 @@ __metadata:
     react-native-toast-message: "npm:^2.2.0"
     react-native-vision-camera: "npm:4.6.3"
     react-native-vision-camera-text-recognition: "npm:^3.1.1"
-    react-native-worklets-core: "npm:1.5.0"
+    react-native-worklets-core: "npm:1.6.2"
     react-native-zip-archive: "npm:^7.0.1"
     readable-stream: "npm:^4.5.2"
     release-it: "npm:^19.0.3"
@@ -18088,15 +18088,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-worklets-core@npm:1.5.0":
-  version: 1.5.0
-  resolution: "react-native-worklets-core@npm:1.5.0"
+"react-native-worklets-core@npm:1.6.2":
+  version: 1.6.2
+  resolution: "react-native-worklets-core@npm:1.6.2"
   dependencies:
     string-hash-64: "npm:^1.0.3"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 10/92d4cd62e9f5ca0391873b913864fd82b3df2b5dbfaefcba4175363f8bc10a63f4c4a359c03a8d36a8b7b2096c045215dc5d5cbdb5ca3d71e843fbf140160ee9
+  checksum: 10/beeb767ac1fe8229d1bd31890253320b0c05df61a9a2498f274f2752429eb2a8c23491a355100c344ea1d988424b6ee61b723c264c134240039fec38a9d7df38
   languageName: node
   linkType: hard
 
