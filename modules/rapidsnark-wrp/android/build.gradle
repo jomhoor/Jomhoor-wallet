@@ -49,6 +49,5 @@ repositories {
 
 dependencies {
   implementation("com.google.code.gson:gson:2.10.1")
-//   implementation files('libs/rapidsnark.aar')
-  implementation("io.iden3:rapidsnark:0.0.1-alpha.1")
+  implementation(name: 'rapidsnark', ext: 'aar')
 }

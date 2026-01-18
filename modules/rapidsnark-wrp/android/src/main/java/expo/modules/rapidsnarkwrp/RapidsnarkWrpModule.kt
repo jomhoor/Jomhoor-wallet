@@ -7,8 +7,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import io.iden3.rapidsnark.DEFAULT_ERROR_BUFFER_SIZE
 import io.iden3.rapidsnark.DEFAULT_PROOF_BUFFER_SIZE
 import io.iden3.rapidsnark.groth16Prove
-import io.iden3.rapidsnark.groth16ProveWithZKeyFilePath
-import io.iden3.rapidsnark.groth16PublicSizeForZkeyFile
+import io.iden3.rapidsnark.groth16PublicBufferSize
 import java.io.File
 
 data class Proof(
@@ -53,12 +52,11 @@ class RapidsnarkWrpModule : Module() {
         throw Exception("Zkey file does not exist")
       }
 
-      val currentProofBufferSize = proofBufferSize ?: DEFAULT_PROOF_BUFFER_SIZE
-      val currentPublicBufferSize = publicBufferSize ?: groth16PublicSizeForZkeyFile(file.path)
       val currentErrorBufferSize = errorBufferSize ?: DEFAULT_ERROR_BUFFER_SIZE
+      val currentProofBufferSize = proofBufferSize ?: DEFAULT_PROOF_BUFFER_SIZE
+      val currentPublicBufferSize = publicBufferSize ?: groth16PublicBufferSize(file.path, currentErrorBufferSize)
 
-
-      val (proof, publicSignals) = groth16ProveWithZKeyFilePath(
+      val response = groth16Prove(
         file.path,
         wtns,
         currentProofBufferSize,
@@ -67,8 +65,8 @@ class RapidsnarkWrpModule : Module() {
       )
 
       val zkProof = createZkProof(
-        proof = proof,
-        pubSignals = publicSignals
+        proof = response.proof,
+        pubSignals = response.publicSignals
       )
 
       val zkProofJson = Gson().toJson(zkProof)
@@ -79,16 +77,34 @@ class RapidsnarkWrpModule : Module() {
     // Defines a JavaScript function that always returns a Promise and whose native code
     // is by default dispatched on the different thread than the JavaScript runtime runs on.
     AsyncFunction("groth16Prove") { wtns: ByteArray, zkey: ByteArray ->
-      val (proof, publicSignals) = groth16Prove(zkey, wtns)
+      // Local AAR requires file path, so write zkey to temp file
+      val tempFile = File.createTempFile("zkey_", ".zkey")
+      try {
+        tempFile.writeBytes(zkey)
 
-      val zkProof = createZkProof(
-        proof = proof,
-        pubSignals = publicSignals
-      )
+        val currentErrorBufferSize = DEFAULT_ERROR_BUFFER_SIZE
+        val currentProofBufferSize = DEFAULT_PROOF_BUFFER_SIZE
+        val currentPublicBufferSize = groth16PublicBufferSize(tempFile.path, currentErrorBufferSize)
 
-      val zkProofJson = Gson().toJson(zkProof)
+        val response = groth16Prove(
+          tempFile.path,
+          wtns,
+          currentProofBufferSize,
+          currentPublicBufferSize,
+          currentErrorBufferSize
+        )
 
-      return@AsyncFunction zkProofJson
+        val zkProof = createZkProof(
+          proof = response.proof,
+          pubSignals = response.publicSignals
+        )
+
+        val zkProofJson = Gson().toJson(zkProof)
+
+        return@AsyncFunction zkProofJson
+      } finally {
+        tempFile.delete()
+      }
     }
   }
 }
