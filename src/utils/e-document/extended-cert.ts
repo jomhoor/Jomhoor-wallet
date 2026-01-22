@@ -5,11 +5,12 @@ import { ECDSASigValue, ECParameters } from '@peculiar/asn1-ecc'
 import { id_pkcs_1, RSAPublicKey } from '@peculiar/asn1-rsa'
 import { AsnConvert } from '@peculiar/asn1-schema'
 import { Certificate } from '@peculiar/asn1-x509'
-import { getBytes, toBeArray, toBigInt, zeroPadBytes } from 'ethers'
+import { toBeArray, toBigInt } from 'ethers'
 
 import {
   getPublicKeyFromEcParameters,
   hash512,
+  hash512P384,
   hash512P512,
   hashPacked,
   namedCurveFromParameters,
@@ -180,20 +181,46 @@ export class ExtendedCertificate {
 
       if (!publicKey) throw new TypeError('Public key not found in TBS Certificate')
 
-      const rawPoint = new Uint8Array([...toBeArray(publicKey.px), ...toBeArray(publicKey.py)])
+      // Get the byte length for one coordinate based on curve order
+      const coordByteLength = Math.ceil(namedCurve.CURVE.n.toString(16).length / 2)
+      const nBitLength = coordByteLength * 8
 
-      const nBitLength = Hex.decodeString(namedCurve.CURVE.n.toString(16)).length * 8
+      // Pad each coordinate to the correct length (toBeArray strips leading zeros)
+      const xBytes = toBeArray(publicKey.px)
+      const yBytes = toBeArray(publicKey.py)
+      const paddedX = new Uint8Array(coordByteLength)
+      const paddedY = new Uint8Array(coordByteLength)
+      paddedX.set(xBytes, coordByteLength - xBytes.length)
+      paddedY.set(yBytes, coordByteLength - yBytes.length)
+      const rawPoint = new Uint8Array([...paddedX, ...paddedY])
 
       const hashedHex = (() => {
-        const paddedRaw = zeroPadBytes(rawPoint, 64)
-
-        const paddedRawBytes = getBytes(paddedRaw)
-
-        if (nBitLength === 512) {
-          return hash512P512(paddedRawBytes).toString(16)
+        // P512: 64 bytes per coord = 128 bytes total → contract uses hash1024()
+        if (nBitLength >= 504) {
+          if (rawPoint.length !== 128) {
+            throw new Error(`P512 key expected 128 bytes, got ${rawPoint.length}`)
+          }
+          return hash512P512(rawPoint).toString(16)
         }
 
-        return hash512(paddedRawBytes).toString(16)
+        // P384: 48 bytes per coord = 96 bytes total
+        // IMPORTANT: Contract's hash512() only reads first 64 bytes of the key!
+        // See Bytes2Poseidon.sol: for keyByteLength < 128, it uses hash512()
+        // which reads bytes 0-31 and 32-63, ignoring bytes 64-95.
+        if (nBitLength >= 376) {
+          if (rawPoint.length !== 96) {
+            throw new Error(`P384 key expected 96 bytes, got ${rawPoint.length}`)
+          }
+          // Take first 64 bytes only to match contract behavior
+          const first64Bytes = rawPoint.slice(0, 64)
+          return hash512(first64Bytes).toString(16)
+        }
+
+        // P256: 32 bytes per coord = 64 bytes total
+        if (rawPoint.length !== 64) {
+          throw new Error(`P256 key expected 64 bytes, got ${rawPoint.length}`)
+        }
+        return hash512(rawPoint).toString(16)
       })()
 
       return Hex.decodeString(hashedHex)

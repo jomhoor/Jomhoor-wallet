@@ -6,7 +6,10 @@ import { relayerRegister } from '@/api/modules/registration/relayer'
 import { PassportInfo, RegistrationStrategy } from '@/api/modules/registration/strategy'
 import { Config } from '@/config'
 import { tryCatch } from '@/helpers/try-catch'
-import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
+import {
+  CertificateAlreadyRegisteredError,
+  PassportRegisteredWithAnotherPKError,
+} from '@/store/modules/identity/errors'
 import { CircomEpassportIdentity, IdentityItem } from '@/store/modules/identity/Identity'
 import { SparseMerkleTree } from '@/types/contracts/PoseidonSMT'
 import { Groth16VerifierHelper, Registration2 } from '@/types/contracts/Registration'
@@ -109,16 +112,37 @@ export class CircomEPassportRegistration extends RegistrationStrategy {
 
     const slaveMaster = await eDocument.sod.slaveCertificate.getSlaveMaster(CSCACertBytes)
 
-    const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
+    let slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
       eDocument.sod.slaveCertificate,
     )
 
     if (!slaveCertSmtProof.existence) {
-      await RegistrationStrategy.registerCertificate(
-        CSCACertBytes,
+      try {
+        await RegistrationStrategy.registerCertificate(
+          CSCACertBytes,
+          eDocument.sod.slaveCertificate,
+          slaveMaster,
+        )
+      } catch (error) {
+        // KeyAlreadyExists is expected - another passport with the same DS certificate
+        // was registered between our check and registration attempt. This is fine,
+        // we can proceed to identity registration.
+        if (error instanceof CertificateAlreadyRegisteredError) {
+          console.log(
+            '[CircomEPassport] Certificate already registered (race condition), continuing...',
+          )
+        } else {
+          throw error
+        }
+      }
+
+      // After registration (or if already registered), fetch fresh proof with existence=true
+      console.log('[CircomEPassport] Fetching fresh SMT proof after certificate registration...')
+      slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
         eDocument.sod.slaveCertificate,
-        slaveMaster,
       )
+      console.log('[CircomEPassport] Fresh proof existence:', slaveCertSmtProof.existence)
+      console.log('[CircomEPassport] Fresh proof root:', slaveCertSmtProof.root)
     }
 
     const circuit = new CircomEPassportBasedRegistrationCircuit(eDocument)

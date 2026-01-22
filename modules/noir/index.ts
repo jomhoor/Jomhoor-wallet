@@ -122,7 +122,48 @@ export class NoirCircuitParams {
       throw new Error('Trusted setup not found. Please download it first.')
     }
 
-    const proof: string = await NoirModule.provePlonk(trustedSetupUri, inputs, byteCodeString)
+    console.log(`[NoirCircuitParams] Starting proof for ${this.name}`)
+    console.log(`[NoirCircuitParams] Trusted setup URI: ${trustedSetupUri}`)
+    console.log(`[NoirCircuitParams] ByteCode length: ${byteCodeString.length}`)
+    console.log(`[NoirCircuitParams] Inputs length: ${inputs.length}`)
+
+    // Parse and validate the bytecode manifest
+    try {
+      const manifest = JSON.parse(byteCodeString)
+      if (manifest.abi?.parameters) {
+        console.log('[NoirCircuitParams] Circuit ABI parameters:')
+        manifest.abi.parameters.forEach((param: any) => {
+          const length = param.type?.length ?? 1 // Use ?? to preserve 0
+          console.log(`  - ${param.name}: ${param.type?.kind} of ${length}`)
+        })
+      }
+    } catch (e) {
+      console.warn('[NoirCircuitParams] Could not parse bytecode manifest:', e)
+    }
+
+    // Parse inputs to log actual sizes
+    try {
+      const parsedInputs = JSON.parse(inputs)
+      console.log('[NoirCircuitParams] Actual input sizes:')
+      for (const [key, value] of Object.entries(parsedInputs)) {
+        const size = Array.isArray(value) ? value.length : 1
+        console.log(`  - ${key}: ${size}`)
+      }
+    } catch (e) {
+      console.warn('[NoirCircuitParams] Could not parse inputs:', e)
+    }
+
+    console.log('[NoirCircuitParams] About to call native provePlonk...')
+    console.log('[NoirCircuitParams] trustedSetupUri:', trustedSetupUri)
+
+    let proof: string
+    try {
+      proof = await NoirModule.provePlonk(trustedSetupUri, inputs, byteCodeString)
+      console.log('[NoirCircuitParams] Native provePlonk returned successfully')
+    } catch (nativeError) {
+      console.error('[NoirCircuitParams] Native provePlonk FAILED:', nativeError)
+      throw nativeError
+    }
 
     if (!proof) {
       throw new Error(`Failed to generate proof for noir circuit ${this.name}`)
@@ -171,6 +212,21 @@ const supportedNoirCircuits: NoirCircuitParams[] = [
   new NoirLocalCircuitParams(
     'registerIdentity_inid_ca',
     () => require('@assets/circuits/noir/register/inid/byte_code.json'),
+    5,
+  ),
+  // German passport: brainpoolP384r1 ECDSA with SHA384 DG hash and SHA512 signature
+  // This is a custom circuit for German passports that use different hash algorithms
+  // for data groups (SHA384) and signature verification (SHA512)
+  new NoirLocalCircuitParams(
+    'registerIdentity_25_384_512_3_3_336_232_NA',
+    () => require('@assets/circuits/noir/register/registerIdentity_25_384_512_3_3_336_232_NA.json'),
+    5,
+  ),
+  // German passport: brainpoolP384r1 ECDSA with SHA384 (standard circuit - NOT for German passports)
+  // Note: This circuit assumes DG_HASH_ALGO == HASH_ALGO which is incorrect for German passports
+  new NoirCircuitParams(
+    'registerIdentity_25_384_3_3_336_232_NA',
+    'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.15/registerIdentity_25_384_3_3_336_232_NA.json',
     5,
   ),
   new NoirCircuitParams(

@@ -22,15 +22,26 @@ public class Swoirenberg: SwoirCore.SwoirBackendProtocol {
 
         if bytecode.isEmpty { throw SwoirCore.SwoirBackendError.emptyBytecode }
         if witnessMap.isEmpty { throw SwoirCore.SwoirBackendError.emptyWitnessMap }
+        
+        print("[Swoirenberg] prove() called with \(witnessMap.count) witness values, bytecode size: \(bytecode.count)")
+        print("[Swoirenberg] First 10 witness values: \(witnessMap.prefix(10))")
+        print("[Swoirenberg] Last 10 witness values: \(witnessMap.suffix(10))")
+        
         let bytecodeBase64 = bytecode.base64EncodedString()
         let witnessMapRustVec = RustVec<RustString>()
         for witness in witnessMap {
             witnessMapRustVec.push(value: witness.intoRustString())
         }
+        
+        print("[Swoirenberg] Calling Rust prove_swift with proof_type=\(proof_type)")
 
         guard let proofResult = prove_swift(bytecodeBase64.intoRustString(), witnessMapRustVec, proof_type.intoRustString(), recursive) else {
-          throw SwoirCore.SwoirBackendError.errorProving("Error generating proof")
+          print("[Swoirenberg] prove_swift returned nil - proof generation failed in Rust backend")
+          throw SwoirCore.SwoirBackendError.errorProving("Rust backend prove_swift returned nil. Possible causes: witness values out of range, input count mismatch, or circuit constraint violation.")
         }
+        
+        print("[Swoirenberg] Proof generated successfully! proof size: \(proofResult.proof_data_len()), vkey size: \(proofResult.vkey_data_len())")
+        
         let proof = SwoirCore.Proof(
             proof: Data(bytes: proofResult.proof_data_ptr(), count: Int(proofResult.proof_data_len())),
             vkey: Data(bytes: proofResult.vkey_data_ptr(), count: Int(proofResult.vkey_data_len())))

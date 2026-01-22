@@ -137,7 +137,7 @@ public class PassportReaderModule: Module {
       var dataGroups: [String: Any] = [
         "dg1": Data(dg1.data).hexEncodedString(),
         "dg2Hash": dg2Hash,
-        "sod": Data(sod.body).hexEncodedString()
+        "sod": Data(sod.data).hexEncodedString()  // Use .data not .body for full ASN.1 wrapper
       ]
       
       if let dg15 = dg15Hex {

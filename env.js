@@ -78,7 +78,7 @@ const getSecretWithSuffix = name => {
  */
 
 const client = z.object({
-  APP_ENV: z.enum(['development', 'staging', 'production']),
+  APP_ENV: z.enum(['development', 'staging', 'production', 'local']),
   NAME: z.string(),
   SLUG: z.string(),
   SCHEME: z.string(),
@@ -98,6 +98,9 @@ const client = z.object({
 
   IPFS_NODE_URL: z.string(),
   POINTS_SVC_ID: z.string(),
+
+  // Local development - optional RPC URL for device testing (can't use localhost from physical device)
+  LOCAL_RPC_URL: z.string().optional(),
 })
 
 const buildTime = z.object({
@@ -131,6 +134,9 @@ const _clientEnv = {
   NOIR_ID_VOTING_CONTRACT: process.env.EXPO_PUBLIC_NOIR_ID_VOTING_CONTRACT,
   POINTS_SVC_ID: process.env.EXPO_PUBLIC_POINTS_SVC_ID,
   IPFS_NODE_URL: process.env.EXPO_PUBLIC_IPFS_NODE_URL,
+
+  // Local development
+  LOCAL_RPC_URL: process.env.EXPO_PUBLIC_LOCAL_RPC_URL,
 }
 
 /**

@@ -4,8 +4,10 @@ import { useCallback } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
-import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-eid'
-import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
+import {
+  getRegistrationStrategy,
+  getRegistrationStrategyByDocType,
+} from '@/api/modules/registration/strategy-factory'
 import { ErrorHandler } from '@/core'
 import { tryCatch } from '@/helpers/try-catch'
 import { identityStore } from '@/store/modules/identity'
@@ -91,17 +93,6 @@ export function useDocumentScanContext() {
   return useContext(documentScanContext)
 }
 
-// Registration strategies for different document types
-const eidRegistrationStrategy = new NoirEIDRegistration()
-const passportRegistrationStrategy = new NoirEPassportRegistration()
-
-function getRegistrationStrategy(docType?: DocType) {
-  if (docType === DocType.PASSPORT) {
-    return passportRegistrationStrategy
-  }
-  return eidRegistrationStrategy
-}
-
 export function ScanContextProvider({
   docType,
   children,
@@ -156,8 +147,10 @@ export function ScanContextProvider({
 
     setCurrentStep(Steps.GenerateProofStep)
 
-    // Get the appropriate registration strategy based on document type
-    const registrationStrategy = getRegistrationStrategy(selectedDocType)
+    // Get the appropriate registration strategy based on the document's cryptographic properties
+    // This analyzes the signature algorithm and chooses Circom (RSA) or Noir (ECDSA)
+    const { strategy: registrationStrategy, description } = getRegistrationStrategy(tempEDoc)
+    console.log(`[CircuitDetection] Selected strategy: ${description}`)
 
     const [identityItem, registrationError] = await tryCatch(
       registrationStrategy.createIdentity(tempEDoc as EPassport, privateKey, publicKeyHash, {
@@ -192,7 +185,7 @@ export function ScanContextProvider({
     setIdentity(identityItem)
 
     setCreatingIdentityStep(GenProofSteps.Final)
-  }, [addIdentity, privateKey, publicKeyHash, selectedDocType, tempEDoc])
+  }, [addIdentity, privateKey, publicKeyHash, tempEDoc])
 
   // ---------------------------------------------------------------------------------------------
 

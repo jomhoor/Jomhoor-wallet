@@ -23,6 +23,11 @@ public class NoirModule: Module {
         ])
       }
 
+      print("[NoirModule] provePlonk called")
+      print("[NoirModule] SRS path: \(srsPath)")
+      print("[NoirModule] Manifest JSON length: \(manifestJson.count)")
+      print("[NoirModule] Inputs JSON length: \(inputsJson.count)")
+
       // Ensure valid manifest JSON
       guard let manifestData = manifestJson.data(using: .utf8) else {
         throw NSError(domain: "NoirModule", code: 2, userInfo: [
@@ -30,9 +35,17 @@ public class NoirModule: Module {
         ])
       }
 
+      print("[NoirModule] Creating circuit from manifest...")
+      
       // Create circuit and initialize SRS
       let circuit = try Swoir(backend: Swoirenberg.self).createCircuit(manifest: manifestData)
+      
+      print("[NoirModule] Circuit created, bytecode size: \(circuit.bytecode.count)")
+      print("[NoirModule] Setting up SRS...")
+      
       try circuit.setupSrs(srs_path: srsPath)
+      
+      print("[NoirModule] SRS setup complete, num_points: \(circuit.num_points)")
 
       // Parse input values
       guard let inputsData = inputsJson.data(using: .utf8),
@@ -63,14 +76,43 @@ public class NoirModule: Module {
 
       // Generate proof
       do {
+        print("[NoirModule] ========================================")
+        print("[NoirModule] Starting proof generation...")
+        print("[NoirModule] Bytecode size: \(circuit.bytecode.count) bytes")
+        print("[NoirModule] Manifest hash: \(circuit.manifest.hash)")
+        print("[NoirModule] SRS points: \(circuit.num_points)")
+        print("[NoirModule] ========================================")
+        
+        print("[NoirModule] Inputs to be passed to circuit:")
+        for (key, value) in inputsMap {
+          if let arrayValue = value as? [Any] {
+            print("  \(key): array of \(arrayValue.count) elements")
+          } else {
+            print("  \(key): \(value)")
+          }
+        }
+        print("[NoirModule] ========================================")
+        print("[NoirModule] About to call circuit.prove()...")
+        
         let proof = try circuit.prove(inputsMap, proof_type: "plonk")
 
-        print("Generated proof: \(proof)")
+        print("[NoirModule] Generated proof successfully: \(proof.proof.count) bytes")
         let hexProof = proof.proof.map { String(format: "%02x", $0) }.joined()
 
         return hexProof
+      } catch let swoirError as SwoirError {
+        print("[NoirModule] SwoirError: \(swoirError)")
+        throw NSError(domain: "NoirModule", code: 10, userInfo: [
+          NSLocalizedDescriptionKey: "Swoir error: \(swoirError)"
+        ])
+      } catch let swoirBackendError as SwoirCore.SwoirBackendError {
+        print("[NoirModule] SwoirBackendError: \(swoirBackendError)")
+        throw NSError(domain: "NoirModule", code: 11, userInfo: [
+          NSLocalizedDescriptionKey: "Swoir backend error: \(swoirBackendError)"
+        ])
       } catch {
-        print("Error generating proof: \(error)")
+        print("[NoirModule] Unknown error generating proof: \(error)")
+        print("[NoirModule] Error type: \(type(of: error))")
         throw error
       }
     }

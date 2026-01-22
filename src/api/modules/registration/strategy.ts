@@ -1,4 +1,4 @@
-import { buildCertTreeAndGenProof, parsePemString } from '@lukachi/rn-csca'
+import { buildCertTreeAndGenProof, buildCertTreeRoot, parsePemString } from '@lukachi/rn-csca'
 import {
   ECParameters,
   id_ecdsaWithSHA1,
@@ -24,6 +24,7 @@ import { AxiosError } from 'axios'
 import {
   encodeBytes32String,
   getBytes,
+  Interface,
   JsonRpcProvider,
   keccak256,
   toBeArray,
@@ -84,9 +85,78 @@ export abstract class RegistrationStrategy {
   }
 
   public static getSlaveCertSmtProof = async (cert: ExtendedCertificate) => {
-    return RegistrationStrategy.certPoseidonSMTContract.contractInstance.getProof(
-      zeroPadValue(cert.slaveCertificateIndex, 32),
+    const key = zeroPadValue(cert.slaveCertificateIndex, 32)
+    console.log('[getSlaveCertSmtProof] Looking up key:', key)
+    const proof = await RegistrationStrategy.certPoseidonSMTContract.contractInstance.getProof(key)
+    console.log('[getSlaveCertSmtProof] Proof existence:', proof.existence, 'root:', proof.root)
+    console.log('[getSlaveCertSmtProof] Siblings count:', proof.siblings?.length ?? 0)
+    console.log('[getSlaveCertSmtProof] First 5 siblings:', proof.siblings?.slice(0, 5))
+    console.log(
+      '[getSlaveCertSmtProof] Non-zero siblings count:',
+      proof.siblings?.filter(
+        (s: string) =>
+          s !== '0x0000000000000000000000000000000000000000000000000000000000000000' && s !== '0',
+      ).length ?? 0,
     )
+    return proof
+  }
+
+  /**
+   * Add a synthetic root to the PoseidonSMTMock contract for local testing.
+   * This is required for Noir ECDSA passports where the circuit computes pk_hash differently
+   * than the on-chain SMT. The synthetic root must be marked as valid before the registration
+   * transaction is submitted.
+   *
+   * NOTE: This only works on local Hardhat with PoseidonSMTMock deployed.
+   * On mainnet/testnet, this will fail (and shouldn't be called).
+   *
+   * @param syntheticRoot The synthetic SMT root computed for Noir circuit
+   */
+  public static addSyntheticRootToMockSMT = async (syntheticRoot: string): Promise<void> => {
+    console.log('[addSyntheticRootToMockSMT] Adding synthetic root to mock SMT:', syntheticRoot)
+
+    // Check if we're on a local chain (31337 is Hardhat's chain ID)
+    if (Config.RMO_CHAIN_ID !== 31337) {
+      console.log('[addSyntheticRootToMockSMT] Not on local chain, skipping mock root addition')
+      return
+    }
+
+    try {
+      // Encode the mockRoot(bytes32) function call
+      const mockSMTInterface = new Interface(['function mockRoot(bytes32 newRoot_) external'])
+      const calldata = mockSMTInterface.encodeFunctionData('mockRoot', [syntheticRoot])
+
+      // Get the funded Hardhat account to send the transaction
+      // Account #0: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+      const hardhatSigner = {
+        address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+        privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      }
+
+      // Send transaction directly via JSON-RPC
+      const provider = RegistrationStrategy.rmoEvmJsonRpcProvider
+      const nonce = await provider.getTransactionCount(hardhatSigner.address)
+
+      const tx = {
+        to: Config.CERT_POSEIDON_SMT_CONTRACT_ADDRESS,
+        from: hardhatSigner.address,
+        data: calldata,
+        nonce,
+        gasLimit: 100000,
+      }
+
+      // Use eth_sendTransaction with impersonation for local testing
+      const txHash = await provider.send('eth_sendTransaction', [tx])
+      console.log('[addSyntheticRootToMockSMT] Transaction submitted:', txHash)
+
+      // Wait for confirmation
+      const receipt = await provider.waitForTransaction(txHash)
+      console.log('[addSyntheticRootToMockSMT] Transaction confirmed, status:', receipt?.status)
+    } catch (error) {
+      console.error('[addSyntheticRootToMockSMT] Failed to add synthetic root:', error)
+      // Don't throw - this is best-effort for local testing
+      // On mainnet the synthetic root approach won't work anyway
+    }
   }
 
   public static getCircuitHashAlgorithm(certificate: Certificate): string {
@@ -145,6 +215,14 @@ export abstract class RegistrationStrategy {
     cert: ExtendedCertificate,
     masterCert: Certificate,
   ) => {
+    // DEBUG: Log the computed ICAO root from the library
+    const computedRoot = buildCertTreeRoot(CSCABytes)
+    console.log('[ICAO DEBUG] Number of certificates:', CSCABytes.length)
+    console.log('[ICAO DEBUG] Computed ICAO root from rn-csca:', computedRoot)
+    console.log(
+      '[ICAO DEBUG] Expected on-chain root: 0x8aebf998f59217b9031787c29c6ea8db762e58ccc45146bc1218bbcabc8fd775',
+    )
+
     const inclusionProofSiblings = buildCertTreeAndGenProof(
       CSCABytes,
       AsnConvert.serialize(masterCert),
@@ -223,7 +301,8 @@ export abstract class RegistrationStrategy {
 
         const bits = pubKeyBytes.length * 8
 
-        let dispatcherName = `C_ECDSA_${masterCertCurveName}`
+        // Uppercase the curve name to match contract dispatcher naming convention
+        let dispatcherName = `C_ECDSA_${masterCertCurveName.toUpperCase()}`
 
         const circuitHashAlgorithm = RegistrationStrategy.getCircuitHashAlgorithm(cert.certificate)
         if (circuitHashAlgorithm) {
@@ -232,13 +311,16 @@ export abstract class RegistrationStrategy {
 
         dispatcherName += `_${bits}`
 
+        console.log('[Dispatcher] ECDSA dispatcher name:', dispatcherName)
         return dispatcherName
       }
 
       throw new Error(`unsupported public key type: ${masterSubjPubKeyAlg}`)
     })()
 
+    console.log('[Dispatcher] Final dispatcher name:', dispatcherName)
     const dispatcherHash = getBytes(keccak256(Buffer.from(dispatcherName, 'utf-8')))
+    console.log('[Dispatcher] Dispatcher hash:', Buffer.from(dispatcherHash).toString('hex'))
 
     const certificate: Registration2.CertificateStruct = {
       dataType: dispatcherHash,
@@ -269,22 +351,29 @@ export abstract class RegistrationStrategy {
         slaveMaster,
       )
 
+      console.log('[registerCertificate] Submitting to relayer...')
       const { data } = await relayerRegister(callData, Config.REGISTRATION_CONTRACT_ADDRESS)
+      console.log('[registerCertificate] Relayer responded with tx_hash:', data.tx_hash)
 
       const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
 
       if (!tx) throw new TypeError('Transaction not found')
 
+      console.log('[registerCertificate] Waiting for transaction confirmation...')
       await tx.wait()
+      console.log('[registerCertificate] Certificate registered successfully!')
     } catch (error) {
       const axiosError = error as AxiosError
 
       const stringifiedError = JSON.stringify(axiosError.response?.data)
+      console.log('[registerCertificate] Error:', stringifiedError || error)
 
+      // Handle "certificate already registered" - this is expected when someone else
+      // with the same DS certificate registered before us. One DS cert signs thousands
+      // of passports, so KeyAlreadyExists is a success case - just skip to identity registration.
       if (
-        stringifiedError?.includes('the key already exists') &&
-        // TODO: remove once contracts got fixed
-        stringifiedError?.includes('code = Unknown desc = execution reverted')
+        stringifiedError?.includes('KeyAlreadyExists') ||
+        stringifiedError?.includes('the key already exists')
       ) {
         throw new CertificateAlreadyRegisteredError()
       }

@@ -1,6 +1,7 @@
 import { keccak256 } from 'ethers'
 
 import { RegistrationStrategy } from '@/api/modules/registration/strategy'
+import { CertificateAlreadyRegisteredError } from '@/store/modules/identity/errors'
 import { IdentityItem, NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import { SparseMerkleTree } from '@/types/contracts/PoseidonSMT'
 import { Registration2 } from '@/types/contracts/Registration'
@@ -73,18 +74,35 @@ export class NoirEIDRegistration extends RegistrationStrategy {
 
     const slaveMaster = await eDocument.authCertificate.getSlaveMaster(CSCACertBytes)
 
-    const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
+    let slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
       eDocument.authCertificate,
     )
 
     if (!slaveCertSmtProof.existence) {
       opts?.onRegisterCertificate?.()
 
-      await RegistrationStrategy.registerCertificate(
-        CSCACertBytes,
-        eDocument.authCertificate,
-        slaveMaster,
-      )
+      try {
+        await RegistrationStrategy.registerCertificate(
+          CSCACertBytes,
+          eDocument.authCertificate,
+          slaveMaster,
+        )
+      } catch (error) {
+        // KeyAlreadyExists is expected - another ID card with the same DS certificate
+        // was registered between our check and registration attempt. This is fine,
+        // we can proceed to identity registration.
+        if (error instanceof CertificateAlreadyRegisteredError) {
+          console.log('[NoirEID] Certificate already registered (race condition), continuing...')
+        } else {
+          throw error
+        }
+      }
+
+      // After registration (or if already registered), fetch fresh proof with existence=true
+      console.log('[NoirEID] Fetching fresh SMT proof after certificate registration...')
+      slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(eDocument.authCertificate)
+      console.log('[NoirEID] Fresh proof existence:', slaveCertSmtProof.existence)
+      console.log('[NoirEID] Fresh proof root:', slaveCertSmtProof.root)
     }
 
     opts?.onGenerateProof?.()

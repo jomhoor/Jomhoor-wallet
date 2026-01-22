@@ -104,18 +104,42 @@ export function extractPubKey(spki: SubjectPublicKeyInfo): RSAPublicKey | ProjPo
 }
 
 export function extractRawPubKey(certificate: Certificate): Uint8Array {
-  const pubKey = extractPubKey(certificate.tbsCertificate.subjectPublicKeyInfo)
+  const spki = certificate.tbsCertificate.subjectPublicKeyInfo
+  const certPubKeyAlgo = spki.algorithm.algorithm
 
-  if (pubKey instanceof RSAPublicKey) {
-    const certPubKey = new Uint8Array(pubKey.modulus)
-
+  // RSA: just return the modulus (stripped of leading zero if present)
+  if (certPubKeyAlgo.includes(id_pkcs_1)) {
+    const rsa = AsnConvert.parse(spki.subjectPublicKey, RSAPublicKey)
+    const certPubKey = new Uint8Array(rsa.modulus)
     return certPubKey[0] === 0x00 ? certPubKey.slice(1) : certPubKey
   }
 
-  // ECDSA public key is a point on the curve
-  const certPubKey = new Uint8Array([...toBeArray(pubKey.px), ...toBeArray(pubKey.py)])
+  // ECDSA: need to properly pad coordinates to curve size
+  if (certPubKeyAlgo.includes(ECDSA_ALGO_PREFIX)) {
+    if (!spki.algorithm.parameters) throw new TypeError('ECDSA public key does not have parameters')
 
-  return certPubKey[0] === 0x00 ? certPubKey.slice(1) : certPubKey
+    const ecParameters = AsnConvert.parse(spki.algorithm.parameters, ECParameters)
+    const [publicKey, curve] = getPublicKeyFromEcParameters(
+      ecParameters,
+      new Uint8Array(spki.subjectPublicKey),
+    )
+
+    // Calculate coordinate byte length from curve order (n)
+    // This ensures proper size for P256 (32), P384 (48), P512 (64), etc.
+    const coordByteLength = Math.ceil(curve.CURVE.n.toString(16).length / 2)
+
+    // Pad each coordinate to the correct length (toBeArray strips leading zeros)
+    const xBytes = toBeArray(publicKey.px)
+    const yBytes = toBeArray(publicKey.py)
+    const paddedX = new Uint8Array(coordByteLength)
+    const paddedY = new Uint8Array(coordByteLength)
+    paddedX.set(xBytes, coordByteLength - xBytes.length)
+    paddedY.set(yBytes, coordByteLength - yBytes.length)
+
+    return new Uint8Array([...paddedX, ...paddedY])
+  }
+
+  throw new TypeError(`Unsupported public key algorithm: ${certPubKeyAlgo}`)
 }
 
 /**

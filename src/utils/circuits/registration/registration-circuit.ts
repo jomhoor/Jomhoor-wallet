@@ -116,7 +116,54 @@ export abstract class RegistrationCircuit {
 }
 
 export abstract class EPassportBasedRegistrationCircuit extends RegistrationCircuit {
+  /**
+   * Get the hash algorithm used for signing the signedAttributes.
+   *
+   * For most passports, this matches the digestAlgorithm in SignerInfo.
+   * For German passports (and similar), the signature algorithm (e.g., ecdsa-with-SHA512)
+   * may use a different hash than the digestAlgorithm (SHA384).
+   *
+   * We check the signatureAlgorithm OID to extract the correct hash.
+   */
   get sigAttrHashType() {
+    const sigAlgo = this.eDoc.sod.signatures[0].signatureAlgorithm.algorithm
+    const digestAlgo = this.eDoc.sod.signatures[0].digestAlgorithm
+
+    console.log('[sigAttrHashType] signatureAlgorithm.algorithm:', sigAlgo)
+    console.log('[sigAttrHashType] digestAlgorithm:', digestAlgo)
+    console.log(
+      '[sigAttrHashType] Full signature info:',
+      JSON.stringify(this.eDoc.sod.signatures[0], null, 2),
+    )
+
+    // ECDSA signature algorithm OIDs include the hash algorithm
+    // 1.2.840.10045.4.1    = ecdsa-with-SHA1
+    // 1.2.840.10045.4.3.1  = ecdsa-with-SHA224
+    // 1.2.840.10045.4.3.2  = ecdsa-with-SHA256
+    // 1.2.840.10045.4.3.3  = ecdsa-with-SHA384
+    // 1.2.840.10045.4.3.4  = ecdsa-with-SHA512
+    if (sigAlgo === '1.2.840.10045.4.3.4') {
+      // ecdsa-with-SHA512 - use SHA512 hash
+      return { algorithm: '2.16.840.1.101.3.4.2.3' } // id_sha512
+    }
+    if (sigAlgo === '1.2.840.10045.4.3.3') {
+      // ecdsa-with-SHA384
+      return { algorithm: '2.16.840.1.101.3.4.2.2' } // id_sha384
+    }
+    if (sigAlgo === '1.2.840.10045.4.3.2') {
+      // ecdsa-with-SHA256
+      return { algorithm: '2.16.840.1.101.3.4.2.1' } // id_sha256
+    }
+    if (sigAlgo === '1.2.840.10045.4.3.1') {
+      // ecdsa-with-SHA224
+      return { algorithm: '2.16.840.1.101.3.4.2.4' } // id_sha224
+    }
+    if (sigAlgo === '1.2.840.10045.4.1') {
+      // ecdsa-with-SHA1
+      return { algorithm: '1.3.14.3.2.26' } // id_sha1
+    }
+
+    // For RSA and other algorithms, fall back to digestAlgorithm
     return this.eDoc.sod.signatures[0].digestAlgorithm
   }
 
@@ -295,8 +342,38 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
   }
 
   get name(): string {
-    const dgHashTypeLen = HASH_ALGORITHMS[this.dgHashType.algorithm].len
-    const dgHashTypeLenBits = HASH_ALGORITHMS[this.dgHashType.algorithm].len * 8
+    const dgHashAlgo = HASH_ALGORITHMS[this.dgHashType.algorithm]
+    const sigHashAlgo = HASH_ALGORITHMS[this.sigAttrHashType.algorithm]
+
+    if (!dgHashAlgo) {
+      console.error('[CircuitName] Unknown DG hash algorithm:', this.dgHashType.algorithm)
+    }
+    if (!sigHashAlgo) {
+      console.error(
+        '[CircuitName] Unknown signature hash algorithm:',
+        this.sigAttrHashType.algorithm,
+      )
+    }
+
+    const dgHashTypeLen = dgHashAlgo?.len ?? 32
+    const dgHashTypeLenBits = dgHashTypeLen * 8
+
+    // Check if signature hash differs from DG hash (e.g., German passports use SHA512 for sig, SHA384 for DG)
+    const sigHashTypeLen = sigHashAlgo?.len ?? 32
+    const sigHashTypeLenBits = sigHashTypeLen * 8
+    const hasDifferentSigHash = sigHashTypeLen !== dgHashTypeLen
+
+    console.log('[CircuitName] DG hash:', {
+      algorithm: this.dgHashType.algorithm,
+      len: dgHashTypeLen,
+      bits: dgHashTypeLenBits,
+    })
+    console.log('[CircuitName] Sig hash:', {
+      algorithm: this.sigAttrHashType.algorithm,
+      len: sigHashTypeLen,
+      bits: sigHashTypeLenBits,
+    })
+    console.log('[CircuitName] Has different sig hash:', hasDifferentSigHash)
 
     const ecChunkNumber =
       dgHashTypeLen <= 32
@@ -305,6 +382,26 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
 
     const encapContentShiftBits = this.encapContentShift * 8
     const dg1DigestPositionShiftBits = this.dg1Shift * 8
+
+    // For passports with different DG hash and signature hash, use extended name format
+    // Format: registerIdentity_{sigType}_{dgHashBits}_{sigHashBits}_{docType}_{ecChunks}_{ecShift}_{dg1Shift}_NA
+    if (hasDifferentSigHash) {
+      console.log(
+        `[CircuitName] Different hash algorithms detected: DG=${dgHashTypeLenBits}bit, Sig=${sigHashTypeLenBits}bit`,
+      )
+      const extendedNameParts = [
+        this.prefixName,
+        this.sigType,
+        dgHashTypeLenBits,
+        sigHashTypeLenBits, // Include signature hash size
+        this.docType,
+        ecChunkNumber,
+        encapContentShiftBits,
+        dg1DigestPositionShiftBits,
+        'NA', // For now, only support no-AA variant
+      ]
+      return extendedNameParts.join('_')
+    }
 
     const defaultNameParts = [
       this.prefixName,
