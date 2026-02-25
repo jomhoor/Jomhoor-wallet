@@ -163,6 +163,17 @@ export class NoirEIDBasedRegistrationCircuit extends EIDBasedRegistrationCircuit
       sk_identity: skIdentity,
     }
 
+    console.log('[NoirEIDRegistration] Input summary:')
+    console.log('  tbs.length:', tbsInput.length)
+    console.log('  pk.length:', pk.length)
+    console.log('  reduction.length:', reduction.length)
+    console.log('  signature.length:', signature.length)
+    console.log('  len:', len)
+    console.log('  icao_root:', icao_root.toString().slice(0, 20) + '...')
+    console.log('  inclusion_branches.length:', inclusion_branches.length)
+    console.log('  sk_identity:', skIdentity.toString().slice(0, 20) + '...')
+    console.log('  tbsRaw.byteLength:', this.tbsRaw.byteLength)
+
     const [proof, getProofError] = await tryCatch(
       this.noirCircuitParams.prove(JSON.stringify(inputs), byteCode),
     )

@@ -18,6 +18,7 @@ import DocumentScanScreen from './pages/document-scan'
 import DocumentsScreen from './pages/documents'
 import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
+import ProposalsScreen from './pages/proposals'
 
 const Stack = createNativeStackNavigator<AppStackParamsList>()
 const Tab = createBottomTabNavigator<AppTabParamsList>()
@@ -53,6 +54,16 @@ function AppTabs({}: AppStackScreenProps<'Tabs'>) {
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <UiIcon libIcon='Fontisto' name='passport-alt' size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name='Proposals'
+        component={ProposalsScreen}
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <UiIcon libIcon='FontAwesome' name='list-ul' size={size} color={color} />
           ),
         }}
       />

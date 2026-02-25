@@ -63,14 +63,29 @@ public class NoirModule: Module {
 
       // Generate proof
       do {
+        print("[NoirModule] Attempting to prove with inputs keys: \(inputsMap.keys)")
+        // Log sample values for debugging
+        for (key, value) in inputsMap {
+          if let arr = value as? [Any] {
+            print("[NoirModule] Input \(key): array[\(arr.count)] first=\(arr.first ?? "nil"), last=\(arr.last ?? "nil")")
+          } else {
+            let strValue = String(describing: value)
+            print("[NoirModule] Input \(key): \(strValue.prefix(50))\(strValue.count > 50 ? "..." : "")")
+          }
+        }
         let proof = try circuit.prove(inputsMap, proof_type: "plonk")
 
-        print("Generated proof: \(proof)")
+        print("[NoirModule] Generated proof: \(proof)")
         let hexProof = proof.proof.map { String(format: "%02x", $0) }.joined()
 
         return hexProof
+      } catch let error as NSError {
+        print("[NoirModule] Error generating proof - domain: \(error.domain), code: \(error.code)")
+        print("[NoirModule] Error description: \(error.localizedDescription)")
+        print("[NoirModule] Error userInfo: \(error.userInfo)")
+        throw error
       } catch {
-        print("Error generating proof: \(error)")
+        print("[NoirModule] Unknown error generating proof: \(error)")
         throw error
       }
     }

@@ -21,11 +21,8 @@ const useIdentityStore = create(
         },
 
         addIdentity: (item: IdentityItem) => {
-          const newIdentities = get().identities
-          newIdentities.push(item)
-
           set({
-            identities: newIdentities,
+            identities: [...get().identities, item],
           })
         },
         clearIdentities: () => set({ identities: [] }),

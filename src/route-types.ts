@@ -55,6 +55,7 @@ export type AppStackScreenProps<T extends keyof AppStackParamsList> = NativeStac
 export type AppTabParamsList = {
   Documents: undefined
   Home: undefined
+  Proposals: undefined
   Profile: undefined
   PassportTests: undefined
 }

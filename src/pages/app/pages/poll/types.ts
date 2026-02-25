@@ -6,7 +6,7 @@ export interface ParsedContractProposal {
   startTimestamp: number
   duration: number
   voteResults: number[][]
-  votingWhitelistData: DecodedWhitelistData
+  votingWhitelistData: DecodedWhitelistData | null
   rawProposal: ProposalsState.ProposalInfoStructOutput
 }
 export interface ProposalMetadata {

@@ -78,7 +78,7 @@ const getSecretWithSuffix = name => {
  */
 
 const client = z.object({
-  APP_ENV: z.enum(['development', 'staging', 'production']),
+  APP_ENV: z.enum(['development', 'staging', 'production', 'local']),
   NAME: z.string(),
   SLUG: z.string(),
   SCHEME: z.string(),

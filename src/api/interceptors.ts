@@ -60,7 +60,7 @@ export const initInterceptors = () => {
 
       const accessToken = getAccessToken()
 
-      if (error.response.status === 401 && !originalRequest._retry && accessToken) {
+      if (error.response?.status === 401 && !originalRequest._retry && accessToken) {
         originalRequest._retry = true // Mark the request as retried to avoid infinite loops.
 
         try {

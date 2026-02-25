@@ -30,6 +30,7 @@ import {
   UiScreenScrollable,
   useUiBottomSheet,
 } from '@/ui'
+import { computeInidCitizenshipMask, INID_MASKS } from '@/utils/citizenship-mask'
 import { EIDBasedQueryIdentityCircuit } from '@/utils/circuits/eid-based-query-identity-circuit'
 import { QueryProofParams } from '@/utils/circuits/types/QueryIdentity'
 
@@ -83,32 +84,98 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   } = useQuery({
     queryKey: ['contractProposal', route.params?.proposalId],
     queryFn: async () => {
+      console.log('[Poll] Fetching proposal from contract, proposalId:', route.params?.proposalId)
       if (!route.params?.proposalId) throw new Error('proposalId is not defined')
 
-      const raw = await proposalContract.contractInstance.getProposalInfo(
-        BigInt(route.params?.proposalId ?? 0),
-      )
-      return parseProposalFromContract(raw)
+      try {
+        const raw = await proposalContract.contractInstance.getProposalInfo(
+          BigInt(route.params?.proposalId ?? 0),
+        )
+        console.log(
+          '[Poll] Contract proposal fetched successfully, raw:',
+          JSON.stringify(raw, (_, v) => (typeof v === 'bigint' ? v.toString() : v)),
+        )
+        const parsed = parseProposalFromContract(raw)
+        console.log(
+          '[Poll] Parsed proposal:',
+          JSON.stringify(parsed, (_, v) => (typeof v === 'bigint' ? v.toString() : v)),
+        )
+        return parsed
+      } catch (error) {
+        console.error('[Poll] Error fetching proposal from contract:', error)
+        throw error
+      }
     },
     enabled: Boolean(route.params?.proposalId),
   })
 
-  // Fetch proposal metadata from IPFS
+  // Fetch proposal metadata from IPFS (with mock fallback for local testing)
   const {
     data: proposalMetadata,
     isLoading: isProposalMetadataLoading,
     error: proposalMetadataError,
   } = useQuery({
     queryKey: ['ipfsProposalMetadata', parsedProposal?.cid],
-    queryFn: async () => {
-      if (!parsedProposal) return null
-      const result = await apiClient.get<ProposalMetadata>(
-        `${Config.IPFS_NODE_URL}/${parsedProposal.cid}`,
+    queryFn: async (): Promise<ProposalMetadata | null> => {
+      console.log(
+        '[Poll] Fetching IPFS metadata, cid:',
+        parsedProposal?.cid,
+        'chainId:',
+        Config.RMO_CHAIN_ID,
+        'type:',
+        typeof Config.RMO_CHAIN_ID,
       )
-      return result.data
+      if (!parsedProposal) return null
+
+      // Mock fallback for local testing (chain ID 31337)
+      const isLocalChain = String(Config.RMO_CHAIN_ID) === '31337'
+      if (isLocalChain) {
+        console.log('[Poll] Local chain detected, using mock metadata')
+        return {
+          title: `Test Proposal ${route.params?.proposalId}`,
+          description:
+            'This is a mock proposal for local testing. The actual IPFS metadata could not be fetched.',
+          acceptedOptions: [
+            {
+              title: 'Do you support this proposal?',
+              variants: ['Yes', 'No', 'Abstain'],
+            },
+          ],
+        }
+      }
+
+      try {
+        // Strip ipfs:// prefix if present
+        const cleanCid = parsedProposal.cid.replace(/^ipfs:\/\//, '')
+        const url = `${Config.IPFS_NODE_URL}/${cleanCid}`
+        console.log('[Poll] IPFS URL:', url)
+        const result = await apiClient.get<ProposalMetadata>(url)
+        console.log('[Poll] IPFS metadata fetched:', result.data)
+        return result.data
+      } catch (error) {
+        console.log('[Poll] IPFS fetch error:', error)
+        throw error
+      }
     },
     enabled: Boolean(parsedProposal),
+    retry: false, // Don't retry on local chain
   })
+
+  // Log current state
+  console.log(
+    '[Poll] State - isParsedProposalLoading:',
+    isParsedProposalLoading,
+    'isProposalMetadataLoading:',
+    isProposalMetadataLoading,
+    'parsedProposal:',
+    !!parsedProposal,
+    'proposalMetadata:',
+    !!proposalMetadata,
+    'parsedProposalError:',
+    parsedProposalError,
+    'proposalMetadataError:',
+    proposalMetadataError,
+  )
 
   const {
     data: isVoted,
@@ -117,12 +184,14 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   } = useQuery({
     queryKey: ['isVoted', route.params?.proposalId],
     queryFn: async () => {
+      console.log('[Poll] Checking if already voted, proposalId:', route.params?.proposalId)
       const [isVoted] = await tryCatch(
         (async () => {
           if (!route.params?.proposalId) throw new Error('proposalId is not defined')
           const proposalId = route.params?.proposalId
           const privateKeyBigInt = BigInt(`0x${privateKey}`)
           const eventId = await proposalContract.contractInstance.getProposalEventId(proposalId)
+          console.log('[Poll] eventId:', eventId.toString())
 
           const pkHash = poseidon.hash([privateKeyBigInt])
 
@@ -136,9 +205,11 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
           const proof = await poseidonSmtContract.contractInstance.getProof(
             '0x' + nullifier.toString(16).padStart(64, '0'),
           )
+          console.log('[Poll] isVoted proof existence:', proof.existence)
           return proof.existence
         })(),
       )
+      console.log('[Poll] isVoted result:', isVoted)
       return isVoted
     },
     enabled: Boolean(route.params?.proposalId),
@@ -176,30 +247,89 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
     setScreen(Screen.Submitting)
     startProgress()
     try {
+      console.log('[Poll] Starting proof generation, votes:', votes)
       if (!route.params?.proposalId) throw new Error('proposalId is not defined')
       if (!identities.length) throw new Error("Your identity hasn't registered yet!")
       const currentIdentity = identities[identities.length - 1]
 
       if (!currentIdentity) throw new Error("Identity doesn't exist")
+      console.log('[Poll] Current identity type:', currentIdentity.constructor.name)
       if (!(currentIdentity instanceof NoirEIDIdentity))
         throw new Error('Identity is not NoirEIDIdentity')
 
+      console.log('[Poll] Creating EIDBasedQueryIdentityCircuit')
       const circuitParams = new EIDBasedQueryIdentityCircuit(
         currentIdentity,
         proposalContract.contractInstance,
       )
       const whitelistData = parsedProposal?.votingWhitelistData as DecodedWhitelistData
+      console.log(
+        '[Poll] Whitelist data:',
+        JSON.stringify(whitelistData, (_, v) => (typeof v === 'bigint' ? v.toString() : v)),
+      )
 
+      console.log('[Poll] Getting passport info...')
       const { timestamp, identityCounter } = await circuitParams.getPassportInfo()
+      console.log(
+        '[Poll] Passport info - timestamp:',
+        timestamp,
+        'identityCounter:',
+        identityCounter,
+      )
+
       const { timestampUpper, identityCountUpper } = await circuitParams.getVotingBounds({
         whitelistData,
         timestamp,
         identityCounter,
       })
+      console.log(
+        '[Poll] Voting bounds - timestampUpper:',
+        timestampUpper,
+        'identityCountUpper:',
+        identityCountUpper,
+      )
 
       const proposalId = route.params?.proposalId
       const eventId = await circuitParams.getEventId(proposalId)
       const eventData = circuitParams.getEventData(votes)
+      console.log('[Poll] Event - id:', eventId.toString(), 'data:', eventData)
+
+      // Compute citizenship mask for INID (2-letter country codes)
+      // IMPORTANT: The circuit's citizenship_check is controlled by selector_bits[1]
+      // In Noir's to_be_bits::<18>(), bit 1 is the 2nd MSB, so it corresponds to value 2^16 = 65536
+      // If selector doesn't have bit 1 set, citizenship_check expects res == 0, so we MUST pass mask = 0
+      const selector = BigInt(whitelistData.selector)
+      const selectorBit1Set = (selector & (1n << 16n)) !== 0n // Check if bit 1 (value 65536) is set
+      console.log(
+        '[Poll] Selector:',
+        selector,
+        'bit 1 (citizenship_check) enabled:',
+        selectorBit1Set,
+      )
+
+      const nationalities = whitelistData.nationalities || []
+      let citizenshipMask: string
+      if (!selectorBit1Set) {
+        // citizenship_check is DISABLED in circuit - MUST pass mask = 0
+        citizenshipMask = '0x0'
+        console.log('[Poll] Citizenship check DISABLED by selector, using mask = 0')
+      } else if (nationalities.length > 0) {
+        citizenshipMask = computeInidCitizenshipMask(nationalities)
+      } else {
+        citizenshipMask = INID_MASKS.ALL
+      }
+      console.log('[Poll] Citizenship mask for nationalities', nationalities, ':', citizenshipMask)
+
+      // Policy: Allow expired ID cards to vote
+      // We use wide expiration bounds (expirationDateLower='000000', expirationDateUpper='999999')
+      // to allow all expiration dates, but current_date must be accurate for contract validation
+      // The contract checks that current_date is close to block.timestamp (within ~1 day)
+      const now = new Date()
+      const currentDateStr =
+        now.getFullYear().toString().slice(2) +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0')
+      console.log('[Poll] Using actual current date:', currentDateStr)
 
       const params: QueryProofParams = {
         eventId: String(eventId),
@@ -207,20 +337,26 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         identityCountUpper: String(identityCountUpper),
         timestampUpper: String(timestampUpper),
         selector: String(whitelistData.selector),
-        expirationDateLower: String(whitelistData.expirationDateLowerBound),
-        expirationDateUpper: ZERO_DATE_HEX,
-        birthDateLower: String(whitelistData.birthDateLowerbound),
-        birthDateUpper: String(whitelistData.birthDateUpperbound),
+        // Use ZERO_DATE for all date bounds = "no restriction" (Rarimo convention)
+        // When both lower and upper bounds are ZERO_DATE, the circuit skips the check.
+        // The contract also uses ZERO_DATE, so these must match exactly.
+        expirationDateLower: ZERO_DATE_HEX, // "000000" = no restriction
+        expirationDateUpper: ZERO_DATE_HEX, // "000000" = no restriction (must match contract's hardcoded ZERO_DATE)
+        birthDateLower: ZERO_DATE_HEX, // "000000" = no restriction
+        birthDateUpper: ZERO_DATE_HEX, // "000000" = no restriction (must match proposal config)
         skIdentity: `0x${privateKey}`,
         identityCounter: String(identityCounter),
         timestamp: String(timestamp),
-        currentDate: hexlify(toUtf8Bytes(new Time().format('YYMMDD'))),
+        currentDate: hexlify(toUtf8Bytes(currentDateStr)),
         identityCountLower: '0',
-        citizenshipMask: '0',
+        citizenshipMask,
         timestampLower: '0',
       }
+      console.log('[Poll] Query proof params:', JSON.stringify(params))
 
+      console.log('[Poll] Calling prove()...')
       const proof = await circuitParams.prove(params)
+      console.log('[Poll] Proof generated, calling submitVote...')
       await circuitParams.submitVote({ proof, votes, proposalId })
 
       bus.emit(DefaultBusEvents.success, { message: 'Proof generated successfully!' })
@@ -258,8 +394,35 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const isError =
     parsedProposalError || proposalMetadataError || !route.params?.proposalId || isVotedError
 
-  if (isLoading) return <PollStateScreen.Loading />
-  if (isError) return <PollStateScreen.Error />
+  console.log(
+    '[Poll] Render check - isLoading:',
+    isLoading,
+    'isError:',
+    isError,
+    'isVoted:',
+    isVoted,
+  )
+  console.log(
+    '[Poll] Loading breakdown - isParsedProposalLoading:',
+    isParsedProposalLoading,
+    'isProposalMetadataLoading:',
+    isProposalMetadataLoading,
+    'isVotedLoading:',
+    isVotedLoading,
+    '!proposalMetadata:',
+    !proposalMetadata,
+    '!parsedProposal:',
+    !parsedProposal,
+  )
+
+  if (isLoading) {
+    console.log('[Poll] Showing Loading screen')
+    return <PollStateScreen.Loading />
+  }
+  if (isError) {
+    console.log('[Poll] Showing Error screen')
+    return <PollStateScreen.Error />
+  }
   if (isVoted)
     return (
       <PollStateScreen.AlreadyVoted

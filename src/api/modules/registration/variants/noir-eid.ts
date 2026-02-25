@@ -77,6 +77,10 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       eDocument.authCertificate,
     )
 
+    console.log('[NoirEID] slaveCertSmtProof.existence:', slaveCertSmtProof.existence)
+    console.log('[NoirEID] slaveCertSmtProof.root:', slaveCertSmtProof.root)
+    console.log('[NoirEID] slaveCertSmtProof.siblings.length:', slaveCertSmtProof.siblings.length)
+
     if (!slaveCertSmtProof.existence) {
       opts?.onRegisterCertificate?.()
 
@@ -85,6 +89,16 @@ export class NoirEIDRegistration extends RegistrationStrategy {
         eDocument.authCertificate,
         slaveMaster,
       )
+
+      // Re-fetch the proof after registration to get the updated SMT proof
+      const updatedProof = await RegistrationStrategy.getSlaveCertSmtProof(
+        eDocument.authCertificate,
+      )
+      console.log('[NoirEID] After registration - existence:', updatedProof.existence)
+      console.log('[NoirEID] After registration - root:', updatedProof.root)
+
+      // Update the proof with the new values
+      Object.assign(slaveCertSmtProof, updatedProof)
     }
 
     opts?.onGenerateProof?.()

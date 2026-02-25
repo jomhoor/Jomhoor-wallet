@@ -56,9 +56,37 @@ public class Circuit {
         if num_points == 0 {
             throw SwoirError.srsNotSetup("SRS not setup. Call setupSrs() before proving.")
         }
+        print("[Circuit.prove] Starting proof generation with proof_type: \(proof_type), recursive: \(recursive)")
+        print("[Circuit.prove] Number of SRS points: \(num_points)")
+        print("[Circuit.prove] Input keys: \(inputs.keys.sorted())")
+        
+        // Log input sizes
+        for (key, value) in inputs.sorted(by: { $0.key < $1.key }) {
+            if let arr = value as? [Any] {
+                print("[Circuit.prove] Input '\(key)': array of \(arr.count) elements")
+            } else {
+                let strVal = String(describing: value)
+                if strVal.count > 100 {
+                    print("[Circuit.prove] Input '\(key)': len=\(strVal.count)")
+                } else {
+                    print("[Circuit.prove] Input '\(key)': \(strVal)")
+                }
+            }
+        }
+        
+        print("[Circuit.prove] Generating witness map...")
         let witnessMap = try generateWitnessMap(inputs, self.manifest.abi.parameters)
-        let proof = try backend.prove(bytecode: self.bytecode, witnessMap: witnessMap, proof_type: proof_type, recursive: recursive)
-        return proof
+        print("[Circuit.prove] Witness map generated with \(witnessMap.count) values")
+        
+        print("[Circuit.prove] Calling backend.prove()...")
+        do {
+            let proof = try backend.prove(bytecode: self.bytecode, witnessMap: witnessMap, proof_type: proof_type, recursive: recursive)
+            print("[Circuit.prove] Proof generated successfully! Proof size: \(proof.proof.count) bytes")
+            return proof
+        } catch {
+            print("[Circuit.prove] ERROR in backend.prove(): \(error)")
+            throw error
+        }
     }
 
     public func verify(_ proof: SwoirCore.Proof, proof_type: String = "honk") throws -> Bool {
@@ -127,11 +155,15 @@ public class Circuit {
 
     func generateWitnessMap(_ inputs: [String: Any], _ parameters: [ABI_Parameter]) throws -> [WitnessMapValue] {
         var witnessMap: [WitnessMapValue] = []
+        print("[Circuit.generateWitnessMap] Processing \(parameters.count) parameters")
+        
         for param in parameters {
             if !inputs.keys.contains(param.name) {
+                print("[Circuit.generateWitnessMap] ERROR: Missing input '\(param.name)'")
                 throw SwoirError.missingInput("Missing input: \(param.name)")
             }
             let input = inputs[param.name]
+            print("[Circuit.generateWitnessMap] Processing param '\(param.name)' of type \(param.type)")
 
             switch param.type {
             case .kindArray(_, let length, let type ):
@@ -139,6 +171,7 @@ public class Circuit {
                 let input = flattenMultidimensionalArray(input!)
                 // And then compute the expected length of the flattened array
                 let totalLength = computeTotalLengthOfArray(param.type)
+                print("[Circuit.generateWitnessMap] Array '\(param.name)': input count=\(input.count), expected=\(totalLength)")
                 switch type {
                 case .kindString(_, let string_length):
                     // Convert each String in the array into a UInt8 array
@@ -156,21 +189,25 @@ public class Circuit {
                     }
                 default:
                     guard let inputArray = inputArrayToWitnessMapValue(input as Any) else {
+                        print("[Circuit.generateWitnessMap] ERROR: Invalid array type for '\(param.name)'")
                         throw SwoirError.invalidInput("Invalid array type for input \(param.name).")
                     }
                     if inputArray.count != totalLength {
+                        print("[Circuit.generateWitnessMap] ERROR: Array length mismatch for '\(param.name)': got \(inputArray.count), expected \(totalLength)")
                         throw SwoirError.invalidInput("Array length mismatch for input \(param.name). Input array length is \(inputArray.count) but circuit expects \(length)")
                     }
                     witnessMap.append(contentsOf: inputArray)
                 }
             case .kindField:
                 guard let input = inputToWitnessMapValue(input as Any) else {
+                    print("[Circuit.generateWitnessMap] ERROR: Input '\(param.name)' must be an integer. Got: \(type(of: input))")
                     throw SwoirError.invalidInput("Input \(param.name) must be an integer.")
                 }
                 witnessMap.append(input)
 
             case .kindInteger:
                 guard let input = inputToWitnessMapValue(input as Any) else {
+                    print("[Circuit.generateWitnessMap] ERROR: Input '\(param.name)' must be an integer. Got: \(type(of: input))")
                     throw SwoirError.invalidInput("Input \(param.name) must be an integer.")
                 }
                 witnessMap.append(input)
@@ -199,6 +236,7 @@ public class Circuit {
 
             }
         }
+        print("[Circuit.generateWitnessMap] Total witness map size: \(witnessMap.count)")
         return witnessMap
     }
 }

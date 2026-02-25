@@ -7,9 +7,13 @@ import { ParsedContractProposal, Sex } from './types'
 export const parseProposalFromContract = (
   proposal: ProposalsState.ProposalInfoStructOutput,
 ): ParsedContractProposal => {
-  const rawWhitelistData = proposal[2][6].toString()
+  // votingWhitelistData is an array of bytes (one per voting contract)
+  // We use the first one since we typically only have one voting contract
+  const votingWhitelistDataArray = proposal[2][6]
+  const rawWhitelistData =
+    votingWhitelistDataArray.length > 0 ? votingWhitelistDataArray[0].toString() : ''
 
-  const votingWhitelistData = decodeWhitelistData(rawWhitelistData)
+  const votingWhitelistData = rawWhitelistData ? decodeWhitelistData(rawWhitelistData) : null
 
   return {
     cid: proposal[2][4],

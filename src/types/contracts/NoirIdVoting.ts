@@ -41,16 +41,53 @@ export declare namespace AQueryProofExecutor {
   }
 }
 
+export declare namespace BaseVoting {
+  export type ProposalRulesStruct = {
+    selector: BigNumberish
+    citizenshipWhitelist: BigNumberish[]
+    identityCreationTimestampUpperBound: BigNumberish
+    identityCounterUpperBound: BigNumberish
+    sex: BigNumberish
+    birthDateLowerbound: BigNumberish
+    birthDateUpperbound: BigNumberish
+    expirationDateLowerBound: BigNumberish
+  }
+
+  export type ProposalRulesStructOutput = [
+    selector: bigint,
+    citizenshipWhitelist: bigint[],
+    identityCreationTimestampUpperBound: bigint,
+    identityCounterUpperBound: bigint,
+    sex: bigint,
+    birthDateLowerbound: bigint,
+    birthDateUpperbound: bigint,
+    expirationDateLowerBound: bigint,
+  ] & {
+    selector: bigint
+    citizenshipWhitelist: bigint[]
+    identityCreationTimestampUpperBound: bigint
+    identityCounterUpperBound: bigint
+    sex: bigint
+    birthDateLowerbound: bigint
+    birthDateUpperbound: bigint
+    expirationDateLowerBound: bigint
+  }
+}
+
 export interface NoirIdVotingInterface extends Interface {
   getFunction(
     nameOrSignature:
       | 'IDENTITY_LIMIT'
-      | '__NoirIDVoting_init'
-      | '_afterVerify'
-      | '_beforeVerify'
-      | '_buildPublicSignals'
+      | '__IDCardVoting_init'
       | 'execute'
+      | 'executeINID'
       | 'executeNoir'
+      | 'executeTD1'
+      | 'executeTD1Noir'
+      | 'getProposalRules'
+      | 'getPublicSignals'
+      | 'getPublicSignalsINID'
+      | 'getPublicSignalsTD1'
       | 'getRegistrationSMT'
       | 'getVerifier'
       | 'implementation'
@@ -74,28 +111,41 @@ export interface NoirIdVotingInterface extends Interface {
 
   encodeFunctionData(functionFragment: 'IDENTITY_LIMIT', values?: undefined): string
   encodeFunctionData(
-    functionFragment: '__NoirIDVoting_init',
+    functionFragment: '__IDCardVoting_init',
     values: [AddressLike, AddressLike, AddressLike],
-  ): string
-  encodeFunctionData(
-    functionFragment: '_afterVerify',
-    values: [BytesLike, BigNumberish, BytesLike],
-  ): string
-  encodeFunctionData(
-    functionFragment: '_beforeVerify',
-    values: [BytesLike, BigNumberish, BytesLike],
-  ): string
-  encodeFunctionData(
-    functionFragment: '_buildPublicSignals',
-    values: [BytesLike, BigNumberish, BytesLike],
   ): string
   encodeFunctionData(
     functionFragment: 'execute',
     values: [BytesLike, BigNumberish, BytesLike, AQueryProofExecutor.ProofPointsStruct],
   ): string
   encodeFunctionData(
+    functionFragment: 'executeINID',
+    values: [BytesLike, BigNumberish, BytesLike, BytesLike],
+  ): string
+  encodeFunctionData(
     functionFragment: 'executeNoir',
     values: [BytesLike, BigNumberish, BytesLike, BytesLike],
+  ): string
+  encodeFunctionData(
+    functionFragment: 'executeTD1',
+    values: [BytesLike, BigNumberish, BytesLike, AQueryProofExecutor.ProofPointsStruct],
+  ): string
+  encodeFunctionData(
+    functionFragment: 'executeTD1Noir',
+    values: [BytesLike, BigNumberish, BytesLike, BytesLike],
+  ): string
+  encodeFunctionData(functionFragment: 'getProposalRules', values: [BigNumberish]): string
+  encodeFunctionData(
+    functionFragment: 'getPublicSignals',
+    values: [BytesLike, BigNumberish, BytesLike],
+  ): string
+  encodeFunctionData(
+    functionFragment: 'getPublicSignalsINID',
+    values: [BytesLike, BigNumberish, BytesLike],
+  ): string
+  encodeFunctionData(
+    functionFragment: 'getPublicSignalsTD1',
+    values: [BytesLike, BigNumberish, BytesLike],
   ): string
   encodeFunctionData(functionFragment: 'getRegistrationSMT', values?: undefined): string
   encodeFunctionData(functionFragment: 'getVerifier', values?: undefined): string
@@ -109,12 +159,16 @@ export interface NoirIdVotingInterface extends Interface {
   encodeFunctionData(functionFragment: 'upgradeToAndCall', values: [AddressLike, BytesLike]): string
 
   decodeFunctionResult(functionFragment: 'IDENTITY_LIMIT', data: BytesLike): Result
-  decodeFunctionResult(functionFragment: '__NoirIDVoting_init', data: BytesLike): Result
-  decodeFunctionResult(functionFragment: '_afterVerify', data: BytesLike): Result
-  decodeFunctionResult(functionFragment: '_beforeVerify', data: BytesLike): Result
-  decodeFunctionResult(functionFragment: '_buildPublicSignals', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: '__IDCardVoting_init', data: BytesLike): Result
   decodeFunctionResult(functionFragment: 'execute', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'executeINID', data: BytesLike): Result
   decodeFunctionResult(functionFragment: 'executeNoir', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'executeTD1', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'executeTD1Noir', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'getProposalRules', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'getPublicSignals', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'getPublicSignalsINID', data: BytesLike): Result
+  decodeFunctionResult(functionFragment: 'getPublicSignalsTD1', data: BytesLike): Result
   decodeFunctionResult(functionFragment: 'getRegistrationSMT', data: BytesLike): Result
   decodeFunctionResult(functionFragment: 'getVerifier', data: BytesLike): Result
   decodeFunctionResult(functionFragment: 'implementation', data: BytesLike): Result
@@ -232,27 +286,9 @@ export interface NoirIdVoting extends BaseContract {
 
   IDENTITY_LIMIT: TypedContractMethod<[], [bigint], 'view'>
 
-  __NoirIDVoting_init: TypedContractMethod<
+  __IDCardVoting_init: TypedContractMethod<
     [registrationSMT_: AddressLike, proposalsState_: AddressLike, votingVerifier_: AddressLike],
     [void],
-    'nonpayable'
-  >
-
-  _afterVerify: TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [void],
-    'nonpayable'
-  >
-
-  _beforeVerify: TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [void],
-    'nonpayable'
-  >
-
-  _buildPublicSignals: TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [bigint],
     'nonpayable'
   >
 
@@ -267,6 +303,17 @@ export interface NoirIdVoting extends BaseContract {
     'nonpayable'
   >
 
+  executeINID: TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: BytesLike,
+    ],
+    [void],
+    'nonpayable'
+  >
+
   executeNoir: TypedContractMethod<
     [
       registrationRoot_: BytesLike,
@@ -276,6 +323,52 @@ export interface NoirIdVoting extends BaseContract {
     ],
     [void],
     'nonpayable'
+  >
+
+  executeTD1: TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: AQueryProofExecutor.ProofPointsStruct,
+    ],
+    [void],
+    'nonpayable'
+  >
+
+  executeTD1Noir: TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: BytesLike,
+    ],
+    [void],
+    'nonpayable'
+  >
+
+  getProposalRules: TypedContractMethod<
+    [proposalId_: BigNumberish],
+    [BaseVoting.ProposalRulesStructOutput],
+    'view'
+  >
+
+  getPublicSignals: TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
+  >
+
+  getPublicSignalsINID: TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
+  >
+
+  getPublicSignalsTD1: TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
   >
 
   getRegistrationSMT: TypedContractMethod<[], [string], 'view'>
@@ -306,31 +399,10 @@ export interface NoirIdVoting extends BaseContract {
 
   getFunction(nameOrSignature: 'IDENTITY_LIMIT'): TypedContractMethod<[], [bigint], 'view'>
   getFunction(
-    nameOrSignature: '__NoirIDVoting_init',
+    nameOrSignature: '__IDCardVoting_init',
   ): TypedContractMethod<
     [registrationSMT_: AddressLike, proposalsState_: AddressLike, votingVerifier_: AddressLike],
     [void],
-    'nonpayable'
-  >
-  getFunction(
-    nameOrSignature: '_afterVerify',
-  ): TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [void],
-    'nonpayable'
-  >
-  getFunction(
-    nameOrSignature: '_beforeVerify',
-  ): TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [void],
-    'nonpayable'
-  >
-  getFunction(
-    nameOrSignature: '_buildPublicSignals',
-  ): TypedContractMethod<
-    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
-    [bigint],
     'nonpayable'
   >
   getFunction(
@@ -346,6 +418,18 @@ export interface NoirIdVoting extends BaseContract {
     'nonpayable'
   >
   getFunction(
+    nameOrSignature: 'executeINID',
+  ): TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: BytesLike,
+    ],
+    [void],
+    'nonpayable'
+  >
+  getFunction(
     nameOrSignature: 'executeNoir',
   ): TypedContractMethod<
     [
@@ -356,6 +440,58 @@ export interface NoirIdVoting extends BaseContract {
     ],
     [void],
     'nonpayable'
+  >
+  getFunction(
+    nameOrSignature: 'executeTD1',
+  ): TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: AQueryProofExecutor.ProofPointsStruct,
+    ],
+    [void],
+    'nonpayable'
+  >
+  getFunction(
+    nameOrSignature: 'executeTD1Noir',
+  ): TypedContractMethod<
+    [
+      registrationRoot_: BytesLike,
+      currentDate_: BigNumberish,
+      userPayload_: BytesLike,
+      zkPoints_: BytesLike,
+    ],
+    [void],
+    'nonpayable'
+  >
+  getFunction(
+    nameOrSignature: 'getProposalRules',
+  ): TypedContractMethod<
+    [proposalId_: BigNumberish],
+    [BaseVoting.ProposalRulesStructOutput],
+    'view'
+  >
+  getFunction(
+    nameOrSignature: 'getPublicSignals',
+  ): TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
+  >
+  getFunction(
+    nameOrSignature: 'getPublicSignalsINID',
+  ): TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
+  >
+  getFunction(
+    nameOrSignature: 'getPublicSignalsTD1',
+  ): TypedContractMethod<
+    [registrationRoot_: BytesLike, currentDate_: BigNumberish, userPayload_: BytesLike],
+    [string[]],
+    'view'
   >
   getFunction(nameOrSignature: 'getRegistrationSMT'): TypedContractMethod<[], [string], 'view'>
   getFunction(nameOrSignature: 'getVerifier'): TypedContractMethod<[], [string], 'view'>
