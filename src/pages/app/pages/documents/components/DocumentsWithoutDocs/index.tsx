@@ -1,4 +1,4 @@
-import { BottomSheetView } from '@gorhom/bottom-sheet'
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet'
 import { useNavigation } from '@react-navigation/native'
 import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -84,9 +84,10 @@ export default function DocumentsWithoutDocs() {
           backgroundStyle={{
             backgroundColor: palette.backgroundContainer,
           }}
-          enableDynamicSizing={true}
+          enableDynamicSizing={false}
+          snapPoints={['85%']}
         >
-          <BottomSheetView style={{ paddingBottom: insets.bottom }}>
+          <BottomSheetScrollView style={{ paddingBottom: insets.bottom }}>
             <View className={cn('py-0, flex flex-col items-center gap-4 p-5')}>
               <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
@@ -124,7 +125,7 @@ export default function DocumentsWithoutDocs() {
                 }}
               />
             </View>
-          </BottomSheetView>
+          </BottomSheetScrollView>
         </UiBottomSheet>
         {/*  TODO:Change text */}
         <UiBottomSheet
@@ -132,9 +133,10 @@ export default function DocumentsWithoutDocs() {
           backgroundStyle={{
             backgroundColor: palette.backgroundContainer,
           }}
-          enableDynamicSizing={true}
+          enableDynamicSizing={false}
+          snapPoints={['85%']}
         >
-          <BottomSheetView style={{ paddingBottom: insets.bottom }}>
+          <BottomSheetScrollView style={{ paddingBottom: insets.bottom }}>
             <View className={cn('py-0, flex flex-col items-center gap-4 p-5')}>
               <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
@@ -175,7 +177,7 @@ export default function DocumentsWithoutDocs() {
                 }}
               />
             </View>
-          </BottomSheetView>
+          </BottomSheetScrollView>
         </UiBottomSheet>
       </UiScreenScrollable>
     </AppContainer>
