@@ -3,10 +3,10 @@ import { Pressable, Text, View } from 'react-native'
 
 import {
   fetchAllBalances,
+  type TokenBalance,
   truncateAddress,
   useEvmAddress,
   WALLET_CHAINS,
-  type TokenBalance,
 } from '@/helpers/evm-wallet'
 import { useCopyWithHaptics } from '@/hooks/copyWithHaptics'
 import { cn } from '@/theme'

@@ -1,4 +1,3 @@
-import { Time } from '@distributedlab/tools'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { poseidon } from '@iden3/js-crypto'
 import { useNavigation } from '@react-navigation/native'
@@ -30,9 +29,9 @@ import {
   UiScreenScrollable,
   useUiBottomSheet,
 } from '@/ui'
-import { computeInidCitizenshipMask, INID_MASKS } from '@/utils/citizenship-mask'
 import { EIDBasedQueryIdentityCircuit } from '@/utils/circuits/eid-based-query-identity-circuit'
 import { QueryProofParams } from '@/utils/circuits/types/QueryIdentity'
+import { computeInidCitizenshipMask, INID_MASKS } from '@/utils/citizenship-mask'
 
 import PollStateScreen from './components/PollStateScreen'
 import { ZERO_DATE_HEX } from './constants'

@@ -15,10 +15,10 @@ import {
   ZERO_DATE_HEX,
 } from '@/pages/app/pages/poll/constants'
 import { DecodedWhitelistData } from '@/pages/app/pages/poll/types'
-import { INID_MASKS } from '@/utils/citizenship-mask'
 import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import { ProposalState } from '@/types/contracts'
 import { SparseMerkleTree } from '@/types/contracts/PoseidonSMT'
+import { INID_MASKS } from '@/utils/citizenship-mask'
 
 import { QueryProofParams } from './types/QueryIdentity'
 

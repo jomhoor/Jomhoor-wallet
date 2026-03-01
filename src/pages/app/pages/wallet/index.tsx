@@ -14,7 +14,6 @@ import ReceiveSheet, { type ReceiveSheetRef } from './components/ReceiveSheet'
 import SendSheet, { type SendSheetRef } from './components/SendSheet'
 import TransactionItem from './components/TransactionItem'
 
-/* eslint-disable-next-line unused-imports/no-unused-vars */
 export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
   const address = useEvmAddress()
   const insets = useSafeAreaInsets()

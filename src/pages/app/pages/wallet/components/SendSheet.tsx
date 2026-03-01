@@ -4,7 +4,7 @@ import { forwardRef, useImperativeHandle, useState } from 'react'
 import { Alert, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { getProvider, useEvmWallet, WALLET_CHAINS, type ChainInfo } from '@/helpers/evm-wallet'
+import { type ChainInfo, getProvider, useEvmWallet, WALLET_CHAINS } from '@/helpers/evm-wallet'
 import { useAppTheme } from '@/theme'
 import { UiBottomSheet, UiButton, UiHorizontalDivider, UiIcon, useUiBottomSheet } from '@/ui'
 

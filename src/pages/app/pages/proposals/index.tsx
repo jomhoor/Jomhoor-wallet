@@ -2,16 +2,16 @@ import { Time } from '@distributedlab/tools'
 import { useNavigation } from '@react-navigation/native'
 import { useQuery } from '@tanstack/react-query'
 import { JsonRpcProvider } from 'ethers'
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pressable, RefreshControl, Text, View } from 'react-native'
 import Animated, {
+  cancelAnimation,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withRepeat,
   withTiming,
-  Easing,
-  cancelAnimation,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
