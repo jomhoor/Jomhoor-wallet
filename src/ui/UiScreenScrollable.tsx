@@ -12,7 +12,7 @@ export default function UiScreenScrollable({ scrollViewProps, className, ...rest
     <View className='flex flex-1 flex-col'>
       <ScrollView
         {...scrollViewProps}
-        bounces={false}
+        bounces={!!scrollViewProps?.refreshControl}
         contentContainerStyle={{
           flexGrow: 1,
           ...(scrollViewProps?.contentContainerStyle as object),

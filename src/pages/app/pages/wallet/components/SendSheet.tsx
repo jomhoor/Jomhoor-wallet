@@ -1,23 +1,32 @@
 import { BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet'
 import { parseEther, Wallet } from 'ethers'
-import { useState } from 'react'
-import { Alert, Text, View } from 'react-native'
+import { forwardRef, useImperativeHandle, useState } from 'react'
+import { Alert, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { getRmoProvider, useEvmWallet } from '@/helpers/evm-wallet'
+import { getProvider, useEvmWallet, WALLET_CHAINS, type ChainInfo } from '@/helpers/evm-wallet'
 import { useAppTheme } from '@/theme'
-import { UiBottomSheet, UiButton, useUiBottomSheet } from '@/ui'
+import { UiBottomSheet, UiButton, UiHorizontalDivider, UiIcon, useUiBottomSheet } from '@/ui'
 
-export default function SendSheet() {
+export interface SendSheetRef {
+  present: () => void
+}
+
+const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
   const wallet = useEvmWallet()
   const { palette } = useAppTheme()
   const insets = useSafeAreaInsets()
 
   const bottomSheet = useUiBottomSheet()
 
+  const [selectedChain, setSelectedChain] = useState<ChainInfo>(WALLET_CHAINS[0])
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('')
   const [isSending, setIsSending] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    present: () => bottomSheet.present(),
+  }), [bottomSheet])
 
   const handleSend = async () => {
     if (!wallet || !recipient || !amount) return
@@ -25,7 +34,7 @@ export default function SendSheet() {
     try {
       setIsSending(true)
 
-      const provider = getRmoProvider()
+      const provider = getProvider(selectedChain)
       const connectedWallet = new Wallet(wallet.privateKey, provider)
 
       const tx = await connectedWallet.sendTransaction({
@@ -35,7 +44,7 @@ export default function SendSheet() {
 
       await tx.wait()
 
-      Alert.alert('Success', `Transaction sent!\n${tx.hash}`)
+      Alert.alert('Success', `Transaction sent on ${selectedChain.name}!\n${tx.hash}`)
       setRecipient('')
       setAmount('')
       bottomSheet.dismiss()
@@ -53,83 +62,121 @@ export default function SendSheet() {
     parseFloat(amount) > 0
 
   return (
-    <>
-      <UiButton
-        variant='filled'
-        color='primary'
-        size='large'
-        title='Send'
-        leadingIconProps={{ libIcon: 'Ionicons', name: 'arrow-up-circle', size: 20 }}
-        onPress={() => bottomSheet.present()}
-      />
+    <UiBottomSheet
+      ref={bottomSheet.ref}
+      backgroundStyle={{ backgroundColor: palette.backgroundContainer }}
+      enableDynamicSizing={false}
+      snapPoints={['65%']}
+    >
+      <BottomSheetView style={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 24, paddingTop: 8, gap: 20 }}>
+        <Text className='typography-h6 text-textPrimary'>
+          Send {selectedChain.symbol}
+        </Text>
 
-      <UiBottomSheet
-        ref={bottomSheet.ref}
-        backgroundStyle={{ backgroundColor: palette.backgroundContainer }}
-        enableDynamicSizing={false}
-        snapPoints={['55%']}
-      >
-        <BottomSheetView style={{ paddingBottom: insets.bottom, padding: 20, gap: 16 }}>
-          <Text
+        <UiHorizontalDivider />
+
+        {/* Chain selector */}
+        <View style={{ gap: 6 }}>
+          <Text className='typography-caption1 text-textSecondary'>Network</Text>
+          <View className='flex flex-row gap-2'>
+            {WALLET_CHAINS.map(chain => {
+              const isActive = chain.id === selectedChain.id
+              return (
+                <Pressable
+                  key={chain.id}
+                  onPress={() => setSelectedChain(chain)}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    borderWidth: 1.5,
+                    borderColor: isActive ? palette.primaryMain : palette.componentPrimary,
+                    backgroundColor: isActive ? palette.primaryLight : 'transparent',
+                  }}
+                >
+                  <UiIcon
+                    libIcon='Ionicons'
+                    name={chain.icon}
+                    size={16}
+                    className={isActive ? 'text-primaryMain' : 'text-textSecondary'}
+                  />
+                  <Text
+                    className={isActive
+                      ? 'typography-caption1 text-primaryMain'
+                      : 'typography-caption1 text-textSecondary'
+                    }
+                  >
+                    {chain.symbol}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text className='typography-caption1 text-textSecondary'>Recipient Address</Text>
+          <BottomSheetTextInput
+            placeholder='0x...'
+            placeholderTextColor={palette.textPlaceholder}
+            value={recipient}
+            onChangeText={setRecipient}
+            autoCapitalize='none'
+            autoCorrect={false}
             style={{
-              fontSize: 20,
-              fontWeight: '700',
+              borderWidth: 1,
+              borderColor: recipient && !recipient.startsWith('0x')
+                ? palette.errorMain
+                : palette.componentPrimary,
+              borderRadius: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 14,
               color: palette.textPrimary,
+              fontFamily: 'NotoSans-Regular',
+              backgroundColor: palette.backgroundPrimary,
             }}
-          >
-            Send RMO
-          </Text>
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: palette.textSecondary, fontSize: 14 }}>Recipient Address</Text>
-            <BottomSheetTextInput
-              placeholder='0x...'
-              placeholderTextColor={palette.textSecondary}
-              value={recipient}
-              onChangeText={setRecipient}
-              autoCapitalize='none'
-              autoCorrect={false}
-              style={{
-                borderWidth: 1,
-                borderColor: palette.textSecondary,
-                borderRadius: 12,
-                padding: 12,
-                fontSize: 14,
-                color: palette.textPrimary,
-                fontFamily: 'monospace',
-              }}
-            />
-          </View>
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: palette.textSecondary, fontSize: 14 }}>Amount (RMO)</Text>
-            <BottomSheetTextInput
-              placeholder='0.0'
-              placeholderTextColor={palette.textSecondary}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType='decimal-pad'
-              style={{
-                borderWidth: 1,
-                borderColor: palette.textSecondary,
-                borderRadius: 12,
-                padding: 12,
-                fontSize: 14,
-                color: palette.textPrimary,
-              }}
-            />
-          </View>
-
-          <UiButton
-            variant='filled'
-            color='primary'
-            size='large'
-            title={isSending ? 'Sending...' : 'Confirm Send'}
-            onPress={handleSend}
-            disabled={!isValid || isSending}
           />
-        </BottomSheetView>
-      </UiBottomSheet>
-    </>
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text className='typography-caption1 text-textSecondary'>
+            Amount ({selectedChain.symbol})
+          </Text>
+          <BottomSheetTextInput
+            placeholder='0.00'
+            placeholderTextColor={palette.textPlaceholder}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType='decimal-pad'
+            style={{
+              borderWidth: 1,
+              borderColor: palette.componentPrimary,
+              borderRadius: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 14,
+              color: palette.textPrimary,
+              fontFamily: 'NotoSans-Regular',
+              backgroundColor: palette.backgroundPrimary,
+            }}
+          />
+        </View>
+
+        <UiButton
+          variant='filled'
+          color='primary'
+          size='large'
+          title={isSending ? 'Sending...' : `Send ${selectedChain.symbol}`}
+          onPress={handleSend}
+          disabled={!isValid || isSending}
+        />
+      </BottomSheetView>
+    </UiBottomSheet>
   )
-}
+})
+
+export default SendSheet

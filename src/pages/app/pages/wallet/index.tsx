@@ -1,27 +1,71 @@
-import { Text, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, RefreshControl, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { useEvmAddress } from '@/helpers/evm-wallet'
+import {
+  fetchAllTransactions,
+  type TransactionRecord,
+  useEvmAddress,
+} from '@/helpers/evm-wallet'
 import type { AppTabScreenProps } from '@/route-types'
 import { cn, useAppPaddings, useBottomBarOffset } from '@/theme'
-import { UiScreenScrollable } from '@/ui'
+import { UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 
 import AppContainer from '../../components/AppContainer'
-import AddressDisplay from './components/AddressDisplay'
-import BalanceCard from './components/BalanceCard'
-import SendSheet from './components/SendSheet'
+import ActionButtons from './components/ActionButtons'
+import BalanceCard, { type BalanceCardRef } from './components/BalanceCard'
+import ReceiveSheet, { type ReceiveSheetRef } from './components/ReceiveSheet'
+import SendSheet, { type SendSheetRef } from './components/SendSheet'
+import TransactionItem from './components/TransactionItem'
 
 /* eslint-disable-next-line unused-imports/no-unused-vars */
 export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
   const address = useEvmAddress()
+  const insets = useSafeAreaInsets()
   const paddings = useAppPaddings()
   const bottomOffset = useBottomBarOffset()
+
+  const balanceRef = useRef<BalanceCardRef>(null)
+  const sendSheetRef = useRef<SendSheetRef>(null)
+  const receiveSheetRef = useRef<ReceiveSheetRef>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([])
+  const [txLoading, setTxLoading] = useState(false)
+
+  const loadTransactions = useCallback(async () => {
+    if (!address) return
+    setTxLoading(true)
+    try {
+      const txs = await fetchAllTransactions(address)
+      setTransactions(txs)
+    } catch {
+      // keep previous
+    } finally {
+      setTxLoading(false)
+    }
+  }, [address])
+
+  // Load transactions on mount
+  useEffect(() => {
+    loadTransactions()
+  }, [loadTransactions])
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    await Promise.all([balanceRef.current?.refresh(), loadTransactions()])
+    setIsRefreshing(false)
+  }, [loadTransactions])
 
   if (!address) {
     return (
       <AppContainer>
-        <View className={cn('flex flex-1 items-center justify-center p-8')}>
-          <Text className='text-textSecondary text-center text-base'>
-            No wallet available. Create a profile first to generate your wallet.
+        <View className={cn('flex flex-1 items-center justify-center gap-4 p-8')}>
+          <UiIcon libIcon='Ionicons' name='wallet-outline' size={48} className='text-textSecondary' />
+          <Text className='typography-subtitle3 text-center text-textSecondary'>
+            No wallet available
+          </Text>
+          <Text className='typography-body3 text-center text-textPlaceholder'>
+            Create a profile first to generate your wallet.
           </Text>
         </View>
       </AppContainer>
@@ -32,24 +76,65 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
     <AppContainer>
       <UiScreenScrollable
         scrollViewProps={{
+          refreshControl: (
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          ),
           contentContainerStyle: {
             paddingHorizontal: paddings.left,
-            paddingTop: 24,
+            paddingTop: insets.top + 16,
             paddingBottom: bottomOffset + 16,
-            gap: 16,
+            gap: 24,
           },
         }}
       >
-        <Text className='text-textPrimary text-2xl font-bold'>Wallet</Text>
+        {/* Header */}
+        <Text className='typography-h5 text-textPrimary'>Wallet</Text>
 
-        <BalanceCard />
+        {/* Balance card */}
+        <BalanceCard ref={balanceRef} />
 
-        <AddressDisplay />
+        {/* Action buttons */}
+        <View style={{ paddingTop: 8 }}>
+          <ActionButtons
+            onSendPress={() => sendSheetRef.current?.present()}
+            onReceivePress={() => receiveSheetRef.current?.present()}
+          />
+        </View>
 
-        <View style={{ paddingHorizontal: 16 }}>
-          <SendSheet />
+        {/* Activity section */}
+        <View className='gap-3'>
+          <Text className='typography-subtitle3 text-textPrimary'>Activity</Text>
+
+          {txLoading && transactions.length === 0 ? (
+            <UiCard className='items-center py-10'>
+              <ActivityIndicator size='small' />
+            </UiCard>
+          ) : transactions.length === 0 ? (
+            <UiCard className='items-center gap-3 py-10'>
+              <UiIcon
+                libIcon='Ionicons'
+                name='receipt-outline'
+                size={32}
+                className='text-textSecondary'
+              />
+              <Text className='typography-body3 text-textSecondary'>No transactions yet</Text>
+            </UiCard>
+          ) : (
+            <UiCard className='py-1'>
+              {transactions.map((tx, idx) => (
+                <View key={tx.hash}>
+                  <TransactionItem tx={tx} />
+                  {idx < transactions.length - 1 && <UiHorizontalDivider />}
+                </View>
+              ))}
+            </UiCard>
+          )}
         </View>
       </UiScreenScrollable>
+
+      {/* Bottom sheets */}
+      <SendSheet ref={sendSheetRef} />
+      <ReceiveSheet ref={receiveSheetRef} />
     </AppContainer>
   )
 }
