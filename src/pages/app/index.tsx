@@ -19,6 +19,7 @@ import DocumentsScreen from './pages/documents'
 import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
 import ProposalsScreen from './pages/proposals'
+import WalletScreen from './pages/wallet'
 
 const Stack = createNativeStackNavigator<AppStackParamsList>()
 const Tab = createBottomTabNavigator<AppTabParamsList>()
@@ -64,6 +65,16 @@ function AppTabs({}: AppStackScreenProps<'Tabs'>) {
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <UiIcon libIcon='FontAwesome' name='list-ul' size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name='Wallet'
+        component={WalletScreen}
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <UiIcon libIcon='Ionicons' name='wallet-outline' size={size} color={color} />
           ),
         }}
       />

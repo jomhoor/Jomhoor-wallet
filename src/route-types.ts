@@ -56,6 +56,7 @@ export type AppTabParamsList = {
   Documents: undefined
   Home: undefined
   Proposals: undefined
+  Wallet: undefined
   Profile: undefined
   PassportTests: undefined
 }
