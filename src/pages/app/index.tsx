@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useLayoutEffect } from 'react'
 
+import { useAgoraDeepLink } from '@/hooks/useAgoraDeepLink'
 import InviteOthers from '@/pages/app/pages/invite-others'
 import type {
   AppStackParamsList,
@@ -12,8 +13,6 @@ import type {
 import { authStore } from '@/store'
 import { localAuthStore } from '@/store/modules/local-auth'
 import { UiIcon } from '@/ui'
-
-import { useAgoraDeepLink } from '@/hooks/useAgoraDeepLink'
 
 import BottomTabBar from './components/BottomTabBarTabBar'
 import CompassScreen from './pages/compass'

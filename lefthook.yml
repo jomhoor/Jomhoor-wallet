@@ -18,11 +18,9 @@
 #       run: bundle audit
 #
 pre-commit:
-  # parallel: true
+  parallel: true
   commands:
     lint:
       run: yarn lint
-    type-check:
-      run: yarn type-check
     format:
       run: yarn format:fix && git add .

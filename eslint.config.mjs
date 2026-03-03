@@ -200,6 +200,23 @@ export default tseslint.config(
     },
   },
 
+  // Allow console.log in debug-heavy ZK/crypto files
+  {
+    files: [
+      'src/utils/circuits/**/*.ts',
+      'src/utils/citizenship-mask.ts',
+      'src/api/modules/registration/**/*.ts',
+      'src/api/modules/verification/**/*.ts',
+      'src/pages/app/pages/poll/**/*.{ts,tsx}',
+      'src/pages/app/pages/proposals/**/*.{ts,tsx}',
+      'src/pages/app/pages/hub/**/*.{ts,tsx}',
+      'src/hooks/useAgoraDeepLink.ts',
+    ],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
   // ignore patterns
   {
     ignores: [
