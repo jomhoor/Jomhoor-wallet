@@ -21,6 +21,10 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      run: yarn lint
+      run: |
+        [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
+        yarn lint
     format:
-      run: yarn format:fix && git add .
+      run: |
+        [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
+        yarn format:fix && git add .

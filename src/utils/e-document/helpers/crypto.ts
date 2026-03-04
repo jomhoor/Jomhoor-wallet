@@ -43,7 +43,9 @@ export function hashPacked(x509Key: Uint8Array): Uint8Array {
 
   try {
     const hash = poseidon.hash(decomposed)
-    return Hex.decodeString(hash.toString(16))
+    const hexStr = hash.toString(16)
+    // Pad to even length — Hex.decodeString requires pairs of hex chars
+    return Hex.decodeString(hexStr.length % 2 === 0 ? hexStr : '0' + hexStr)
   } catch (error) {
     throw new TypeError(`Failed to compute Poseidon hash: ${error}`)
   }

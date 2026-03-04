@@ -3,13 +3,20 @@ import {
   Steps,
   useDocumentScanContext,
 } from '@/pages/app/pages/document-scan/ScanProvider'
-import { DocType } from '@/utils/e-document'
 
-import { DocumentPreviewStep, GenerateProofStep, RevocationStep, ScanNfcStep } from './components'
+import {
+  DocumentPreviewStep,
+  GenerateProofStep,
+  RevocationStep,
+  ScanMrzStep,
+  ScanNfcStep,
+  ScanPassportNfcStep,
+  SelectDocTypeStep,
+} from './components'
 
 export default function DocumentScanScreen() {
   return (
-    <ScanContextProvider docType={DocType.ID}>
+    <ScanContextProvider>
       <DocumentScanContent />
     </ScanContextProvider>
   )
@@ -21,8 +28,9 @@ function DocumentScanContent() {
   return (
     <>
       {{
-        // [Steps.SelectDocTypeStep]: () => <SelectDocTypeStep />,
-        // [Steps.ScanMrzStep]: () => <ScanMrzStep />,
+        [Steps.SelectDocTypeStep]: () => <SelectDocTypeStep />,
+        [Steps.ScanMrzStep]: () => <ScanMrzStep />,
+        [Steps.ScanPassportNfcStep]: () => <ScanPassportNfcStep />,
         [Steps.ScanNfcStep]: () => <ScanNfcStep />,
         [Steps.DocumentPreviewStep]: () => <DocumentPreviewStep />,
         [Steps.GenerateProofStep]: () => <GenerateProofStep />,

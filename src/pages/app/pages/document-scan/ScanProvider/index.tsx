@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
 import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-eid'
+import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
 import { ErrorHandler } from '@/core'
 import { tryCatch } from '@/helpers/try-catch'
 import { identityStore } from '@/store/modules/identity'
@@ -14,12 +15,12 @@ import { walletStore } from '@/store/modules/wallet'
 import { DocType, EDocument, EPassport } from '@/utils/e-document/e-document'
 
 export enum Steps {
-  // SelectDocTypeStep,
+  SelectDocTypeStep,
   ScanMrzStep,
+  ScanPassportNfcStep,
   ScanNfcStep,
   DocumentPreviewStep,
   GenerateProofStep,
-
   RevocationStep,
 }
 
@@ -57,7 +58,7 @@ type DocumentScanContext = {
 }
 
 const documentScanContext = createContext<DocumentScanContext>({
-  currentStep: Steps.ScanNfcStep,
+  currentStep: Steps.SelectDocTypeStep,
 
   setCurrentStep: () => {
     throw new Error('setCurrentStep not implemented')
@@ -91,8 +92,14 @@ export function useDocumentScanContext() {
   return useContext(documentScanContext)
 }
 
-// TODO: add circuit strategy selection
-const registrationStrategy = new NoirEIDRegistration()
+const eidRegistration = new NoirEIDRegistration()
+const epassportRegistration = new NoirEPassportRegistration()
+
+function getInitialStep(docType?: DocType): Steps {
+  if (docType === DocType.PASSPORT) return Steps.ScanMrzStep
+  if (docType === DocType.ID) return Steps.ScanNfcStep
+  return Steps.SelectDocTypeStep
+}
 
 export function ScanContextProvider({
   docType,
@@ -105,7 +112,7 @@ export function ScanContextProvider({
 
   const addIdentity = identityStore.useIdentityStore(state => state.addIdentity)
 
-  const [currentStep, setCurrentStep] = useState<Steps>(Steps.ScanNfcStep)
+  const [currentStep, setCurrentStep] = useState<Steps>(getInitialStep(docType))
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
 
   const [selectedDocType, setSelectedDocType] = useState(docType)
@@ -117,29 +124,19 @@ export function ScanContextProvider({
 
   const revokeIdentity = useCallback(async () => {
     throw new Error('Revoke identity is not implemented for EID')
-    // if (!identity) throw new TypeError('Identity is not set for revocation')
-
-    // if (!tempMRZ) throw new TypeError('MRZ is not set for revocation')
-
-    // const [, revokeIdentityError] = await tryCatch(
-    //   registrationStrategy.revokeIdentity(tempMRZ, identity, async (docCode, bac, challenge) => {
-    //     return scanDocument(docCode, bac, challenge)
-    //   }),
-    // )
-    // if (revokeIdentityError) {
-    //   throw new TypeError('Failed to revoke identity after registration error', revokeIdentityError)
-    // }
   }, [])
 
   const createIdentity = useCallback(async () => {
     if (!tempEDoc) {
-      throw new Error('MRZ or EDocument is not set')
+      throw new Error('EDocument is not set')
     }
 
     setCurrentStep(Steps.GenerateProofStep)
 
+    const strategy = selectedDocType === DocType.PASSPORT ? epassportRegistration : eidRegistration
+
     const [identityItem, registrationError] = await tryCatch(
-      registrationStrategy.createIdentity(tempEDoc as EPassport, privateKey, publicKeyHash, {
+      strategy.createIdentity(tempEDoc as EPassport, privateKey, publicKeyHash, {
         onDownloading: () => {
           setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
         },
@@ -171,17 +168,22 @@ export function ScanContextProvider({
     setIdentity(identityItem)
 
     setCreatingIdentityStep(GenProofSteps.Final)
-  }, [addIdentity, privateKey, publicKeyHash, tempEDoc])
+  }, [addIdentity, privateKey, publicKeyHash, selectedDocType, tempEDoc])
 
   // ---------------------------------------------------------------------------------------------
 
   const handleSetSelectedDocType = useCallback((value: DocType) => {
     setSelectedDocType(value)
-    setCurrentStep(Steps.ScanMrzStep)
+    if (value === DocType.PASSPORT) {
+      setCurrentStep(Steps.ScanMrzStep)
+    } else {
+      setCurrentStep(Steps.ScanNfcStep)
+    }
   }, [])
+
   const handleSetMrz = useCallback((value: FieldRecords) => {
     setTempMRZ(value)
-    setCurrentStep(Steps.ScanNfcStep)
+    setCurrentStep(Steps.ScanPassportNfcStep)
   }, [])
 
   const handleSetEDoc = useCallback(

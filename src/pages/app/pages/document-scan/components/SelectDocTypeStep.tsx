@@ -29,7 +29,7 @@ export default function SelectDocTypeStep() {
               }}
             >
               <UiCard className='flex flex-row items-center gap-2'>
-                <UiIcon customIcon='starFillIcon' className='text-textPrimary' />
+                <UiIcon customIcon='suitcaseSimpleIcon' className='text-textPrimary' />
                 <Text className='typography-subtitle4 text-textPrimary'>Passport</Text>
               </UiCard>
             </Pressable>
