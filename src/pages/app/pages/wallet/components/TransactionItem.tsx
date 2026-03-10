@@ -1,10 +1,14 @@
+import { useTranslation } from 'react-i18next'
 import { Text, View } from 'react-native'
 
 import type { TransactionRecord } from '@/helpers/evm-wallet'
 import { truncateAddress, WALLET_CHAINS } from '@/helpers/evm-wallet'
 import { UiIcon } from '@/ui'
 
-function formatTimestamp(ts: number): string {
+function formatTimestamp(
+  ts: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
   if (!ts) return ''
   const d = new Date(ts * 1000)
   const now = new Date()
@@ -13,10 +17,10 @@ function formatTimestamp(ts: number): string {
   const diffHr = Math.floor(diffMs / 3_600_000)
   const diffDay = Math.floor(diffMs / 86_400_000)
 
-  if (diffMin < 1) return 'Just now'
-  if (diffMin < 60) return `${diffMin}m ago`
-  if (diffHr < 24) return `${diffHr}h ago`
-  if (diffDay < 7) return `${diffDay}d ago`
+  if (diffMin < 1) return t('wallet.just-now')
+  if (diffMin < 60) return t('wallet.minutes-ago', { count: diffMin })
+  if (diffHr < 24) return t('wallet.hours-ago', { count: diffHr })
+  if (diffDay < 7) return t('wallet.days-ago', { count: diffDay })
 
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
@@ -26,6 +30,7 @@ interface Props {
 }
 
 export default function TransactionItem({ tx }: Props) {
+  const { t } = useTranslation()
   const isReceived = tx.direction === 'received'
   const chain = WALLET_CHAINS.find(c => c.id === tx.chainId)
   const amt = parseFloat(tx.value)
@@ -49,7 +54,7 @@ export default function TransactionItem({ tx }: Props) {
         </View>
         <View className='gap-0.5'>
           <Text className='typography-subtitle4 text-textPrimary'>
-            {isReceived ? 'Received' : 'Sent'}
+            {isReceived ? t('wallet.received') : t('wallet.sent')}
           </Text>
           <Text className='typography-caption3 text-textSecondary'>
             {counterparty ? truncateAddress(counterparty, 4) : '—'}
@@ -67,7 +72,7 @@ export default function TransactionItem({ tx }: Props) {
           {displayAmt} {chain?.symbol ?? ''}
         </Text>
         <Text className='typography-caption3 text-textSecondary'>
-          {formatTimestamp(tx.timestamp)}
+          {formatTimestamp(tx.timestamp, t)}
         </Text>
       </View>
     </View>

@@ -21,7 +21,7 @@ try {
   console.error('Error getting system language', error)
 }
 
-const language = getLanguage() || systemLanguage || 'en'
+const language = getLanguage() || systemLanguage || 'fa'
 
 i18n.use(initReactI18next).init({
   resources,

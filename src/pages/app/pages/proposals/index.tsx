@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native'
 import { useQuery } from '@tanstack/react-query'
 import { JsonRpcProvider } from 'ethers'
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Pressable, RefreshControl, Text, View } from 'react-native'
 import Animated, {
   cancelAnimation,
@@ -107,6 +108,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const appPaddings = useAppPaddings()
   const offset = useBottomBarOffset()
   const navigation = useNavigation()
+  const { t } = useTranslation()
 
   const identities = identityStore.useIdentityStore(state => state.identities)
   const hasIdentity = identities.length > 0
@@ -183,7 +185,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
                 )
 
                 // Extract title - try to parse JSON if description contains raw JSON
-                let title = `Proposal #${i}`
+                let title = t('proposals.proposal-number', { id: i })
                 let description = parsed.cid
 
                 if (parsed.cid.startsWith('{')) {
@@ -266,20 +268,20 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const getStatusLabel = (status: ProposalStatus) => {
     switch (status) {
       case ProposalStatus.Started:
-        return 'Active'
+        return t('proposals.active')
       case ProposalStatus.Waiting:
-        return 'Upcoming'
+        return t('proposals.upcoming')
       case ProposalStatus.Ended:
-        return 'Ended'
+        return t('proposals.ended')
       default:
-        return 'Unknown'
+        return t('proposals.unknown')
     }
   }
 
   const formatNationalities = (nationalities: string[]) => {
-    if (nationalities.length === 0) return 'All Countries'
+    if (nationalities.length === 0) return t('proposals.all-countries')
     if (nationalities.length <= 3) return nationalities.join(', ')
-    return `${nationalities.slice(0, 2).join(', ')} +${nationalities.length - 2} more`
+    return `${nationalities.slice(0, 2).join(', ')} ${t('proposals.more-countries', { count: nationalities.length - 2 })}`
   }
 
   const handleProposalPress = (proposalId: number) => {
@@ -301,7 +303,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
           }}
           className='gap-4'
         >
-          <Text className='typography-h4 text-textPrimary'>Proposals</Text>
+          <Text className='typography-h4 text-textPrimary'>{t('proposals.title')}</Text>
           {[1, 2, 3].map(i => (
             <ProposalCardSkeleton key={i} delay={i * 100} />
           ))}
@@ -323,9 +325,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
           className='items-center justify-center gap-4'
         >
           <UiIcon customIcon='warningIcon' className='size-16 text-errorMain' />
-          <Text className='typography-h6 text-textPrimary'>Failed to load proposals</Text>
+          <Text className='typography-h6 text-textPrimary'>{t('proposals.failed-to-load')}</Text>
           <Pressable onPress={() => refetch()} className='rounded-full bg-primaryMain px-6 py-3'>
-            <Text className='typography-buttonMedium text-baseWhite'>Retry</Text>
+            <Text className='typography-buttonMedium text-baseWhite'>{t('proposals.retry')}</Text>
           </Pressable>
         </UiScreenScrollable>
       </AppContainer>
@@ -347,7 +349,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
         className='gap-4'
       >
         <View className='flex flex-row items-center justify-between'>
-          <Text className='typography-h4 text-textPrimary'>Proposals</Text>
+          <Text className='typography-h4 text-textPrimary'>{t('proposals.title')}</Text>
           {userNationality && (
             <View className='flex flex-row items-center gap-1 rounded-full bg-backgroundContainer px-2 py-1'>
               <UiIcon customIcon='earthLineIcon' className='size-3 text-textSecondary' />
@@ -360,20 +362,20 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
         {hasIdentity && userNationality && proposals && proposals.length > 0 && (
           <View className='flex flex-row gap-2'>
             <FilterChip
-              label='All'
+              label={t('proposals.all')}
               count={proposals.length}
               isActive={filterMode === 'all'}
               onPress={() => setFilterMode('all')}
             />
             <FilterChip
-              label='Eligible'
+              label={t('proposals.eligible')}
               count={eligibilityCounts.eligible}
               isActive={filterMode === 'eligible'}
               onPress={() => setFilterMode('eligible')}
               variant='success'
             />
             <FilterChip
-              label='Ineligible'
+              label={t('proposals.ineligible')}
               count={eligibilityCounts.ineligible}
               isActive={filterMode === 'ineligible'}
               onPress={() => setFilterMode('ineligible')}
@@ -386,7 +388,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
           <UiCard className='bg-warningDark/20 flex flex-row items-center gap-3'>
             <UiIcon customIcon='warningIcon' className='size-6 text-warningMain' />
             <Text className='typography-body3 flex-1 text-textPrimary'>
-              Create your digital identity to vote on proposals
+              {t('proposals.create-identity-hint')}
             </Text>
           </UiCard>
         )}
@@ -398,12 +400,17 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
               className='mb-4 size-16 text-textSecondary'
             />
             <Text className='typography-h6 text-center text-textPrimary'>
-              {filterMode === 'all' ? 'No proposals yet' : `No ${filterMode} proposals`}
+              {filterMode === 'all'
+                ? t('proposals.no-proposals')
+                : t('proposals.no-filtered', {
+                    filter:
+                      filterMode === 'eligible'
+                        ? t('proposals.eligible')
+                        : t('proposals.ineligible'),
+                  })}
             </Text>
             <Text className='typography-body3 mt-2 text-center text-textSecondary'>
-              {filterMode === 'all'
-                ? 'Check back later for new voting opportunities'
-                : 'Try changing the filter to see more proposals'}
+              {filterMode === 'all' ? t('proposals.check-back') : t('proposals.try-filter')}
             </Text>
           </UiCard>
         ) : (
@@ -475,6 +482,7 @@ function ProposalCard({
   formattedNationalities: string
   isEligible?: boolean // undefined = no identity registered
 }) {
+  const { t } = useTranslation()
   const endTime = new Time(proposal.startTimestamp * 1000).add(proposal.duration, 'seconds')
   const startTime = new Time(proposal.startTimestamp * 1000)
   const isActive = proposal.status === ProposalStatus.Started
@@ -516,7 +524,7 @@ function ProposalCard({
               <Text
                 className={`typography-caption ${isEligible ? 'text-successMain' : 'text-errorMain'}`}
               >
-                {isEligible ? 'Eligible' : 'Ineligible'}
+                {isEligible ? t('proposals.eligible') : t('proposals.ineligible')}
               </Text>
             </View>
           )}
@@ -531,21 +539,24 @@ function ProposalCard({
               size={14}
             />
             <Text className='typography-caption text-textSecondary'>
-              {isActive ? 'Ends: ' : 'Starts: '}
-              {formatDateDMY(isActive ? endTime : startTime)}
+              {isActive
+                ? t('proposals.ends', { date: formatDateDMY(endTime) })
+                : t('proposals.starts', { date: formatDateDMY(startTime) })}
             </Text>
           </View>
 
           <View className='flex flex-row items-center gap-2'>
             <UiIcon libIcon='FontAwesome' name='users' className='text-textSecondary' size={14} />
             <Text className='typography-caption text-textSecondary'>
-              {proposal.totalVotes} votes
+              {t('proposals.votes-count', { count: proposal.totalVotes })}
             </Text>
           </View>
         </View>
 
         <View className='mt-1 flex flex-row items-center justify-end'>
-          <Text className='typography-buttonSmall text-primaryMain'>View Details</Text>
+          <Text className='typography-buttonSmall text-primaryMain'>
+            {t('proposals.view-details')}
+          </Text>
           <UiIcon customIcon='arrowRightIcon' className='ml-1 size-4 text-primaryMain' />
         </View>
       </UiCard>

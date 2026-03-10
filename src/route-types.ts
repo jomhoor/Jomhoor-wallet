@@ -1,5 +1,4 @@
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native'
+import type { NavigatorScreenParams } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 
 import { DocType } from './utils/e-document'
@@ -37,7 +36,13 @@ export type LocalAuthStackScreenProps<T extends keyof LocalAuthStackParamsList> 
   NativeStackScreenProps<LocalAuthStackParamsList, T>
 
 export type AppStackParamsList = {
-  Tabs?: NavigatorScreenParams<AppTabParamsList>
+  Home: undefined
+  Documents: undefined
+  Proposals: undefined
+  Hub: undefined
+  Compass: undefined
+  Wallet: undefined
+  Profile: undefined
   InviteOthers?: {
     tag?: string
   }
@@ -52,21 +57,9 @@ export type AppStackScreenProps<T extends keyof AppStackParamsList> = NativeStac
   T
 >
 
-export type AppTabParamsList = {
-  Documents: undefined
-  Home: undefined
-  Hub: undefined
-  Proposals: undefined
-  Compass: undefined
-  Wallet: undefined
-  Profile: undefined
-  PassportTests: undefined
-}
-
-export type AppTabScreenProps<T extends keyof AppTabParamsList> = CompositeScreenProps<
-  BottomTabScreenProps<AppTabParamsList, T>,
-  RootStackScreenProps<keyof RootStackParamList>
->
+// Backward-compatible alias for screens that were previously tabs
+export type AppTabParamsList = AppStackParamsList
+export type AppTabScreenProps<T extends keyof AppStackParamsList> = AppStackScreenProps<T>
 
 declare global {
   namespace ReactNavigation {

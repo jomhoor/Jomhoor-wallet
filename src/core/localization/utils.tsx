@@ -17,7 +17,7 @@ export type TxKeyPath = RecursiveKeyOf<DefaultLocale>
 
 export const LOCAL = 'local'
 
-export const getLanguage = (): Language => (storage.getString(LOCAL) as Language) || 'en' // 'Marc' getItem<Language | undefined>(LOCAL);
+export const getLanguage = (): Language => (storage.getString(LOCAL) as Language) || 'fa' // 'Marc' getItem<Language | undefined>(LOCAL);
 
 export const translate = memoize(
   (key: TxKeyPath, options = undefined) => i18n.t(key, options) as unknown as string,
@@ -27,7 +27,7 @@ export const translate = memoize(
 
 export const changeLanguage = (lang: Language) => {
   i18n.changeLanguage(lang)
-  if (lang === 'ar') {
+  if (lang === 'ar' || lang === 'fa') {
     I18nManager.allowRTL(true)
     I18nManager.forceRTL(true)
   } else {
@@ -60,5 +60,5 @@ export const useSelectedLanguage = () => {
     [setLang],
   )
 
-  return { language: (language as Language) || 'en', setLanguage }
+  return { language: (language as Language) || 'fa', setLanguage }
 }

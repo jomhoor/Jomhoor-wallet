@@ -19,6 +19,7 @@ export interface BalanceCardRef {
 const BalanceCard = forwardRef<BalanceCardRef>(function BalanceCard(_props, ref) {
   const address = useEvmAddress()
   const { isCopied, copy } = useCopyWithHaptics()
+  const [addressVisible, setAddressVisible] = useState(false)
   const [balances, setBalances] = useState<TokenBalance[]>(
     WALLET_CHAINS.map(chain => ({ chain, balance: null })),
   )
@@ -48,19 +49,29 @@ const BalanceCard = forwardRef<BalanceCardRef>(function BalanceCard(_props, ref)
   return (
     <UiCard className={cn('flex flex-col gap-4 pb-5 pt-6')}>
       {/* Address header */}
-      <View className='flex flex-col items-center gap-3'>
+      <View className='flex flex-row items-center justify-center gap-2'>
         <Pressable
-          onPress={() => copy(address)}
+          onPress={() => addressVisible && copy(address)}
           className='flex flex-row items-center gap-2 rounded-full bg-componentPrimary px-4 py-2'
         >
           <Text className='typography-caption2 text-textSecondary'>
-            {truncateAddress(address, 8)}
+            {addressVisible ? truncateAddress(address, 8) : '••••••••••••'}
           </Text>
+          {addressVisible && (
+            <UiIcon
+              libIcon='Ionicons'
+              name={isCopied ? 'checkmark-circle' : 'copy-outline'}
+              size={14}
+              className={isCopied ? 'text-successMain' : 'text-textSecondary'}
+            />
+          )}
+        </Pressable>
+        <Pressable onPress={() => setAddressVisible(v => !v)} hitSlop={8}>
           <UiIcon
             libIcon='Ionicons'
-            name={isCopied ? 'checkmark-circle' : 'copy-outline'}
-            size={14}
-            className={isCopied ? 'text-successMain' : 'text-textSecondary'}
+            name={addressVisible ? 'eye' : 'eye-off'}
+            size={18}
+            className='text-textSecondary'
           />
         </Pressable>
       </View>

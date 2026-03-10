@@ -1,5 +1,6 @@
 import { BottomSheetView } from '@gorhom/bottom-sheet'
 import { forwardRef, useImperativeHandle } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Text, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -14,6 +15,7 @@ export interface ReceiveSheetRef {
 }
 
 const ReceiveSheet = forwardRef<ReceiveSheetRef>(function ReceiveSheet(_props, ref) {
+  const { t } = useTranslation()
   const address = useEvmAddress()
   const { palette } = useAppTheme()
   const insets = useSafeAreaInsets()
@@ -47,7 +49,7 @@ const ReceiveSheet = forwardRef<ReceiveSheetRef>(function ReceiveSheet(_props, r
           alignItems: 'center',
         }}
       >
-        <Text className='typography-h6 text-textPrimary'>Receive</Text>
+        <Text className='typography-h6 text-textPrimary'>{t('wallet.receive')}</Text>
 
         <UiHorizontalDivider />
 
@@ -68,14 +70,14 @@ const ReceiveSheet = forwardRef<ReceiveSheetRef>(function ReceiveSheet(_props, r
         </Text>
 
         <Text className='typography-caption3 text-center text-textPlaceholder'>
-          Send only EVM-compatible tokens to this address
+          {t('wallet.receive-hint')}
         </Text>
 
         <UiButton
           variant='outlined'
           color='primary'
           size='large'
-          title={isCopied ? 'Copied!' : 'Copy Address'}
+          title={isCopied ? t('wallet.copied') : t('wallet.copy-address')}
           leadingIconProps={{
             libIcon: 'Ionicons',
             name: isCopied ? 'checkmark-circle' : 'copy-outline',

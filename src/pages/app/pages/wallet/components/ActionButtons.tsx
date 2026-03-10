@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Pressable, Text, View } from 'react-native'
 
 import { useEvmAddress } from '@/helpers/evm-wallet'
@@ -10,6 +11,7 @@ interface ActionButtonsProps {
 }
 
 export default function ActionButtons({ onSendPress, onReceivePress }: ActionButtonsProps) {
+  const { t } = useTranslation()
   const address = useEvmAddress()
   const { isCopied, copy } = useCopyWithHaptics()
 
@@ -17,13 +19,13 @@ export default function ActionButtons({ onSendPress, onReceivePress }: ActionBut
 
   return (
     <View className='flex flex-row justify-center gap-6'>
-      <ActionItem icon='arrow-up-circle-outline' label='Send' onPress={onSendPress} />
+      <ActionItem icon='arrow-up-circle-outline' label={t('wallet.send')} onPress={onSendPress} />
       <ActionItem
         icon={isCopied ? 'checkmark-circle-outline' : 'copy-outline'}
-        label={isCopied ? 'Copied!' : 'Copy'}
+        label={isCopied ? t('wallet.copied') : t('wallet.copy')}
         onPress={() => copy(address)}
       />
-      <ActionItem icon='qr-code-outline' label='Receive' onPress={onReceivePress} />
+      <ActionItem icon='qr-code-outline' label={t('wallet.receive')} onPress={onReceivePress} />
     </View>
   )
 }

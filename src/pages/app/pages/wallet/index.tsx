@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, RefreshControl, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -15,6 +16,7 @@ import SendSheet, { type SendSheetRef } from './components/SendSheet'
 import TransactionItem from './components/TransactionItem'
 
 export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
+  const { t } = useTranslation()
   const address = useEvmAddress()
   const insets = useSafeAreaInsets()
   const paddings = useAppPaddings()
@@ -62,10 +64,10 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
             className='text-textSecondary'
           />
           <Text className='typography-subtitle3 text-center text-textSecondary'>
-            No wallet available
+            {t('wallet.no-wallet')}
           </Text>
           <Text className='typography-body3 text-center text-textPlaceholder'>
-            Create a profile first to generate your wallet.
+            {t('wallet.no-wallet-hint')}
           </Text>
         </View>
       </AppContainer>
@@ -86,7 +88,7 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
         }}
       >
         {/* Header */}
-        <Text className='typography-h5 text-textPrimary'>Wallet</Text>
+        <Text className='typography-h5 mb-4 text-center text-textPrimary'>{t('wallet.title')}</Text>
 
         {/* Balance card */}
         <BalanceCard ref={balanceRef} />
@@ -101,7 +103,7 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
 
         {/* Activity section */}
         <View className='gap-3'>
-          <Text className='typography-subtitle3 text-textPrimary'>Activity</Text>
+          <Text className='typography-subtitle3 text-textPrimary'>{t('wallet.activity')}</Text>
 
           {txLoading && transactions.length === 0 ? (
             <UiCard className='items-center py-10'>
@@ -115,7 +117,9 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
                 size={32}
                 className='text-textSecondary'
               />
-              <Text className='typography-body3 text-textSecondary'>No transactions yet</Text>
+              <Text className='typography-body3 text-textSecondary'>
+                {t('wallet.no-transactions')}
+              </Text>
             </UiCard>
           ) : (
             <UiCard className='py-1'>

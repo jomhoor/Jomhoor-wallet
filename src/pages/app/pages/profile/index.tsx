@@ -255,6 +255,7 @@ function LangCard() {
               data={Object.keys(resources).map(el => ({
                 label: {
                   en: 'English',
+                  fa: 'فارسی',
                   ar: 'العربية',
                   uk: 'Українська',
                 }[el],

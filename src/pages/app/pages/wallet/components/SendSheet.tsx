@@ -1,6 +1,7 @@
 import { BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet'
 import { parseEther, Wallet } from 'ethers'
 import { forwardRef, useImperativeHandle, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Alert, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -13,6 +14,7 @@ export interface SendSheetRef {
 }
 
 const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
+  const { t } = useTranslation()
   const wallet = useEvmWallet()
   const { palette } = useAppTheme()
   const insets = useSafeAreaInsets()
@@ -48,13 +50,16 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
 
       await tx.wait()
 
-      Alert.alert('Success', `Transaction sent on ${selectedChain.name}!\n${tx.hash}`)
+      Alert.alert(
+        t('wallet.success'),
+        t('wallet.send-success', { network: selectedChain.name, hash: tx.hash }),
+      )
       setRecipient('')
       setAmount('')
       bottomSheet.dismiss()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error'
-      Alert.alert('Send Failed', message)
+      Alert.alert(t('wallet.send-failed'), message)
     } finally {
       setIsSending(false)
     }
@@ -72,13 +77,15 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
       <BottomSheetView
         style={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 24, paddingTop: 8, gap: 20 }}
       >
-        <Text className='typography-h6 text-textPrimary'>Send {selectedChain.symbol}</Text>
+        <Text className='typography-h6 text-textPrimary'>
+          {t('wallet.send-symbol', { symbol: selectedChain.symbol })}
+        </Text>
 
         <UiHorizontalDivider />
 
         {/* Chain selector */}
         <View style={{ gap: 6 }}>
-          <Text className='typography-caption1 text-textSecondary'>Network</Text>
+          <Text className='typography-caption1 text-textSecondary'>{t('wallet.network')}</Text>
           <View className='flex flex-row gap-2'>
             {WALLET_CHAINS.map(chain => {
               const isActive = chain.id === selectedChain.id
@@ -120,7 +127,9 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text className='typography-caption1 text-textSecondary'>Recipient Address</Text>
+          <Text className='typography-caption1 text-textSecondary'>
+            {t('wallet.recipient-address')}
+          </Text>
           <BottomSheetTextInput
             placeholder='0x...'
             placeholderTextColor={palette.textPlaceholder}
@@ -139,7 +148,7 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
               paddingVertical: 14,
               fontSize: 14,
               color: palette.textPrimary,
-              fontFamily: 'NotoSans-Regular',
+              fontFamily: 'Parastoo',
               backgroundColor: palette.backgroundPrimary,
             }}
           />
@@ -147,7 +156,7 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
 
         <View style={{ gap: 6 }}>
           <Text className='typography-caption1 text-textSecondary'>
-            Amount ({selectedChain.symbol})
+            {t('wallet.amount', { symbol: selectedChain.symbol })}
           </Text>
           <BottomSheetTextInput
             placeholder='0.00'
@@ -163,7 +172,7 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
               paddingVertical: 14,
               fontSize: 14,
               color: palette.textPrimary,
-              fontFamily: 'NotoSans-Regular',
+              fontFamily: 'Parastoo',
               backgroundColor: palette.backgroundPrimary,
             }}
           />
@@ -173,7 +182,11 @@ const SendSheet = forwardRef<SendSheetRef>(function SendSheet(_props, ref) {
           variant='filled'
           color='primary'
           size='large'
-          title={isSending ? 'Sending...' : `Send ${selectedChain.symbol}`}
+          title={
+            isSending
+              ? t('wallet.sending')
+              : t('wallet.send-symbol', { symbol: selectedChain.symbol })
+          }
           onPress={handleSend}
           disabled={!isValid || isSending}
         />

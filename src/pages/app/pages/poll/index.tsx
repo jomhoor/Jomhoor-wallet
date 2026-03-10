@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { hexlify, JsonRpcProvider, toUtf8Bytes } from 'ethers'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { Image, Pressable, Text, View } from 'react-native'
 import { useSharedValue, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -62,6 +63,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const insets = useSafeAreaInsets()
   const bottomSheet = useUiBottomSheet()
   const navigation = useNavigation()
+  const { t } = useTranslation()
 
   const identities = identityStore.useIdentityStore(state => state.identities)
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
@@ -405,7 +407,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       console.log('[Poll] Proof generated, calling submitVote...')
       await circuitParams.submitVote({ proof, votes, proposalId })
 
-      bus.emit(DefaultBusEvents.success, { message: 'Proof generated successfully!' })
+      bus.emit(DefaultBusEvents.success, { message: t('poll.proof-success') })
       progress.value = withTiming(100, { duration: 100 })
       setScreen(Screen.Finish)
       reset()
@@ -414,7 +416,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       console.error('Proof generation failed:', error)
       progress.value = 0
       setScreen(Screen.Questions)
-      bus.emit(DefaultBusEvents.error, { message: 'Proof generation failed. Please try again.' })
+      bus.emit(DefaultBusEvents.error, { message: t('poll.proof-failed') })
     }
   }
 
@@ -560,9 +562,11 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
 
         <View className='gap-3 px-6'>
           {[
-            `Citizen of IRAN`,
-            `After ${formatDateDMY(parsedProposal.startTimestamp)}`,
-            `Before ${formatDateDMY(parsedProposal.startTimestamp + parsedProposal.duration)}`,
+            t('poll.citizen-of-iran'),
+            t('poll.after-date', { date: formatDateDMY(parsedProposal.startTimestamp) }),
+            t('poll.before-date', {
+              date: formatDateDMY(parsedProposal.startTimestamp + parsedProposal.duration),
+            }),
           ].map(title => (
             <View key={title} className='flex-row items-center gap-2'>
               <UiIcon customIcon='checkIcon' size={20} className='color-successMain' />
@@ -572,7 +576,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         </View>
 
         <View className='w-full flex-1 justify-end px-4 pb-4'>
-          <UiButton title='Vote' onPress={bottomSheet.present} className='mt-8 w-full' />
+          <UiButton title={t('poll.vote')} onPress={bottomSheet.present} className='mt-8 w-full' />
         </View>
       </UiScreenScrollable>
 
@@ -617,6 +621,7 @@ function QuestionScreen({
   const isCanGoBack = currentQuestionIndex > 0
   const isLast = currentQuestionIndex === questions.length - 1
   const insets = useSafeAreaInsets()
+  const { t } = useTranslation()
 
   return (
     <View
@@ -628,7 +633,10 @@ function QuestionScreen({
     >
       <View className='flex-row items-center justify-between'>
         <Text className='typography-subtitle4 text-textSecondary'>
-          Question: {currentQuestionIndex + 1}/{questions.length}
+          {t('poll.question-counter', {
+            current: currentQuestionIndex + 1,
+            total: questions.length,
+          })}
         </Text>
         <Pressable onPress={onClose}>
           <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>
@@ -643,7 +651,7 @@ function QuestionScreen({
             {currentQuestion.title}
           </Text>
           <UiHorizontalDivider />
-          <Text className='typography-overline2 text-textSecondary'>PICK YOUR ANSWER</Text>
+          <Text className='typography-overline2 text-textSecondary'>{t('poll.pick-answer')}</Text>
 
           <View className='mt-3 gap-3'>
             {currentQuestion.variants.map((answer, index) => {
@@ -687,7 +695,7 @@ function QuestionScreen({
           {isCanGoBack && (
             <UiButton
               variant='outlined'
-              title='Previous'
+              title={t('poll.previous')}
               className='flex-1'
               leadingIconProps={{ customIcon: 'arrowLeftIcon' }}
               onPress={onBack}
@@ -695,7 +703,7 @@ function QuestionScreen({
           )}
 
           <UiButton
-            title={isLast ? 'Finish' : 'Next Question'}
+            title={isLast ? t('poll.finish') : t('poll.next-question')}
             trailingIconProps={{ customIcon: 'arrowRightIcon' }}
             disabled={currentVoteIndex === null}
             className='flex-1'

@@ -1,0 +1,209 @@
+{
+  "auth": {
+    "intro": {
+      "next-btn": "شروع کنیم",
+      "step-1": {
+        "subtitle": "برای کسانی که آزادی و حریم خصوصی می‌خواهند",
+        "title": "هویت دیجیتال"
+      },
+      "step-2": {
+        "subtitle": "برای کسانی که عدالت می‌خواهند",
+        "title": "رأی‌گیری ناشناس"
+      }
+    },
+    "sign-in": {
+      "tip": "کلید خصوصی خود را برای ورود وارد کنید. به یاد داشته باشید که فقط شما باید این کلید را بدانید."
+    },
+    "sign-up": {
+      "tip": "لطفاً کلید خصوصی را در جای امنی نگه دارید و آن را با کسی به اشتراک نگذارید. اگر این کلید را گم کنید، امکان بازیابی حساب وجود ندارد و دسترسی شما برای همیشه از بین می‌رود."
+    }
+  },
+  "enable-biometrics": {
+    "enable-btn": "فعال‌سازی",
+    "skip-btn": "رد شدن",
+    "title": "فعال‌سازی احراز هویت بیومتریک"
+  },
+  "enable-passcode": {
+    "enable-btn": "فعال‌سازی",
+    "skip-btn": "رد شدن",
+    "title": "فعال‌سازی رمز عبور"
+  },
+  "errors": {
+    "default": "مشکلی پیش آمد"
+  },
+  "home": {
+    "add": "افزودن",
+    "add-dapp": "افزودن dApp",
+    "cancel": "لغو",
+    "compass": "قطب‌نما",
+    "documents": "مدارک",
+    "enter-url": "آدرس dApp را وارد کنید",
+    "hub": "هاب",
+    "make-default": "تنظیم به‌عنوان پیش‌فرض",
+    "make-default-msg": "\"{{name}}\" را به‌عنوان dApp اصلی تنظیم کنید؟",
+    "profile": "پروفایل",
+    "proposals": "پیشنهادات",
+    "title": "کیف پول جمهور",
+    "wallet": "کیف پول"
+  },
+  "lockscreen": {
+    "attempts-left": "تلاش‌های باقی‌مانده: {{attemptsLeft}}",
+    "default-title": "رمز عبور را وارد کنید",
+    "forgot-btn": "فراموشی رمز عبور",
+    "locked-permanently": "حساب به طور دائم قفل شده است، تا زمان خروج",
+    "locked-temp": "حساب قفل شده است",
+    "logout-btn": "خروج"
+  },
+  "notifications": {
+    "default-message-default": "فقط یک پیام",
+    "default-message-error": "مشکلی پیش آمد",
+    "default-message-info": "اتفاقی در حال رخ دادن است. فقط می‌خواستیم بدانید",
+    "default-message-success": "عملیات موفقیت‌آمیز بود",
+    "default-message-warning": "کاری که انجام می‌دهید توصیه نمی‌شود",
+    "default-title-default": "فقط یک پیام",
+    "default-title-error": "خطا",
+    "default-title-info": "اطلاعات",
+    "default-title-success": "موفقیت",
+    "default-title-warning": "هشدار"
+  },
+  "plurals": {
+    "key_few": "چند",
+    "key_many": "زیاد",
+    "key_one": "یک",
+    "key_other": "دیگر",
+    "key_two": "دو",
+    "key_zero": "صفر"
+  },
+  "poll": {
+    "after-date": "بعد از {{date}}",
+    "already-voted-subtitle": "از مشارکت شما در نظرسنجی متشکریم.",
+    "already-voted-title": "قبلاً رأی داده‌اید",
+    "before-date": "قبل از {{date}}",
+    "citizen-of-iran": "شهروند ایران",
+    "create-identity": "ساخت هویت دیجیتال",
+    "error-default": "لطفاً بعداً دوباره تلاش کنید.",
+    "error-title": "مشکلی پیش آمد",
+    "finish": "پایان",
+    "finished-subtitle": "از مشارکت شما متشکریم!",
+    "finished-title": "نظرسنجی تمام شد",
+    "go-back": "بازگشت",
+    "loading": "در حال بارگذاری...",
+    "next-question": "سؤال بعدی",
+    "no-identity-subtitle": "ابتدا هویت دیجیتال خود را بسازید",
+    "no-identity-title": "هویت دیجیتال ندارید",
+    "pick-answer": "پاسخ خود را انتخاب کنید",
+    "previous": "قبلی",
+    "proof-failed": "تولید اثبات ناموفق بود. لطفاً دوباره تلاش کنید.",
+    "proof-success": "اثبات با موفقیت تولید شد!",
+    "question-counter": "سؤال: {{current}}/{{total}}",
+    "submitting-subtitle": "در حال ناشناس‌سازی رأی شما",
+    "submitting-title": "لطفاً صبر کنید",
+    "submitting-warning": "لطفاً برنامه را نبندید، وگرنه پاسخ‌های شما ثبت نخواهد شد.",
+    "try-again": "تلاش مجدد",
+    "vote": "رأی دادن"
+  },
+  "proposals": {
+    "active": "فعال",
+    "all": "همه",
+    "all-countries": "همه کشورها",
+    "check-back": "بعداً برای فرصت‌های جدید رأی‌گیری سر بزنید",
+    "create-identity-hint": "برای رأی‌گیری ابتدا هویت دیجیتال خود را بسازید",
+    "eligible": "واجد شرایط",
+    "ended": "پایان‌یافته",
+    "ends": "پایان: {{date}}",
+    "failed-to-load": "بارگذاری پیشنهادات ناموفق بود",
+    "ineligible": "فاقد شرایط",
+    "more-countries": "+{{count}} بیشتر",
+    "no-filtered": "پیشنهاد {{filter}} وجود ندارد",
+    "no-proposals": "هنوز پیشنهادی وجود ندارد",
+    "proposal-number": "پیشنهاد #{{id}}",
+    "retry": "تلاش مجدد",
+    "starts": "شروع: {{date}}",
+    "title": "پیشنهادها",
+    "try-filter": "فیلتر را تغییر دهید تا پیشنهادات بیشتری ببینید",
+    "unknown": "نامشخص",
+    "upcoming": "آینده",
+    "view-details": "مشاهده جزئیات",
+    "votes-count": "{{count}} رأی"
+  },
+  "set-passcode": {
+    "error-mismatch": "رمزهای عبور وارد شده مطابقت ندارند",
+    "reenter-subtitle": "لطفاً رمز عبور خود را دوباره وارد کنید",
+    "reenter-title": "رمز عبور را دوباره وارد کنید",
+    "submit-btn": "تنظیم",
+    "subtitle": "رمز عبور خود را فراموش نکنید، قابل بازیابی نیست",
+    "title": "تنظیم رمز عبور"
+  },
+  "sign-in": {
+    "divider": "یا",
+    "email-lbl": "ایمیل",
+    "email-ph": "ایمیل خود را وارد کنید",
+    "login-tip": "ثبت‌نام",
+    "oauth-btn": "ورود با گوگل",
+    "password-lbl": "رمز عبور",
+    "password-ph": "رمز عبور خود را وارد کنید",
+    "submit-btn": "ورود",
+    "tip": "حساب ندارید؟",
+    "title": "خوش آمدید 👋"
+  },
+  "sign-up": {
+    "divider": "یا",
+    "email-lbl": "ایمیل",
+    "email-ph": "ایمیل خود را وارد کنید",
+    "login-tip": "ورود",
+    "name-lbl": "نام",
+    "name-ph": "نام خود را وارد کنید",
+    "oauth-btn": "ورود با گوگل",
+    "password-lbl": "رمز عبور",
+    "password-ph": "رمز عبور خود را وارد کنید",
+    "submit-btn": "ثبت‌نام",
+    "tip": "قبلاً حساب دارید؟",
+    "title": "ایجاد حساب کاربری"
+  },
+  "tabs": {
+    "one": "تب یک",
+    "scan-nfc": {
+      "tip": "۱. مطمئن شوید که قاب گوشی را برداشته‌اید\n۲. شروع اسکن NFC را بزنید و پاسپورت/کارت ملی خود را پشت گوشی قرار دهید\n۳. تولید اثبات را بزنید"
+    },
+    "two": "تب دو",
+    "typography": "تایپوگرافی"
+  },
+  "ui-preferences": {
+    "primary": "اصلی",
+    "quaternary": "چهارم",
+    "secondary": "دوم",
+    "tertiary": "سوم"
+  },
+  "validations": {
+    "field-error_maxLength": "این فیلد باید حداکثر {{maxLength}} نماد داشته باشد",
+    "field-error_minLength": "این فیلد باید حداقل {{minLength}} نماد داشته باشد",
+    "field-error_required": "لطفاً این فیلد را پر کنید"
+  },
+  "wallet": {
+    "activity": "فعالیت‌ها",
+    "amount": "مبلغ ({{symbol}})",
+    "copied": "کپی شد!",
+    "copy": "کپی",
+    "copy-address": "کپی آدرس",
+    "days-ago": "{{count}} روز پیش",
+    "hours-ago": "{{count}} ساعت پیش",
+    "just-now": "همین الان",
+    "minutes-ago": "{{count}} دقیقه پیش",
+    "network": "شبکه",
+    "no-transactions": "هنوز تراکنشی انجام نشده",
+    "no-wallet": "کیف پولی موجود نیست",
+    "no-wallet-hint": "ابتدا پروفایل بسازید تا کیف پول شما ایجاد شود.",
+    "receive": "دریافت",
+    "receive-hint": "فقط توکن‌های سازگار با EVM به این آدرس ارسال کنید",
+    "received": "دریافت شده",
+    "recipient-address": "آدرس گیرنده",
+    "send": "ارسال",
+    "send-failed": "ارسال ناموفق",
+    "send-success": "تراکنش در شبکه {{network}} ارسال شد!\n{{hash}}",
+    "send-symbol": "ارسال {{symbol}}",
+    "sending": "در حال ارسال...",
+    "sent": "ارسال شده",
+    "success": "موفق",
+    "title": "کیف پول"
+  }
+}

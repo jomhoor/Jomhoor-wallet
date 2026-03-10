@@ -79,6 +79,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           './assets/fonts/NotoSans-Regular.ttf',
           './assets/fonts/NotoSans-SemiBold.ttf',
           './assets/fonts/NotoSans-Medium.ttf',
+          './assets/fonts/Parastoo-Regular.ttf',
+          './assets/fonts/Parastoo-Bold.ttf',
         ],
       },
     ],

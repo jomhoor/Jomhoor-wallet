@@ -21,6 +21,8 @@ export const fontFamily: ThemeConfig['fontFamily'] = {
   'noto-sans-regular': 'NotoSans-Regular',
   'noto-sans-semi-bold': 'NotoSans-SemiBold',
   'noto-sans-medium': 'NotoSans-Medium',
+  parastoo: 'Parastoo',
+  'parastoo-bold': 'Parastoo-Bold',
 }
 
 export const typography = {
@@ -28,68 +30,68 @@ export const typography = {
     fontSize: '96px',
     lineHeight: '96px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-h2': {
     fontSize: '64px',
     lineHeight: '70px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-h3': {
     fontSize: '48px',
     lineHeight: '56px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-h4': {
     fontSize: '32px',
     lineHeight: '40px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-h5': {
     fontSize: '24px',
     lineHeight: '30px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-h6': {
     fontSize: '20px',
     lineHeight: '24px',
     fontWeight: 700,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
 
   '.typography-subtitle1': {
     fontSize: '24px',
     lineHeight: '30px',
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-subtitle2': {
     fontSize: '20px',
     lineHeight: '24px',
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-subtitle3': {
     fontSize: '16px',
     lineHeight: '20px',
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-subtitle4': {
     fontSize: '14px',
     lineHeight: '18px',
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-subtitle5': {
     fontSize: '12px',
     lineHeight: '16px',
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
 
   '.typography-body1': {
@@ -97,28 +99,28 @@ export const typography = {
     lineHeight: '36px',
     letterSpacing: 0.02,
     fontWeight: 400,
-    fontFamily: 'noto-sans-regular',
+    fontFamily: 'parastoo',
   },
   '.typography-body2': {
     fontSize: '16px',
     lineHeight: '20px',
     letterSpacing: 0.02,
     fontWeight: 400,
-    fontFamily: 'noto-sans-regular',
+    fontFamily: 'parastoo',
   },
   '.typography-body3': {
     fontSize: '14px',
     lineHeight: '20px',
     letterSpacing: 0.02,
     fontWeight: 400,
-    fontFamily: 'noto-sans-regular',
+    fontFamily: 'parastoo',
   },
   '.typography-body4': {
     fontSize: '12px',
     lineHeight: '16px',
     letterSpacing: 0.02,
     fontWeight: 400,
-    fontFamily: 'noto-sans-regular',
+    fontFamily: 'parastoo',
   },
 
   '.typography-buttonLarge': {
@@ -126,40 +128,40 @@ export const typography = {
     lineHeight: '20px',
     letterSpacing: 0.02,
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-buttonMedium': {
     fontSize: '14px',
     lineHeight: '18px',
     letterSpacing: 0.02,
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-buttonSmall': {
     fontSize: '12px',
     lineHeight: '14px',
     letterSpacing: 0.02,
     fontWeight: 600,
-    fontFamily: 'noto-sans-semi-bold',
+    fontFamily: 'parastoo-bold',
   },
 
   '.typography-caption1': {
     fontSize: '14px',
     lineHeight: '18px',
     fontWeight: 500,
-    fontFamily: 'noto-sans-medium',
+    fontFamily: 'parastoo',
   },
   '.typography-caption2': {
     fontSize: '12px',
     lineHeight: '16px',
     fontWeight: 500,
-    fontFamily: 'noto-sans-medium',
+    fontFamily: 'parastoo',
   },
   '.typography-caption3': {
     fontSize: '10px',
     lineHeight: '12px',
     fontWeight: 500,
-    fontFamily: 'noto-sans-medium',
+    fontFamily: 'parastoo',
   },
 
   '.typography-overline1': {
@@ -167,7 +169,7 @@ export const typography = {
     lineHeight: '18px',
     fontWeight: 700,
     letterSpacing: 0.04,
-    fontFamily: 'noto-sans-bold',
+    fontFamily: 'parastoo-bold',
   },
   '.typography-overline2': {
     fontSize: '12px',
