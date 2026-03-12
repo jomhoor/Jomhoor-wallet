@@ -4,6 +4,12 @@ The official mobile app for [Iranians.Vote](https://iranians.vote) — a digital
 
 **GitHub:** https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote
 
+## Demo
+
+[![Watch the MVP Demo](https://transcf.org/wp-content/uploads/2026/03/MVP-Jomhoor-Wallet-thumb.png)](https://transcf.org/wp-content/uploads/2026/03/MVP-Jomhoor-Wallet.mp4)
+
+> **[▶ Watch the MVP Demo](https://transcf.org/wp-content/uploads/2026/03/MVP-Jomhoor-Wallet.mp4)** — Identity verification and voting flow in action.
+
 ## Features
 
 - NFC-based passport and national ID card scanning
