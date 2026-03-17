@@ -8,7 +8,7 @@
       },
       "step-2": {
         "subtitle": "برای کسانی که عدالت می‌خواهند",
-        "title": "رأی‌گیری ناشناس"
+        "title": "رای‌گیری ناشناس"
       }
     },
     "sign-in": {
@@ -77,7 +77,7 @@
   "poll": {
     "after-date": "بعد از {{date}}",
     "already-voted-subtitle": "از مشارکت شما در نظرسنجی متشکریم.",
-    "already-voted-title": "قبلاً رأی داده‌اید",
+    "already-voted-title": "قبلن رای داده‌اید",
     "before-date": "قبل از {{date}}",
     "citizen-of-iran": "شهروند ایران",
     "create-identity": "ساخت هویت دیجیتال",
@@ -96,18 +96,18 @@
     "proof-failed": "تولید اثبات ناموفق بود. لطفاً دوباره تلاش کنید.",
     "proof-success": "اثبات با موفقیت تولید شد!",
     "question-counter": "سؤال: {{current}}/{{total}}",
-    "submitting-subtitle": "در حال ناشناس‌سازی رأی شما",
+    "submitting-subtitle": "در حال ناشناس‌سازی رای شما",
     "submitting-title": "لطفاً صبر کنید",
     "submitting-warning": "لطفاً برنامه را نبندید، وگرنه پاسخ‌های شما ثبت نخواهد شد.",
     "try-again": "تلاش مجدد",
-    "vote": "رأی دادن"
+    "vote": "رای دادن"
   },
   "proposals": {
     "active": "فعال",
     "all": "همه",
     "all-countries": "همه کشورها",
-    "check-back": "بعداً برای فرصت‌های جدید رأی‌گیری سر بزنید",
-    "create-identity-hint": "برای رأی‌گیری ابتدا هویت دیجیتال خود را بسازید",
+    "check-back": "بعداً برای فرصت‌های جدید رای‌گیری سر بزنید",
+    "create-identity-hint": "برای رای‌گیری ابتدا هویت دیجیتال خود را بسازید",
     "eligible": "واجد شرایط",
     "ended": "پایان‌یافته",
     "ends": "پایان: {{date}}",
@@ -124,7 +124,7 @@
     "unknown": "نامشخص",
     "upcoming": "آینده",
     "view-details": "مشاهده جزئیات",
-    "votes-count": "{{count}} رأی"
+    "votes-count": "{{count}} رای"
   },
   "set-passcode": {
     "error-mismatch": "رمزهای عبور وارد شده مطابقت ندارند",
@@ -157,7 +157,7 @@
     "password-lbl": "رمز عبور",
     "password-ph": "رمز عبور خود را وارد کنید",
     "submit-btn": "ثبت‌نام",
-    "tip": "قبلاً حساب دارید؟",
+    "tip": "قبلن حساب دارید؟",
     "title": "ایجاد حساب کاربری"
   },
   "tabs": {

@@ -22,7 +22,12 @@ export default function StepLayout({
       <View className={cn('flex-grow items-center justify-center')}>{media}</View>
 
       <View className={cn('flex flex-col items-center justify-center')}>
-        <Text className={cn('typography-h4 text-center text-textPrimary')}>{title}</Text>
+        <Text
+          className={cn('typography-h4 text-center text-textPrimary')}
+          style={{ lineHeight: 52, paddingTop: 8 }}
+        >
+          {title}
+        </Text>
         <Text className={cn('typography-body2 mt-5 text-center text-textSecondary')}>
           {subtitle}
         </Text>
