@@ -68,3 +68,4 @@ modules/**/*/.cxx
 # Android Gradle cache
 modules/**/.gradle/
 docs/VOTING_WITHOUT_ZKP.md
+credentials.json
