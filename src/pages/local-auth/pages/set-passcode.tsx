@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -11,114 +11,128 @@ import { UiButton, UiNumPad, UiScreenScrollable } from '@/ui'
 
 import HiddenPasscodeView from '../components/HiddenPasscodeView'
 
-// eslint-disable-next-line no-empty-pattern
-export default function SetPasscode({}: LocalAuthStackScreenProps<'SetPasscode'>) {
-  const [passcode, setPasscode] = useState('')
-  const [repeatPasscode, setRepeatPasscode] = useState('')
+const PASSCODE_MAX_LENGTH = 4
 
-  const [isRepeatPasscode, setIsRepeatPasscode] = useState(false)
+type Phase = 'create' | 'confirm'
 
-  const [errorMessageVisible, setErrorMessageVisible] = useState(false)
+function SetPasscodeHeader({
+  phase,
+  showMismatchError,
+}: {
+  phase: Phase
+  showMismatchError: boolean
+}) {
+  const title =
+    phase === 'create' ? translate('set-passcode.title') : translate('set-passcode.reenter-title')
 
-  const setPasscodeStore = localAuthStore.useLocalAuthStore(state => state.setPasscode)
-  const biometricStatus = localAuthStore.useLocalAuthStore(state => state.biometricStatus)
+  const subtitle = showMismatchError
+    ? translate('set-passcode.error-mismatch')
+    : phase === 'create'
+      ? translate('set-passcode.subtitle')
+      : translate('set-passcode.reenter-subtitle')
 
+  return (
+    <View>
+      <Text className={cn('typography-h4 text-center text-textPrimary')}>{title}</Text>
+      <Text
+        className={cn('typography-body3 text-center', {
+          'text-errorMain': showMismatchError,
+          'text-textSecondary': !showMismatchError,
+        })}
+      >
+        {subtitle}
+      </Text>
+    </View>
+  )
+}
+
+export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPasscode'>) {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
 
-  const PASSCODE_MAX_LENGTH = 4
+  const setPasscodeInStore = localAuthStore.useLocalAuthStore(s => s.setPasscode)
+  const biometricStatus = localAuthStore.useLocalAuthStore(s => s.biometricStatus)
 
-  const submit = useCallback(async () => {
-    if (!isRepeatPasscode) return
+  const [phase, setPhase] = useState<Phase>('create')
+  const [passcode, setPasscode] = useState('')
+  const [confirmPasscode, setConfirmPasscode] = useState('')
+  const [showMismatchError, setShowMismatchError] = useState(false)
 
-    if (!repeatPasscode) return
+  const scrollBottomInset = useMemo(() => ({ bottom: insets.bottom }), [insets.bottom])
 
-    if (passcode !== repeatPasscode) {
-      setErrorMessageVisible(true)
-      return
-    }
+  const resetFlow = useCallback(() => {
+    setPasscode('')
+    setConfirmPasscode('')
+    setPhase('create')
+    setShowMismatchError(false)
+  }, [])
 
-    try {
-      setPasscodeStore(passcode)
-
-      if (biometricStatus === BiometricStatuses.NotSet) {
-        navigation.navigate('LocalAuth', {
-          screen: 'EnableBiometrics',
-        })
-      }
-    } catch (error) {
-      ErrorHandler.processWithoutFeedback(error)
-    }
-  }, [isRepeatPasscode, repeatPasscode, passcode, setPasscodeStore, biometricStatus, navigation])
-
-  const handleInputPasscode = useCallback((value: string) => {
+  const onCreatePasscodeChange = useCallback((value: string) => {
     if (value.length > PASSCODE_MAX_LENGTH) return
     setPasscode(value)
   }, [])
 
-  const handleInputRepeatPasscode = useCallback((value: string) => {
+  const onConfirmPasscodeChange = useCallback((value: string) => {
     if (value.length > PASSCODE_MAX_LENGTH) return
-    setRepeatPasscode(value)
+    setConfirmPasscode(value)
+    setShowMismatchError(false)
   }, [])
 
-  return (
-    <UiScreenScrollable
-      style={{
-        bottom: insets.bottom,
-      }}
-    >
-      <View className={cn('flex-1')}>
-        <View className={cn('my-auto flex w-full items-center gap-4 p-5')}>
-          <View>
-            <Text className={cn('typography-h4 text-center text-textPrimary')}>
-              {!isRepeatPasscode
-                ? translate('set-passcode.title')
-                : translate('set-passcode.reenter-title')}
-            </Text>
-            <Text
-              className={cn('typography-body-3 text-center', {
-                'text-errorMain': errorMessageVisible,
-                'text-textSecondary': !errorMessageVisible,
-              })}
-            >
-              {errorMessageVisible
-                ? translate('set-passcode.error-mismatch')
-                : !isRepeatPasscode
-                  ? translate('set-passcode.subtitle')
-                  : translate('set-passcode.reenter-subtitle')}
-            </Text>
-          </View>
+  const goToConfirmPhase = useCallback(() => {
+    setPhase('confirm')
+  }, [])
 
-          <HiddenPasscodeView
-            length={isRepeatPasscode ? repeatPasscode.length : passcode.length}
-            maxLenght={PASSCODE_MAX_LENGTH}
-          />
+  const savePasscode = useCallback(() => {
+    if (phase !== 'confirm' || confirmPasscode.length !== PASSCODE_MAX_LENGTH) {
+      return
+    }
+
+    if (passcode !== confirmPasscode) {
+      setShowMismatchError(true)
+      return
+    }
+
+    try {
+      setPasscodeInStore(passcode)
+
+      if (biometricStatus === BiometricStatuses.NotSet) {
+        navigation.navigate('LocalAuth', { screen: 'EnableBiometrics' })
+      }
+    } catch (error) {
+      ErrorHandler.processWithoutFeedback(error)
+    }
+  }, [biometricStatus, confirmPasscode, navigation, passcode, phase, setPasscodeInStore])
+
+  const activeValue = phase === 'create' ? passcode : confirmPasscode
+  const onNumpadChange = phase === 'create' ? onCreatePasscodeChange : onConfirmPasscodeChange
+  const isPasscodeComplete = activeValue.length === PASSCODE_MAX_LENGTH
+
+  const primaryLabel =
+    phase === 'create'
+      ? translate('set-passcode.continue-btn')
+      : translate('set-passcode.submit-btn')
+
+  const onPrimaryPress = phase === 'create' ? goToConfirmPhase : savePasscode
+
+  return (
+    <UiScreenScrollable style={scrollBottomInset}>
+      <View className={cn('flex-1')}>
+        <View className={cn('my-auto flex w-full items-center gap-gutter px-screen-x py-gutter')}>
+          <SetPasscodeHeader phase={phase} showMismatchError={showMismatchError} />
+
+          <HiddenPasscodeView length={activeValue.length} maxLength={PASSCODE_MAX_LENGTH} />
         </View>
 
-        <View className={cn('flex w-full gap-6 p-5')}>
-          <UiNumPad
-            value={isRepeatPasscode ? repeatPasscode : passcode}
-            setValue={isRepeatPasscode ? handleInputRepeatPasscode : handleInputPasscode}
-          />
-          <UiButton
-            title={translate('set-passcode.submit-btn')}
-            onPress={repeatPasscode ? submit : () => setIsRepeatPasscode(true)}
-            disabled={
-              isRepeatPasscode
-                ? repeatPasscode.length !== PASSCODE_MAX_LENGTH
-                : passcode.length !== PASSCODE_MAX_LENGTH
-            }
-          />
+        <View className={cn('flex w-full gap-section px-screen-x py-gutter')}>
+          <UiNumPad value={activeValue} setValue={onNumpadChange} />
 
-          {isRepeatPasscode && (
+          <UiButton title={primaryLabel} onPress={onPrimaryPress} disabled={!isPasscodeComplete} />
+
+          {phase === 'confirm' && (
             <UiButton
-              title='Reset'
+              title={translate('set-passcode.reset-btn')}
               variant='outlined'
-              onPress={() => {
-                setPasscode('')
-                setRepeatPasscode('')
-                setIsRepeatPasscode(false)
-              }}
+              onPress={resetFlow}
             />
           )}
         </View>

@@ -106,10 +106,7 @@ export default function GenerateProofStep() {
                   title='Home Page'
                   onPress={() => {
                     navigation.navigate('App', {
-                      screen: 'Tabs',
-                      params: {
-                        screen: 'Documents',
-                      },
+                      screen: 'Documents',
                     })
                   }}
                   className='w-full'

@@ -48,6 +48,7 @@
   },
   "lockscreen": {
     "attempts-left": "تلاش‌های باقی‌مانده: {{attemptsLeft}}",
+    "countdown-seconds": "{{seconds}} ثانیه",
     "default-title": "رمز عبور را وارد کنید",
     "forgot-btn": "فراموشی رمز عبور",
     "locked-permanently": "حساب به طور دائم قفل شده است، تا زمان خروج",
@@ -127,11 +128,13 @@
     "votes-count": "{{count}} رای"
   },
   "set-passcode": {
+    "continue-btn": "ادامه",
     "error-mismatch": "رمزهای عبور وارد شده مطابقت ندارند",
     "reenter-subtitle": "لطفاً رمز عبور خود را دوباره وارد کنید",
     "reenter-title": "رمز عبور را دوباره وارد کنید",
-    "submit-btn": "تنظیم",
-    "subtitle": "رمز عبور خود را فراموش نکنید، قابل بازیابی نیست",
+    "reset-btn": "شروع دوباره",
+    "submit-btn": "ذخیره رمز عبور",
+    "subtitle": "رمز عبور خود را فراموش نکنید؛ قابل بازیابی نیست",
     "title": "تنظیم رمز عبور"
   },
   "sign-in": {

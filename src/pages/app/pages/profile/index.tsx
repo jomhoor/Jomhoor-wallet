@@ -82,7 +82,6 @@ function ProfileButton({
   )
 }
 
-// eslint-disable-next-line no-empty-pattern
 export default function ProfileScreen({}: AppTabScreenProps<'Profile'>) {
   const insets = useSafeAreaInsets()
   const appPaddings = useAppPaddings()

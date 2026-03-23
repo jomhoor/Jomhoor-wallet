@@ -1,8 +1,10 @@
 import {
+  borderRadius,
   colors,
-  fontFamily,
-  typography,
   cssVars,
+  fontFamily,
+  spacing,
+  typography,
 } from './src/theme/config'
 import plugin from "tailwindcss/plugin";
 import {zIndex} from "./src/theme/config/z-index";
@@ -20,8 +22,10 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      borderRadius,
       colors,
       fontFamily,
+      spacing,
     },
   },
   plugins: [

@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
-import { useCallback } from 'react'
-import { Text, View } from 'react-native'
+import { useCallback, useMemo } from 'react'
+import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { translate } from '@/core'
@@ -9,54 +9,48 @@ import { localAuthStore } from '@/store'
 import { cn, useAppTheme } from '@/theme'
 import { UiButton, UiIcon, UiScreenScrollable } from '@/ui'
 
-// eslint-disable-next-line no-empty-pattern
-export default function EnablePasscode({}: LocalAuthStackScreenProps<'EnablePasscode'>) {
-  const disablePasscode = localAuthStore.useLocalAuthStore(state => state.disablePasscode)
+import { LocalAuthPromoHero } from '../components/LocalAuthPromoHero'
 
+export default function EnablePasscode(_props: LocalAuthStackScreenProps<'EnablePasscode'>) {
   const navigation = useNavigation()
-
   const insets = useSafeAreaInsets()
-
   const { palette } = useAppTheme()
 
-  const onConfirm = useCallback(() => {
-    navigation.navigate('LocalAuth', {
-      screen: 'SetPasscode',
-    })
+  const disablePasscode = localAuthStore.useLocalAuthStore(s => s.disablePasscode)
+
+  const scrollBottomInset = useMemo(() => ({ bottom: insets.bottom }), [insets.bottom])
+
+  const goToSetPasscode = useCallback(() => {
+    navigation.navigate('LocalAuth', { screen: 'SetPasscode' })
   }, [navigation])
 
-  const onSkip = useCallback(() => {
+  const skipPasscode = useCallback(() => {
     disablePasscode()
   }, [disablePasscode])
 
   return (
     <UiScreenScrollable
-      style={{
-        bottom: insets.bottom,
-      }}
+      style={scrollBottomInset}
       className={cn('flex flex-1 items-center justify-center')}
     >
-      <View className='my-auto flex items-center gap-6'>
-        <View className='flex size-[120] items-center justify-center rounded-full bg-primaryMain'>
-          <UiIcon customIcon='lockIcon' size={64} color={palette.textPrimary} />
+      <View className={cn('flex-1')}>
+        <LocalAuthPromoHero
+          icon={<UiIcon customIcon='lockIcon' size={64} color={palette.baseWhite} />}
+          title={translate('enable-passcode.title')}
+        />
+
+        <View className={cn('flex w-full gap-section px-screen-x py-gutter')}>
+          <UiButton
+            className='typography-buttonMedium text-textPrimary'
+            title={translate('enable-passcode.enable-btn')}
+            onPress={goToSetPasscode}
+          />
+          <UiButton
+            className='typography-buttonMedium text-textSecondary'
+            title={translate('enable-passcode.skip-btn')}
+            onPress={skipPasscode}
+          />
         </View>
-
-        <Text className={cn('typography-h4 text-textPrimary')}>
-          {translate('enable-passcode.title')}
-        </Text>
-      </View>
-
-      <View className={cn('flex w-full gap-6 p-5')}>
-        <UiButton
-          className='typography-buttonMedium text-textPrimary'
-          title={translate('enable-passcode.enable-btn')}
-          onPress={onConfirm}
-        />
-        <UiButton
-          className='typography-buttonMedium text-textSecondary'
-          title={translate('enable-passcode.skip-btn')}
-          onPress={onSkip}
-        />
       </View>
     </UiScreenScrollable>
   )

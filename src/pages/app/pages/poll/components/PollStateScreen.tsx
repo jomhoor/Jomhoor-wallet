@@ -3,13 +3,15 @@ import { ActivityIndicator, Text, View } from 'react-native'
 import Animated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useAppTheme } from '@/theme'
 import { UiButton, UiHorizontalDivider, UiIcon } from '@/ui'
 
 const PollLoadingScreen = () => {
   const { t } = useTranslation()
+  const { palette } = useAppTheme()
   return (
     <View className='h-full items-center justify-center bg-backgroundPrimary'>
-      <ActivityIndicator size='large' color='#6366f1' />
+      <ActivityIndicator size='large' color={palette.primaryMain} />
       <Text className='typography-body3 mt-4 text-textSecondary'>{t('poll.loading')}</Text>
     </View>
   )

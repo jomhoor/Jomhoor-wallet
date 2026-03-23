@@ -48,6 +48,7 @@
   },
   "lockscreen": {
     "attempts-left": "Attempts Left: {{attemptsLeft}}",
+    "countdown-seconds": "{{seconds}} с",
     "default-title": "Enter passcode",
     "forgot-btn": "Forgot password",
     "locked-permanently": "Account locked permanently, until logout",
@@ -127,12 +128,14 @@
     "votes-count": "{{count}} votes"
   },
   "set-passcode": {
-    "error-mismatch": "The passcords you entered do not match",
+    "continue-btn": "Далі",
+    "error-mismatch": "The passcodes you entered do not match",
     "reenter-subtitle": "Please re-enter your passcode",
     "reenter-title": "Re-enter Your Passcode",
-    "submit-btn": "Set",
-    "subtitle": "Do not forget your passcode, it can't be restored",
-    "title": "Set Passcode"
+    "reset-btn": "Почати спочатку",
+    "submit-btn": "Зберегти пароль",
+    "subtitle": "Не забудьте свій пароль; його не можна відновити",
+    "title": "Встановити пароль"
   },
   "sign-in": {
     "divider": "or",

@@ -1,4 +1,4 @@
-import { DefaultTheme, type LinkingOptions, NavigationContainer } from '@react-navigation/native'
+import { type LinkingOptions, NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import * as Linking from 'expo-linking'
 import { useColorScheme, vars } from 'nativewind'
@@ -11,6 +11,7 @@ import type { RootStackParamList } from '@/route-types'
 import { authStore, localAuthStore } from '@/store'
 import { useSelectedTheme } from '@/theme'
 import { cssVars, darkPalette, lightPalette } from '@/theme/config'
+import { getNavigationTheme } from '@/theme/navigation-theme'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
@@ -29,7 +30,6 @@ const linking: LinkingOptions<RootStackParamList> = {
   },
 }
 
-// TODO: mv theme to apropriate place
 export default function AppRoutes() {
   const { colorScheme } = useColorScheme()
 
@@ -55,18 +55,7 @@ export default function AppRoutes() {
     >
       <NavigationContainer
         linking={linking}
-        theme={{
-          dark: colorScheme === 'dark',
-          colors: {
-            primary: palette.primaryMain,
-            background: palette.backgroundPrimary,
-            card: palette.backgroundPure,
-            text: palette.textPrimary,
-            border: palette.additionalLayerBorder,
-            notification: palette.errorMain,
-          },
-          fonts: DefaultTheme.fonts,
-        }}
+        theme={getNavigationTheme(palette, themeToSet === 'dark')}
       >
         <Stack.Navigator>
           {isAuthorized ? (

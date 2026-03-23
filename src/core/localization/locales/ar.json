@@ -48,6 +48,7 @@
   },
   "lockscreen": {
     "attempts-left": "Attempts Left: {{attemptsLeft}}",
+    "countdown-seconds": "{{seconds}} sec",
     "default-title": "Enter passcode",
     "forgot-btn": "Forgot password",
     "locked-permanently": "Account locked permanently, until logout",
@@ -127,11 +128,13 @@
     "votes-count": "{{count}} votes"
   },
   "set-passcode": {
-    "error-mismatch": "The passcords you entered do not match",
+    "continue-btn": "Continue",
+    "error-mismatch": "The passcodes you entered do not match",
     "reenter-subtitle": "Please re-enter your passcode",
     "reenter-title": "Re-enter Your Passcode",
-    "submit-btn": "Set",
-    "subtitle": "Do not forget your passcode, it can't be restored",
+    "reset-btn": "Start over",
+    "submit-btn": "Save passcode",
+    "subtitle": "Do not forget your passcode; it cannot be restored",
     "title": "Set Passcode"
   },
   "sign-in": {

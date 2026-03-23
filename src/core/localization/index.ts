@@ -6,6 +6,8 @@ import { setDayjsLocale } from '@/helpers/formatters'
 
 import { resources } from './resources'
 import { getLanguage } from './utils'
+
+export * from './numerals'
 export * from './utils'
 
 let systemLanguage: string | undefined

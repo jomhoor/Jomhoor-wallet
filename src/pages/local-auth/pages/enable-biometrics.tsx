@@ -1,22 +1,49 @@
 import { AuthenticationType } from 'expo-local-authentication'
 import { useCallback, useMemo } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, translate } from '@/core'
-import { type LocalAuthStackScreenProps } from '@/route-types'
+import type { LocalAuthStackScreenProps } from '@/route-types'
 import { localAuthStore } from '@/store'
 import { cn, useAppTheme } from '@/theme'
-import { UiButton, UiIcon } from '@/ui'
+import { UiButton, UiIcon, UiScreenScrollable } from '@/ui'
 
-// eslint-disable-next-line no-empty-pattern
-export default function EnableBiometrics({}: LocalAuthStackScreenProps<'EnableBiometrics'>) {
+import { LocalAuthPromoHero } from '../components/LocalAuthPromoHero'
+
+const ICON_SIZE = 50
+
+function BiometricTypeIcon({ type, color }: { type: AuthenticationType; color: string }) {
+  switch (type) {
+    case AuthenticationType.FACIAL_RECOGNITION:
+      return (
+        <UiIcon
+          libIcon='MaterialCommunityIcons'
+          name='face-recognition'
+          size={ICON_SIZE}
+          color={color}
+        />
+      )
+    case AuthenticationType.IRIS:
+    case AuthenticationType.FINGERPRINT:
+    default:
+      return <UiIcon customIcon='fingerprintIcon' size={ICON_SIZE} color={color} />
+  }
+}
+
+export default function EnableBiometrics(_props: LocalAuthStackScreenProps<'EnableBiometrics'>) {
+  const insets = useSafeAreaInsets()
   const { palette } = useAppTheme()
 
-  const biometricTypes = localAuthStore.useLocalAuthStore(state => state.biometricAuthTypes)
-  const enableBiometrics = localAuthStore.useLocalAuthStore(state => state.enableBiometrics)
-  const disableBiometrics = localAuthStore.useLocalAuthStore(state => state.disableBiometrics)
+  const biometricTypes = localAuthStore.useLocalAuthStore(s => s.biometricAuthTypes)
+  const enableBiometrics = localAuthStore.useLocalAuthStore(s => s.enableBiometrics)
+  const disableBiometrics = localAuthStore.useLocalAuthStore(s => s.disableBiometrics)
 
-  const tryToEnableBiometrics = useCallback(async () => {
+  const scrollBottomInset = useMemo(() => ({ bottom: insets.bottom }), [insets.bottom])
+
+  const primaryBiometryType = biometricTypes[0] ?? AuthenticationType.FINGERPRINT
+
+  const enable = useCallback(async () => {
     try {
       await enableBiometrics()
     } catch (error) {
@@ -24,53 +51,34 @@ export default function EnableBiometrics({}: LocalAuthStackScreenProps<'EnableBi
     }
   }, [enableBiometrics])
 
-  const onSkip = useCallback(() => {
+  const skip = useCallback(() => {
     disableBiometrics()
   }, [disableBiometrics])
 
-  const biometricIcon = useMemo(() => {
-    return {
-      [AuthenticationType.FINGERPRINT]: (
-        <UiIcon customIcon='fingerprintIcon' size={50} color={palette.textPrimary} />
-      ),
-      [AuthenticationType.FACIAL_RECOGNITION]: (
-        <UiIcon
-          libIcon='MaterialCommunityIcons'
-          name='face-recognition'
-          size={50}
-          color={palette.textPrimary}
-        />
-      ),
-      [AuthenticationType.IRIS]: (
-        <UiIcon customIcon='fingerprintIcon' size={50} color={palette.textPrimary} />
-      ),
-    }[biometricTypes[0]]
-  }, [biometricTypes, palette.textPrimary])
-
   return (
-    <View className={cn('flex flex-1 items-center justify-center gap-4')}>
-      <View className={cn('my-auto flex w-full items-center gap-4 px-5 text-center')}>
-        <View className='flex size-[120] items-center justify-center rounded-full bg-primaryMain'>
-          {biometricIcon}
+    <UiScreenScrollable
+      style={scrollBottomInset}
+      className={cn('flex flex-1 items-center justify-center')}
+    >
+      <View className={cn('flex-1')}>
+        <LocalAuthPromoHero
+          icon={<BiometricTypeIcon type={primaryBiometryType} color={palette.baseWhite} />}
+          title={translate('enable-biometrics.title')}
+        />
+
+        <View className={cn('flex w-full gap-section px-screen-x py-gutter')}>
+          <UiButton
+            className='typography-buttonMedium text-textPrimary'
+            title={translate('enable-biometrics.enable-btn')}
+            onPress={() => void enable()}
+          />
+          <UiButton
+            className='typography-buttonMedium text-textSecondary'
+            title={translate('enable-biometrics.skip-btn')}
+            onPress={skip}
+          />
         </View>
-
-        <Text className={cn('typography-h4 text-textPrimary')}>
-          {translate('enable-biometrics.title')}
-        </Text>
       </View>
-
-      <View className={cn('flex w-full gap-6 p-5')}>
-        <UiButton
-          className='typography-buttonMedium text-textPrimary'
-          title={translate('enable-biometrics.enable-btn')}
-          onPress={tryToEnableBiometrics}
-        />
-        <UiButton
-          className='typography-buttonMedium text-textSecondary'
-          title={translate('enable-biometrics.skip-btn')}
-          onPress={onSkip}
-        />
-      </View>
-    </View>
+    </UiScreenScrollable>
   )
 }

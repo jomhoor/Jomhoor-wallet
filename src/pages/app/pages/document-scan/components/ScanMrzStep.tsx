@@ -111,8 +111,8 @@ function extractLinesFromBlocks(blocks: Record<string, unknown>[]): string[] {
   const lines: string[] = []
   if (!Array.isArray(blocks)) return lines
   const sorted = [...blocks].sort((a, b) => {
-    const ay = a?.blockFrame?.y ?? 0
-    const by = b?.blockFrame?.y ?? 0
+    const ay = (a?.blockFrame as { y?: number })?.y ?? 0
+    const by = (b?.blockFrame as { y?: number })?.y ?? 0
     return ay - by
   })
   for (const block of sorted) {
@@ -805,7 +805,7 @@ export default function ScanMrzStep() {
         {/* Top bar */}
         <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
           <Pressable
-            onPress={() => navigation.navigate('App', { screen: 'Tabs' })}
+            onPress={() => navigation.navigate('App', { screen: 'Home' })}
             style={styles.backButton}
           >
             <UiIcon customIcon='arrowLeftIcon' size={20} className='color-white' />
@@ -856,7 +856,7 @@ export default function ScanMrzStep() {
         </Text>
         <Pressable
           onPress={() => {
-            navigation.navigate('App', { screen: 'Tabs' })
+            navigation.navigate('App', { screen: 'Home' })
           }}
         >
           <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>

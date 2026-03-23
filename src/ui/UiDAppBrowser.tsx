@@ -5,6 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview'
 import { WebView } from 'react-native-webview'
 
+import { SCREEN_PADDING_X } from '@/theme/config/spacing'
+import { useAppTheme } from '@/theme/utils'
+
 import UiIcon from './UiIcon'
 
 interface Props {
@@ -51,6 +54,7 @@ export function UiDAppBrowser({
   placeholder,
   webViewRef: externalRef,
 }: Props) {
+  const { palette } = useAppTheme()
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const internalRef = useRef<WebView>(null)
@@ -65,9 +69,9 @@ export function UiDAppBrowser({
   if (placeholder) return <>{placeholder}</>
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#111111' }}>
+    <View style={{ flex: 1, backgroundColor: palette.backgroundPrimary }}>
       {/* Status bar spacer */}
-      <View style={{ height: insets.top, backgroundColor: '#111111' }} />
+      <View style={{ height: insets.top, backgroundColor: palette.backgroundPrimary }} />
 
       {/* WebView */}
       <View style={{ flex: 1 }}>
@@ -82,11 +86,13 @@ export function UiDAppBrowser({
               zIndex: 10,
               justifyContent: 'center',
               alignItems: 'center',
-              backgroundColor: '#111111',
+              backgroundColor: palette.backgroundPrimary,
             }}
           >
-            <ActivityIndicator size='large' color='#888' />
-            <Text style={{ color: '#888', marginTop: 12, fontSize: 14 }}>{loadingLabel}</Text>
+            <ActivityIndicator size='large' color={palette.textSecondary} />
+            <Text style={{ color: palette.textSecondary, marginTop: 12, fontSize: 14 }}>
+              {loadingLabel}
+            </Text>
           </View>
         )}
 
@@ -104,7 +110,7 @@ export function UiDAppBrowser({
           domStorageEnabled
           javaScriptEnabled
           setSupportMultipleWindows={false}
-          style={{ flex: 1, backgroundColor: '#111111' }}
+          style={{ flex: 1, backgroundColor: palette.backgroundPrimary }}
           allowsBackForwardNavigationGestures
         />
       </View>
@@ -112,9 +118,9 @@ export function UiDAppBrowser({
       {/* Bottom toolbar — X-style */}
       <View
         style={{
-          backgroundColor: '#1a1a1a',
+          backgroundColor: palette.backgroundContainer,
           borderTopWidth: 0.5,
-          borderTopColor: '#333',
+          borderTopColor: palette.additionalInverted,
           paddingBottom: insets.bottom,
         }}
       >
@@ -123,7 +129,7 @@ export function UiDAppBrowser({
             flexDirection: 'row',
             alignItems: 'center',
             height: 48,
-            paddingHorizontal: 16,
+            paddingHorizontal: SCREEN_PADDING_X,
           }}
         >
           {/* Close button */}
@@ -134,12 +140,12 @@ export function UiDAppBrowser({
               width: 32,
               height: 32,
               borderRadius: 16,
-              backgroundColor: '#333',
+              backgroundColor: palette.componentPrimary,
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <UiIcon libIcon='Ionicons' name='close' size={18} color='#fff' />
+            <UiIcon libIcon='Ionicons' name='close' size={18} color={palette.textPrimary} />
           </Pressable>
 
           {/* Domain label */}
@@ -152,13 +158,15 @@ export function UiDAppBrowser({
           >
             <View
               style={{
-                backgroundColor: '#2a2a2a',
+                backgroundColor: palette.componentHovered,
                 borderRadius: 14,
                 paddingHorizontal: 14,
                 paddingVertical: 6,
               }}
             >
-              <Text style={{ color: '#aaa', fontSize: 13 }}>{extractDomain(currentUrl)}</Text>
+              <Text style={{ color: palette.textSecondary, fontSize: 13 }}>
+                {extractDomain(currentUrl)}
+              </Text>
             </View>
           </View>
 

@@ -7,6 +7,7 @@ import { extendTailwindMerge } from 'tailwind-merge'
 
 import { storage } from '@/core/storage'
 import { darkPalette, lightPalette, typography } from '@/theme/config'
+import { SCREEN_PADDING_X } from '@/theme/config/spacing'
 
 const SELECTED_THEME = 'SELECTED_THEME'
 export type ColorSchemeType = 'light' | 'dark' | 'system' // TODO: use from colors.ts
@@ -83,9 +84,9 @@ export function cn(...inputs: ClassValue[]) {
 export const useAppPaddings = () => {
   return {
     top: 0,
-    right: 16,
+    right: SCREEN_PADDING_X,
     bottom: 0,
-    left: 16,
+    left: SCREEN_PADDING_X,
   }
 }
 

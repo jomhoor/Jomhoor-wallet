@@ -88,7 +88,7 @@ export default function DocumentsWithoutDocs() {
           snapPoints={['85%']}
         >
           <BottomSheetScrollView style={{ paddingBottom: insets.bottom }}>
-            <View className={cn('py-0, flex flex-col items-center gap-4 p-5')}>
+            <View className={cn('flex flex-col items-center gap-gutter px-screen-x py-0')}>
               <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
               <Text className='typography-h5 text-textPrimary'>About the App</Text>
@@ -137,7 +137,7 @@ export default function DocumentsWithoutDocs() {
           snapPoints={['85%']}
         >
           <BottomSheetScrollView style={{ paddingBottom: insets.bottom }}>
-            <View className={cn('py-0, flex flex-col items-center gap-4 p-5')}>
+            <View className={cn('flex flex-col items-center gap-gutter px-screen-x py-0')}>
               <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
               <Text className='typography-h5 text-textPrimary'>Start scan</Text>

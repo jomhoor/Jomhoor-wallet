@@ -104,7 +104,7 @@ export default function CreateWallet({ route }: Props) {
             }}
           />
         </View>
-        <View className='flex flex-1 flex-col px-5'>
+        <View className='flex flex-1 flex-col px-screen-x'>
           <View className='flex flex-col items-center gap-5'>
             <UiIcon customIcon='keyIcon' className='size-[200px] justify-center text-primaryMain' />
             <Text className='typography-h4 text-textPrimary'>Your key</Text>
@@ -114,7 +114,7 @@ export default function CreateWallet({ route }: Props) {
               <View>
                 <UiCard className='mt-5 flex w-full flex-row items-center justify-between gap-3 bg-warningLight'>
                   <UiIcon customIcon='infoIcon' className='color-warningMain' />
-                  <Text className='typography typograthy-body4 flex-1 text-warningMain'>
+                  <Text className='typography-body4 flex-1 text-warningMain'>
                     {translate('auth.sign-in.tip')}
                   </Text>
                 </UiCard>
@@ -148,17 +148,17 @@ export default function CreateWallet({ route }: Props) {
               </UiCard>
               <UiCard className='mt-5 flex w-full flex-row items-center justify-between gap-3 bg-warningLight'>
                 <UiIcon customIcon='infoIcon' className='color-warningMain' />
-                <Text className='typography typograthy-body4 flex-1 text-warningMain'>
+                <Text className='typography-body4 flex-1 text-warningMain'>
                   {translate('auth.sign-up.tip')}
                 </Text>
               </UiCard>
             </View>
           )}
         </View>
-        <View className='p-5'>
+        <View className='px-screen-x py-gutter'>
           <UiHorizontalDivider />
         </View>
-        <View className='flex w-full flex-row px-5'>
+        <View className='flex w-full flex-row px-screen-x'>
           <UiButton
             title={isImporting ? 'Import Key' : 'Create Key'}
             className='mb-5 mt-auto w-full'

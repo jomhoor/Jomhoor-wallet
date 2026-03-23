@@ -1,7 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useState } from 'react'
 
-import type { LocalAuthStackParamsList, RootStackScreenProps } from '@/route-types'
+import type { LocalAuthStackParamsList } from '@/route-types'
 import { localAuthStore, UserActionsInLocalAuth } from '@/store'
 
 import EnableBiometricsScreen from './pages/enable-biometrics'
@@ -11,8 +11,7 @@ import SetPasscodeScreen from './pages/set-passcode'
 
 const Stack = createNativeStackNavigator<LocalAuthStackParamsList>()
 
-// eslint-disable-next-line no-empty-pattern
-export default function LocalAuthLayout({}: RootStackScreenProps<'LocalAuth'>) {
+export default function LocalAuthLayout() {
   const [localAuthNextRouteName, setLocalAuthNextRouteName] =
     useState<keyof LocalAuthStackParamsList>()
 

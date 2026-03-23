@@ -126,7 +126,7 @@ export default function DocumentCard({ identity }: Props) {
             </View>
           </View>
         </View>
-        <View className='absolute right-5 top-5 z-20 flex flex-row items-center gap-4'>
+        <View className='absolute right-gutter top-gutter z-20 flex flex-row items-center gap-gutter'>
           <CardActionIconButton
             iconComponentNameProps={{
               customIcon: documentCardUi.isBlurred ? 'eyeSlashIcon' : 'eyeIcon',
@@ -212,7 +212,7 @@ export default function DocumentCard({ identity }: Props) {
           <BottomSheetHeader
             title='Settings'
             dismiss={cardUiSettingsBottomSheet.dismiss}
-            className='px-5'
+            className='px-screen-x'
           />
         }
         backgroundStyle={{
@@ -222,7 +222,7 @@ export default function DocumentCard({ identity }: Props) {
       >
         <UiHorizontalDivider />
         <BottomSheetScrollView style={{ paddingBottom: insets.bottom }}>
-          <View className={cn('flex flex-col gap-4 p-5 pb-10')}>
+          <View className={cn('flex flex-col gap-gutter px-screen-x py-gutter pb-10')}>
             <View className={cn('flex flex-col gap-4')}>
               <Text className='typography-subtitle4 text-textPrimary'>Card visual</Text>
 
