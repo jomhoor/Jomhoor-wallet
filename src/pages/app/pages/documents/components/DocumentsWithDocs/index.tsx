@@ -24,7 +24,6 @@ export default function DocumentsWithDocs() {
           paddingRight: appPaddings.right,
           paddingBottom: offset,
         }}
-        className='px-5'
       >
         <Text className='typography-h4 mb-5 text-textPrimary'>Welcome</Text>
         <DocumentCard identity={identities[0]} />

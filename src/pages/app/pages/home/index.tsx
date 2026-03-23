@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
-import { useCallback, useMemo, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Alert,
@@ -21,6 +22,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { AppStackScreenProps } from '@/route-types'
+import { useAppTheme } from '@/theme'
+import type { BaseTheme } from '@/theme/config/colors'
+import { lightPalette } from '@/theme/config/colors'
+import { GRID_UNIT, HOME_GRID_PADDING_X } from '@/theme/config/spacing'
 import { UiIcon } from '@/ui'
 
 type AppItem = {
@@ -31,58 +36,77 @@ type AppItem = {
   featured?: boolean
 }
 
-const DEFAULT_APPS: AppItem[] = [
-  {
-    labelKey: 'home.documents',
-    route: 'Documents',
-    icon: { lib: 'Fontisto', name: 'passport-alt' },
-    color: '#006EB2',
-  },
-  {
-    labelKey: 'home.proposals',
-    route: 'Proposals',
-    icon: { lib: 'FontAwesome', name: 'list-ul' },
-    color: '#38c793',
-    featured: true,
-  },
-  {
-    labelKey: 'home.hub',
-    route: 'Hub',
-    icon: { lib: 'Ionicons', name: 'chatbubbles-outline' },
-    color: '#E7C1FE',
-  },
-  {
-    labelKey: 'home.compass',
-    route: 'Compass',
-    icon: { lib: 'Ionicons', name: 'compass-outline' },
-    color: '#F17B2C',
-  },
-  {
-    labelKey: 'home.wallet',
-    route: 'Wallet',
-    icon: { lib: 'Ionicons', name: 'wallet-outline' },
-    color: '#5C6265',
-  },
-  {
-    labelKey: 'home.profile',
-    route: 'Profile',
-    icon: { custom: 'userIcon' },
-    color: '#899F9C',
-  },
-]
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const COLUMNS = 4
-const CELL = (SCREEN_WIDTH - 48) / COLUMNS
 const SMALL_ICON = 60
-const BIG_ICON = CELL * 2 - 24
-const ITEM_HEIGHT = SMALL_ICON + 30
+/** Row height: icon + label line (~30px). */
+const ROW_EXTRA = GRID_UNIT * 7 + 2
 
-// Build initial grid positions
-function buildInitialPositions(apps: AppItem[], topOffset: number): { x: number; y: number }[] {
+function getDefaultHomeApps(p: BaseTheme): AppItem[] {
+  return [
+    {
+      labelKey: 'home.documents',
+      route: 'Documents',
+      icon: { lib: 'Fontisto', name: 'passport-alt' },
+      color: p.primaryMain,
+    },
+    {
+      labelKey: 'home.proposals',
+      route: 'Proposals',
+      icon: { lib: 'FontAwesome', name: 'list-ul' },
+      color: p.successMain,
+      featured: true,
+    },
+    {
+      labelKey: 'home.hub',
+      route: 'Hub',
+      icon: { lib: 'Ionicons', name: 'chatbubbles-outline' },
+      color: p.secondaryMain,
+    },
+    {
+      labelKey: 'home.compass',
+      route: 'Compass',
+      icon: { lib: 'Ionicons', name: 'compass-outline' },
+      color: p.warningMain,
+    },
+    {
+      labelKey: 'home.wallet',
+      route: 'Wallet',
+      icon: { lib: 'Ionicons', name: 'wallet-outline' },
+      color: p.textSecondary,
+    },
+    {
+      labelKey: 'home.profile',
+      route: 'Profile',
+      icon: { custom: 'userIcon' },
+      color: p.textPlaceholder,
+    },
+  ]
+}
+
+type GridMetrics = {
+  cell: number
+  bigIcon: number
+  padLeft: number
+  itemHeight: number
+}
+
+function computeGridMetrics(screenWidth: number): GridMetrics {
+  const padLeft = HOME_GRID_PADDING_X
+  const cell = (screenWidth - padLeft * 2) / COLUMNS
+  const bigIcon = cell * 2 - padLeft
+  const itemHeight = SMALL_ICON + ROW_EXTRA
+  return { cell, bigIcon, padLeft, itemHeight }
+}
+
+function buildInitialPositions(
+  apps: AppItem[],
+  topOffset: number,
+  m: GridMetrics,
+): { x: number; y: number }[] {
+  const { cell: CELL, bigIcon: BIG_ICON, padLeft, itemHeight: ITEM_HEIGHT } = m
   const positions: { x: number; y: number }[] = []
   const featuredIdx = apps.findIndex(a => a.featured)
-  const padLeft = 24
+  const featuredYOffset = GRID_UNIT * 5
 
   let smallRightIdx = 0
   let bottomIdx = 0
@@ -91,7 +115,7 @@ function buildInitialPositions(apps: AppItem[], topOffset: number): { x: number;
     if (i === featuredIdx) {
       positions.push({
         x: padLeft + (CELL * 2 - BIG_ICON) / 2,
-        y: topOffset + (ITEM_HEIGHT * 2 - BIG_ICON - 20) / 2,
+        y: topOffset + (ITEM_HEIGHT * 2 - BIG_ICON - featuredYOffset) / 2,
       })
     } else if (smallRightIdx < 4) {
       const col = 2 + (smallRightIdx % 2)
@@ -120,6 +144,9 @@ function DraggableIcon({
   label,
   posX,
   posY,
+  cell,
+  bigIcon,
+  iconOnAccentColor,
   onTap,
   onDrop,
   onMakeDefault,
@@ -128,6 +155,9 @@ function DraggableIcon({
   label: string
   posX: number
   posY: number
+  cell: number
+  bigIcon: number
+  iconOnAccentColor: string
   onTap: () => void
   onDrop: (x: number, y: number) => void
   onMakeDefault: () => void
@@ -146,7 +176,7 @@ function DraggableIcon({
   offsetX.value = posX
   offsetY.value = posY
 
-  const size = app.featured ? BIG_ICON : SMALL_ICON
+  const size = app.featured ? bigIcon : SMALL_ICON
   const iconSize = app.featured ? 52 : 28
   const radius = app.featured ? 28 : 18
 
@@ -212,20 +242,28 @@ function DraggableIcon({
           style={{ width: size, height: size, borderRadius: radius, backgroundColor: app.color }}
         >
           {'custom' in app.icon ? (
-            <UiIcon customIcon={app.icon.custom} size={iconSize} color='#FFFFFF' />
+            <UiIcon
+              {...({
+                customIcon: app.icon.custom,
+                size: iconSize,
+                color: iconOnAccentColor,
+              } as unknown as ComponentProps<typeof UiIcon>)}
+            />
           ) : (
             <UiIcon
-              libIcon={app.icon.lib as never}
-              name={app.icon.name as never}
-              size={iconSize}
-              color='#FFFFFF'
+              {...({
+                libIcon: app.icon.lib,
+                name: app.icon.name,
+                size: iconSize,
+                color: iconOnAccentColor,
+              } as unknown as ComponentProps<typeof UiIcon>)}
             />
           )}
         </View>
         <Text
           className='mt-1.5 text-center text-xs text-textPrimary'
           numberOfLines={1}
-          style={{ width: app.featured ? BIG_ICON : CELL }}
+          style={{ width: app.featured ? bigIcon : cell }}
         >
           {label}
         </Text>
@@ -234,22 +272,38 @@ function DraggableIcon({
   )
 }
 
-// eslint-disable-next-line no-empty-pattern
 export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
   const { t } = useTranslation()
+  const { palette } = useAppTheme()
   const [modalVisible, setModalVisible] = useState(false)
   const [urlText, setUrlText] = useState('')
-  const [apps, setApps] = useState(DEFAULT_APPS)
+  const [apps, setApps] = useState<AppItem[]>(() => getDefaultHomeApps(lightPalette))
+
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+  const grid = useMemo(() => computeGridMetrics(SCREEN_WIDTH), [SCREEN_WIDTH])
 
   const headerHeight = insets.top + 56
-  const topOffset = 20 // space below header inside the flex-1 area
+  const topOffset = GRID_UNIT * 5
 
   // Positions are stored per-icon so drag-drop keeps them where you leave them
   const [iconPositions, setIconPositions] = useState<{ x: number; y: number }[]>(() =>
-    buildInitialPositions(apps, topOffset),
+    buildInitialPositions(
+      getDefaultHomeApps(lightPalette),
+      topOffset,
+      computeGridMetrics(SCREEN_WIDTH),
+    ),
   )
+
+  useEffect(() => {
+    setApps(prev =>
+      prev.map(app => ({
+        ...app,
+        color: getDefaultHomeApps(palette).find(f => f.route === app.route)?.color ?? app.color,
+      })),
+    )
+  }, [palette])
 
   // Add button sits after the last icon in the grid
   const addPos = useMemo(() => {
@@ -259,24 +313,25 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
     const afterBottom = smallCount - afterRight
     const col = afterBottom % COLUMNS
     const row = 2 + Math.floor(afterBottom / COLUMNS)
+    const { cell: CELL, padLeft, itemHeight: ITEM_HEIGHT } = grid
     return {
-      x: 24 + col * CELL + (CELL - SMALL_ICON) / 2,
+      x: padLeft + col * CELL + (CELL - SMALL_ICON) / 2,
       y: topOffset + row * ITEM_HEIGHT,
     }
-  }, [apps, topOffset])
+  }, [apps, topOffset, grid])
 
   const handleDrop = useCallback(
     (index: number, newX: number, newY: number) => {
       // Clamp to screen bounds
       const clampedX = Math.max(0, Math.min(newX, SCREEN_WIDTH - SMALL_ICON))
-      const clampedY = Math.max(0, Math.min(newY, SCREEN_HEIGHT - headerHeight - ITEM_HEIGHT))
+      const clampedY = Math.max(0, Math.min(newY, SCREEN_HEIGHT - headerHeight - grid.itemHeight))
       setIconPositions(prev => {
         const next = [...prev]
         next[index] = { x: clampedX, y: clampedY }
         return next
       })
     },
-    [headerHeight],
+    [SCREEN_HEIGHT, SCREEN_WIDTH, grid.itemHeight, headerHeight],
   )
 
   const handleMakeDefault = useCallback(
@@ -291,19 +346,19 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
             setApps(prev => {
               const next = prev.map((a, i) => ({ ...a, featured: i === index }))
               // Recompute grid layout after changing featured
-              setIconPositions(buildInitialPositions(next, topOffset))
+              setIconPositions(buildInitialPositions(next, topOffset, grid))
               return next
             })
           },
         },
       ])
     },
-    [apps, topOffset, t],
+    [apps, grid, topOffset, t],
   )
 
   return (
     <GestureHandlerRootView className='flex-1 bg-backgroundPrimary'>
-      <View className='items-center px-6' style={{ paddingTop: insets.top + 16 }}>
+      <View className='items-center px-home-x' style={{ paddingTop: insets.top + GRID_UNIT * 4 }}>
         <Text className='text-3xl font-bold text-textPrimary'>{t('home.title')}</Text>
       </View>
 
@@ -316,6 +371,9 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
             label={t(app.labelKey)}
             posX={iconPositions[i]?.x ?? 0}
             posY={iconPositions[i]?.y ?? 0}
+            cell={grid.cell}
+            bigIcon={grid.bigIcon}
+            iconOnAccentColor={palette.baseWhite}
             onTap={() => navigation.navigate(app.route as never)}
             onDrop={(x, y) => handleDrop(i, x, y)}
             onMakeDefault={() => handleMakeDefault(i)}
@@ -330,9 +388,21 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
         >
           <View
             className='items-center justify-center rounded-[18px]'
-            style={{ width: SMALL_ICON, height: SMALL_ICON, backgroundColor: '#E0E4E8' }}
+            style={{
+              width: SMALL_ICON,
+              height: SMALL_ICON,
+              backgroundColor: palette.componentPrimary,
+            }}
           >
-            <Text style={{ fontSize: 30, color: '#6B7280', fontWeight: '300' }}>+</Text>
+            <Text
+              style={{
+                fontSize: 30,
+                color: palette.textPlaceholder,
+                fontWeight: '300',
+              }}
+            >
+              +
+            </Text>
           </View>
           <Text className='mt-1.5 text-center text-xs text-textPrimary'>{t('home.add')}</Text>
         </Pressable>
@@ -359,7 +429,7 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
               autoCorrect={false}
               keyboardType='url'
               className='mb-4 rounded-xl border border-componentPrimary px-4 py-3 text-textPrimary'
-              placeholderTextColor='#9CA3AF'
+              placeholderTextColor={palette.textPlaceholder}
             />
             <View className='flex-row justify-end gap-3'>
               <Pressable onPress={() => setModalVisible(false)} className='rounded-xl px-5 py-2.5'>
@@ -372,7 +442,7 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
                 }}
                 className='rounded-xl bg-primaryMain px-5 py-2.5'
               >
-                <Text className='font-medium text-white'>{t('home.add')}</Text>
+                <Text className='font-medium text-baseWhite'>{t('home.add')}</Text>
               </Pressable>
             </View>
           </Pressable>

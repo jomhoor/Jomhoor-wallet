@@ -38,7 +38,7 @@ export interface ChainInfo {
 }
 
 /** All chains the wallet can display / transact on. */
-export const WALLET_CHAINS: ChainInfo[] = [
+export const WALLET_CHAINS: readonly ChainInfo[] = [
   {
     id: 'rarimo',
     name: 'Rarimo L2',
@@ -53,7 +53,7 @@ export const WALLET_CHAINS: ChainInfo[] = [
     rpc: 'https://cloudflare-eth.com',
     icon: 'diamond-outline',
   },
-]
+] as const
 
 export interface TokenBalance {
   chain: ChainInfo

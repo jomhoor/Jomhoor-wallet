@@ -10,9 +10,17 @@ type Props = {
   value: string
   setValue: (value: string) => void
   extra?: ReactNode
+  onExtraPress?: () => void
 } & ViewProps
 
-export default function UiNumPad({ value, setValue, className, extra, ...rest }: Props) {
+export default function UiNumPad({
+  value,
+  setValue,
+  className,
+  extra,
+  onExtraPress,
+  ...rest
+}: Props) {
   const numArray = useMemo(() => {
     return [
       ['1', '2', '3'],
@@ -24,6 +32,8 @@ export default function UiNumPad({ value, setValue, className, extra, ...rest }:
 
   const handlePress = useCallback(
     (num: string) => {
+      if (!num) return
+
       if (num === '<-') {
         setValue(value.slice(0, -1))
       } else {
@@ -34,45 +44,37 @@ export default function UiNumPad({ value, setValue, className, extra, ...rest }:
   )
 
   return (
-    <View {...rest} className={cn('flex w-full gap-2', className)}>
-      {numArray.map((row, i) => (
-        <View key={i} className='flex flex-row justify-between gap-2'>
-          {row.map((num, j) => {
-            if (!num) {
-              if (extra) {
-                return (
-                  <View
-                    key={i + j}
-                    className='h-full w-full flex-1 rounded-xl bg-backgroundContainer'
-                  >
-                    {extra}
-                  </View>
-                )
-              }
+    <View {...rest} className={cn('gap-gutter', className)}>
+      {numArray.map((row, rowIndex) => (
+        <View key={rowIndex} className='flex-row gap-gutter'>
+          {row.map((num, colIndex) => {
+            const numElement = !num ? (
+              extra
+            ) : num === '<-' ? (
+              <UiIcon customIcon='backspaceIcon' size={32} className='color-textPrimary' />
+            ) : (
+              <Text className='typography-h4 text-center text-textPrimary'>{num}</Text>
+            )
 
-              return <View key={i + j} className='flex flex-1 items-center justify-center' />
-            }
-            if (num === '<-') {
-              return (
-                <View
-                  key={i + j}
-                  className='h-full w-full flex-1 rounded-xl bg-backgroundContainer'
-                >
-                  <TouchableOpacity onPress={() => handlePress(num)}>
-                    <View className='mt-1 flex-1 items-center justify-center'>
-                      <UiIcon customIcon='backspaceIcon' size={32} className='color-textPrimary' />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              )
+            const onPress = () => {
+              if (num) {
+                handlePress(num)
+              } else if (extra && onExtraPress) {
+                onExtraPress()
+              }
             }
 
             return (
-              <View key={i + j} className='flex flex-1 rounded-xl bg-backgroundContainer'>
-                <TouchableOpacity onPress={() => handlePress(num)}>
-                  <Text className='typography-h4 text-center text-textPrimary'>{num}</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                key={`${rowIndex}-${colIndex}-${num || 'extra'}`}
+                onPress={onPress}
+                className={cn(
+                  'h-20 flex-1 items-center justify-center rounded-xl',
+                  numElement && 'bg-backgroundContainer',
+                )}
+              >
+                {numElement}
+              </TouchableOpacity>
             )
           })}
         </View>

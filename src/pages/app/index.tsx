@@ -6,6 +6,8 @@ import InviteOthers from '@/pages/app/pages/invite-others'
 import type { AppStackParamsList, RootStackScreenProps } from '@/route-types'
 import { authStore } from '@/store'
 import { localAuthStore } from '@/store/modules/local-auth'
+import { useAppTheme } from '@/theme'
+import { getAppStackScreenOptions } from '@/theme/navigation-theme'
 
 import CompassScreen from './pages/compass'
 import DocumentScanScreen from './pages/document-scan'
@@ -21,6 +23,7 @@ const Stack = createNativeStackNavigator<AppStackParamsList>()
 
 /* eslint-disable-next-line unused-imports/no-unused-vars */
 export default function App(props: RootStackScreenProps<'App'>) {
+  const { palette } = useAppTheme()
   const isFirstEnter = localAuthStore.useLocalAuthStore(state => state.isFirstEnter)
   const logout = authStore.useLogout()
 
@@ -34,15 +37,7 @@ export default function App(props: RootStackScreenProps<'App'>) {
   }, [isFirstEnter, logout])
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerBackTitle: '',
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: 'transparent' },
-        headerTitle: '',
-        headerTintColor: '#0F2B46',
-      }}
-    >
+    <Stack.Navigator screenOptions={getAppStackScreenOptions(palette)}>
       <Stack.Screen name='Home' component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Documents' component={DocumentsScreen} />
       <Stack.Screen name='Proposals' component={ProposalsScreen} />

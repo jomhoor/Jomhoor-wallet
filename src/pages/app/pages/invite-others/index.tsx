@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import * as Haptics from 'expo-haptics'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Sharing from 'expo-sharing'
+import { useColorScheme } from 'nativewind'
 import { Pressable, Text, View } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -9,11 +10,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ErrorHandler } from '@/core'
 import { AppStackScreenProps } from '@/route-types'
 import { useAppPaddings } from '@/theme'
+import { inviteOthersGradients } from '@/theme/config/gradients'
 import { UiIcon, UiImage, UiScreenScrollable } from '@/ui'
 
 export default function InviteOthers({ route }: AppStackScreenProps<'InviteOthers'>) {
+  const { colorScheme } = useColorScheme()
   const insets = useSafeAreaInsets()
   const appPaddings = useAppPaddings()
+  const inviteGradient =
+    colorScheme === 'dark' ? inviteOthersGradients.dark : inviteOthersGradients.light
 
   const navigation = useNavigation()
 
@@ -40,7 +45,7 @@ export default function InviteOthers({ route }: AppStackScreenProps<'InviteOther
       }}
     >
       <LinearGradient
-        colors={['#CBE7EC', '#F2F8EE']}
+        colors={[...inviteGradient]}
         style={{
           position: 'absolute',
           top: 0,

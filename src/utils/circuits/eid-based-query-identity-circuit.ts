@@ -390,7 +390,7 @@ export class EIDBasedQueryIdentityCircuit {
       '[getPassportInfo] identityInfo_:',
       JSON.stringify(
         {
-          activePublicKey: identityInfo_.activePublicKey?.toString(),
+          activePublicKey: identityInfo_.activePassport?.toString(),
           issueTimestamp: identityInfo_.issueTimestamp?.toString(),
         },
         null,

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { truncateAddress, useEvmAddress } from '@/helpers/evm-wallet'
 import { useCopyWithHaptics } from '@/hooks/copyWithHaptics'
 import { useAppTheme } from '@/theme'
+import { GRID_UNIT, SCREEN_PADDING_X } from '@/theme/config/spacing'
 import { UiBottomSheet, UiButton, UiHorizontalDivider, useUiBottomSheet } from '@/ui'
 
 export interface ReceiveSheetRef {
@@ -42,10 +43,10 @@ const ReceiveSheet = forwardRef<ReceiveSheetRef>(function ReceiveSheet(_props, r
     >
       <BottomSheetView
         style={{
-          paddingBottom: insets.bottom + 16,
-          paddingHorizontal: 24,
-          paddingTop: 8,
-          gap: 20,
+          paddingBottom: insets.bottom + GRID_UNIT * 4,
+          paddingHorizontal: SCREEN_PADDING_X + GRID_UNIT * 2,
+          paddingTop: GRID_UNIT * 2,
+          gap: GRID_UNIT * 5,
           alignItems: 'center',
         }}
       >
@@ -56,12 +57,17 @@ const ReceiveSheet = forwardRef<ReceiveSheetRef>(function ReceiveSheet(_props, r
         {/* QR Code */}
         <View
           style={{
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: '#FFFFFF',
+            padding: GRID_UNIT * 4,
+            borderRadius: GRID_UNIT * 5,
+            backgroundColor: palette.baseWhite,
           }}
         >
-          <QRCode value={address} size={180} backgroundColor='#FFFFFF' color='#000000' />
+          <QRCode
+            value={address}
+            size={180}
+            backgroundColor={palette.baseWhite}
+            color={palette.baseBlack}
+          />
         </View>
 
         {/* Address */}

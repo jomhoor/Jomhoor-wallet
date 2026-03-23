@@ -170,7 +170,7 @@ cssInterop(CustomIcon, {
 
 type LibIconProps<L extends LibIconsKeys> = {
   libIcon: L
-  name: keyof (typeof ICON_LIBRARIES)[L]['glyphMap']
+  name: string | keyof (typeof ICON_LIBRARIES)[L]['glyphMap']
   customIcon?: never
 } & Omit<IconProps<string>, 'name' | 'color'>
 

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { fetchAllTransactions, type TransactionRecord, useEvmAddress } from '@/helpers/evm-wallet'
 import type { AppTabScreenProps } from '@/route-types'
 import { cn, useAppPaddings, useBottomBarOffset } from '@/theme'
+import { GRID_UNIT } from '@/theme/config/spacing'
 import { UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 
 import AppContainer from '../../components/AppContainer'
@@ -81,9 +82,9 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
           refreshControl: <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />,
           contentContainerStyle: {
             paddingHorizontal: paddings.left,
-            paddingTop: insets.top + 16,
-            paddingBottom: bottomOffset + 16,
-            gap: 24,
+            paddingTop: insets.top + GRID_UNIT * 4,
+            paddingBottom: bottomOffset + GRID_UNIT * 4,
+            gap: GRID_UNIT * 6,
           },
         }}
       >
@@ -94,7 +95,7 @@ export default function WalletScreen(_props: AppTabScreenProps<'Wallet'>) {
         <BalanceCard ref={balanceRef} />
 
         {/* Action buttons */}
-        <View style={{ paddingTop: 8 }}>
+        <View style={{ paddingTop: GRID_UNIT * 2 }}>
           <ActionButtons
             onSendPress={() => sendSheetRef.current?.present()}
             onReceivePress={() => receiveSheetRef.current?.present()}

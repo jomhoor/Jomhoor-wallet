@@ -11,6 +11,7 @@ import { tv } from 'tailwind-variants'
 import { v4 as uuid } from 'uuid'
 
 import { cn } from '@/theme'
+import { useAppTheme } from '@/theme/utils'
 
 type Props = SwitchProps & {
   label?: string
@@ -48,6 +49,7 @@ const switchTv = tv({
 // FIXME: on props value change, actual switch-rn value not changing(iOS only)
 export const UiSwitcher = forwardRef<ElementRef<typeof RNSwitch>, Props>(
   ({ id = uuid(), label, errorMessage, disabled, value, viewProps, ...rest }, ref) => {
+    const { palette } = useAppTheme()
     const styles = useMemo(
       () =>
         switchTv({
@@ -73,8 +75,11 @@ export const UiSwitcher = forwardRef<ElementRef<typeof RNSwitch>, Props>(
             ])}
             disabled={disabled}
             value={value}
-            trackColor={{ false: 'textSecondary', true: 'textSecondary' }}
-            thumbColor='#FFFFFF'
+            trackColor={{
+              false: palette.componentPrimary,
+              true: palette.primaryLight,
+            }}
+            thumbColor={palette.baseWhite}
           />
         </View>
 

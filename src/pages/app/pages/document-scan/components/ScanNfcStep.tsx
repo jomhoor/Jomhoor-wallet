@@ -74,7 +74,7 @@ export default function ScanNfcStep() {
           className='absolute right-[15px] top-[15px]'
           onPress={() => {
             stopNfc()
-            navigation.navigate('App', { screen: 'Tabs' })
+            navigation.navigate('App', { screen: 'Home' })
           }}
         >
           <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>

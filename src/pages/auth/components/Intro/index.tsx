@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { translate } from '@/core'
 import { sleep } from '@/helpers'
 import { cn, useAppTheme } from '@/theme'
+import { GRID_UNIT } from '@/theme/config/spacing'
 import {
   UiBottomSheet,
   UiButton,
@@ -105,39 +106,39 @@ export default function Intro() {
             progress={progress}
             data={steps.map(() => ({ color: palette.textPrimary }))}
             dotStyle={{
-              width: 4,
-              height: 4,
+              width: GRID_UNIT,
+              height: GRID_UNIT,
               borderRadius: 999,
               backgroundColor: palette.componentPrimary,
             }}
             activeDotStyle={{
               overflow: 'hidden',
-              width: 8,
-              height: 8,
+              width: GRID_UNIT * 2,
+              height: GRID_UNIT * 2,
               backgroundColor: palette.primaryDark,
             }}
             containerStyle={{
               flexDirection: 'row',
               justifyContent: 'center',
               alignItems: 'center',
-              height: 20,
-              gap: 8,
+              height: GRID_UNIT * 5,
+              gap: GRID_UNIT * 2,
               backgroundColor: palette.backgroundContainer,
               borderRadius: 999,
               overflow: 'hidden',
-              marginBottom: 32,
-              paddingHorizontal: 8,
+              marginBottom: GRID_UNIT * 8,
+              paddingHorizontal: GRID_UNIT * 2,
             }}
             horizontal
           />
         </View>
       </View>
 
-      <View className='p-5'>
+      <View className='px-screen-x py-gutter'>
         <UiHorizontalDivider />
       </View>
 
-      <View className='flex flex-col px-5'>
+      <View className='flex flex-col px-screen-x'>
         <UiButton
           className={cn('mb-5 w-full')}
           title={translate('auth.intro.next-btn')}
@@ -153,7 +154,7 @@ export default function Intro() {
           <BottomSheetHeader
             title='Authorization'
             dismiss={bottomSheet.dismiss}
-            className='typography-h6 px-5 text-center text-textPrimary'
+            className='typography-h6 px-screen-x text-center text-textPrimary'
           />
         }
         ref={bottomSheet.ref}
@@ -164,7 +165,7 @@ export default function Intro() {
         }}
       >
         <BottomSheetView style={{ paddingBottom: insets.bottom }}>
-          <View className={cn('py-0, flex flex-col gap-4 p-5')}>
+          <View className={cn('flex flex-col gap-gutter px-screen-x py-0')}>
             <Text className='typography-body3 text-textSecondary'>Choose a preferred method</Text>
             <UiHorizontalDivider />
             <View className='mt-auto flex w-full flex-col gap-2'>

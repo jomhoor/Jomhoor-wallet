@@ -240,7 +240,9 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
 
   const submit = (vote: number) => {
     selectVote(currentQuestionIndex, vote)
-    handleSubmit(generateProof)()
+    handleSubmit(async ({ votes }) => {
+      await generateProof({ votes: votes.filter(v => v !== null) as number[] })
+    })
   }
 
   const goToNextQuestion = (vote: number) => {
@@ -475,7 +477,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
     return (
       <PollStateScreen.AlreadyVoted
         onGoBack={() => {
-          navigation.navigate('App', { screen: 'Tabs' })
+          navigation.navigate('App', { screen: 'Home' })
         }}
       />
     )
@@ -483,7 +485,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
     return (
       <PollStateScreen.NoIdentity
         onGoBack={() => {
-          navigation.navigate('App', { screen: 'Tabs' })
+          navigation.navigate('App', { screen: 'Home' })
         }}
       />
     )
@@ -509,7 +511,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
           queryClient.invalidateQueries({
             queryKey: ['isVoted', route.params?.proposalId],
           })
-          navigation.navigate('App', { screen: 'Tabs' })
+          navigation.navigate('App', { screen: 'Home' })
         }}
       />
     ),
@@ -548,7 +550,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
 
               <Pressable
                 className='absolute right-[15px] top-[15px]'
-                onPress={() => navigation.navigate('App', { screen: 'Tabs' })}
+                onPress={() => navigation.navigate('App', { screen: 'Home' })}
               >
                 <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>
                   <UiIcon customIcon='closeIcon' size={20} className='color-textPrimary' />
@@ -626,7 +628,7 @@ function QuestionScreen({
   return (
     <View
       key={currentQuestionIndex}
-      className='h-full gap-3 bg-backgroundPrimary p-4'
+      className='h-full gap-3 bg-backgroundPrimary px-screen-x py-gutter'
       style={{
         paddingBottom: insets.bottom,
       }}
@@ -646,7 +648,7 @@ function QuestionScreen({
       </View>
 
       <View className='flex-1 gap-3'>
-        <UiCard className='w-full justify-center gap-5 p-4'>
+        <UiCard className='w-full justify-center gap-5 px-gutter py-gutter'>
           <Text className='typography-h6 text-center text-textPrimary'>
             {currentQuestion.title}
           </Text>
