@@ -86,6 +86,8 @@ export default tseslint.config(
     },
     rules: {
       'no-unused-vars': 'off',
+      'no-empty-pattern': 'off',
+
       'import/no-dynamic-require': 'warn',
       'import/no-nodejs-modules': 'off',
 

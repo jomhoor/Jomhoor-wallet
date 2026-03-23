@@ -102,7 +102,6 @@ function isUserEligible(userNationality: string | null, proposalNationalities: s
 
 type FilterMode = 'all' | 'eligible' | 'ineligible'
 
-// eslint-disable-next-line no-empty-pattern
 export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const insets = useSafeAreaInsets()
   const appPaddings = useAppPaddings()
