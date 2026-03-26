@@ -205,7 +205,6 @@ function ProfileCard() {
 }
 
 function LangCard() {
-  // TODO: reload app after change language
   const { language, setLanguage } = useSelectedLanguage()
   const languageBottomSheet = useUiBottomSheet()
   const appPaddings = useAppPaddings()
@@ -237,6 +236,7 @@ function LangCard() {
               title='Submit'
               onPress={() => {
                 setLanguage(value as Language)
+                languageBottomSheet.dismiss()
               }}
             />
           </View>
