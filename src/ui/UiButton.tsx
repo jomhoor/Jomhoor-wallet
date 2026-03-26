@@ -18,17 +18,17 @@ const buttonBaseTv = tv({
   variants: {
     size: {
       small: {
-        container: cn('h-[32px] px-[16px] rounded-full gap-2'),
+        container: cn('h-[32px] px-[16px] rounded-xl gap-2'),
         text: cn('typography-bodySmall'),
         icon: cn('size-[16px]'),
       },
       medium: {
-        container: cn('h-[40px] px-[24px] rounded-full gap-4'),
+        container: cn('h-[40px] px-[24px] rounded-xl gap-4'),
         text: cn('typography-bodyMedium'),
         icon: cn('size-[20px]'),
       },
       large: {
-        container: cn('h-[56px] px-[32px] rounded-full gap-6'),
+        container: cn('h-[56px] px-[32px] rounded-xl gap-6'),
         text: cn('typography-bodyLarge'),
         icon: cn('size-[20px]'),
       },
