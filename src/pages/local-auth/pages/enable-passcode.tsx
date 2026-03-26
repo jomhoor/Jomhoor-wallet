@@ -8,7 +8,6 @@ import { useAppTheme } from '@/theme'
 import { UiButton, UiIcon } from '@/ui'
 
 import LocalAuthPageLayout from '../components/LocalAuthPageLayout'
-import { LocalAuthPromoHero } from '../components/LocalAuthPromoHero'
 
 export default function EnablePasscode(_props: LocalAuthStackScreenProps<'EnablePasscode'>) {
   const navigation = useNavigation()
@@ -26,14 +25,8 @@ export default function EnablePasscode(_props: LocalAuthStackScreenProps<'Enable
 
   return (
     <LocalAuthPageLayout
-      topClassName='gap-10'
-      bottomClassName='gap-4'
-      top={
-        <LocalAuthPromoHero
-          icon={<UiIcon customIcon='lockIcon' size={64} color={palette.baseWhite} />}
-          title={translate('enable-passcode.title')}
-        />
-      }
+      promoIcon={<UiIcon customIcon='lockIcon' size={64} color={palette.baseWhite} />}
+      promoTitle={translate('enable-passcode.title')}
       bottom={
         <>
           <UiButton

@@ -113,8 +113,6 @@ export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPassco
 
   return (
     <LocalAuthPageLayout
-      topClassName='gap-10'
-      bottomClassName='gap-4'
       top={
         <>
           <SetPasscodeHeader phase={phase} showMismatchError={showMismatchError} />

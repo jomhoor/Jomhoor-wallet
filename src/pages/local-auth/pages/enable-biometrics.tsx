@@ -8,7 +8,6 @@ import { useAppTheme } from '@/theme'
 import { UiButton, UiIcon } from '@/ui'
 
 import LocalAuthPageLayout from '../components/LocalAuthPageLayout'
-import { LocalAuthPromoHero } from '../components/LocalAuthPromoHero'
 
 const ICON_SIZE = 50
 
@@ -53,14 +52,8 @@ export default function EnableBiometrics(_props: LocalAuthStackScreenProps<'Enab
 
   return (
     <LocalAuthPageLayout
-      topClassName='gap-10'
-      bottomClassName='gap-4'
-      top={
-        <LocalAuthPromoHero
-          icon={<BiometricTypeIcon type={primaryBiometryType} color={palette.baseWhite} />}
-          title={translate('enable-biometrics.title')}
-        />
-      }
+      promoIcon={<BiometricTypeIcon type={primaryBiometryType} color={palette.baseWhite} />}
+      promoTitle={translate('enable-biometrics.title')}
       bottom={
         <>
           <UiButton
