@@ -41,6 +41,7 @@
     "hub": "Hub",
     "profile": "Profile",
     "proposals": "Proposals",
+    "settings": "Settings",
     "title": "Jomhoor Wallet",
     "wallet": "Wallet"
   },
@@ -101,6 +102,13 @@
     "try-again": "Try Again",
     "vote": "Vote"
   },
+  "profile": {
+    "advanced": "Advanced",
+    "display-name": "Stranger",
+    "display-name-verified": "Iranian",
+    "log-out": "Log out",
+    "private-key": "Private key"
+  },
   "proposals": {
     "active": "Active",
     "all": "All",
@@ -134,6 +142,19 @@
     "submit-btn": "Save passcode",
     "subtitle": "Do not forget your passcode; it cannot be restored",
     "title": "Set Passcode"
+  },
+  "settings": {
+    "app-version": "App Version: {{version}}",
+    "auth-method-sheet-title": "Auth Method",
+    "auth-methods": "Auth methods",
+    "biometric": "Biometric",
+    "language": "Language",
+    "passcode": "Passcode",
+    "select-language": "Select language",
+    "select-theme": "Select theme",
+    "submit": "Submit",
+    "theme": "Theme",
+    "title": "Settings"
   },
   "sign-in": {
     "divider": "or",

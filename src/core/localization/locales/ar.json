@@ -41,6 +41,7 @@
     "hub": "المحور",
     "profile": "الملف الشخصي",
     "proposals": "المقترحات",
+    "settings": "الإعدادات",
     "title": "محفظة جمهور",
     "wallet": "المحفظة"
   },
@@ -101,6 +102,13 @@
     "try-again": "Try Again",
     "vote": "Vote"
   },
+  "profile": {
+    "advanced": "متقدم",
+    "display-name": "غريب",
+    "display-name-verified": "إيراني",
+    "log-out": "تسجيل الخروج",
+    "private-key": "المفتاح الخاص"
+  },
   "proposals": {
     "active": "Active",
     "all": "All",
@@ -134,6 +142,19 @@
     "submit-btn": "حفظ رمز المرور",
     "subtitle": "لا تنسَ رمز المرور؛ لا يمكن استعادته",
     "title": "تعيين رمز المرور"
+  },
+  "settings": {
+    "app-version": "إصدار التطبيق: {{version}}",
+    "auth-method-sheet-title": "طريقة المصادقة",
+    "auth-methods": "طرق المصادقة",
+    "biometric": "البيومترية",
+    "language": "اللغة",
+    "passcode": "رمز المرور",
+    "select-language": "اختر اللغة",
+    "select-theme": "اختر المظهر",
+    "submit": "تطبيق",
+    "theme": "المظهر",
+    "title": "الإعدادات"
   },
   "sign-in": {
     "divider": "or",

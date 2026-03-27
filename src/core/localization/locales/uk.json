@@ -41,6 +41,7 @@
     "hub": "Хаб",
     "profile": "Профіль",
     "proposals": "Пропозиції",
+    "settings": "Налаштування",
     "title": "Гаманець Jomhoor",
     "wallet": "Гаманець"
   },
@@ -101,6 +102,13 @@
     "try-again": "Try Again",
     "vote": "Vote"
   },
+  "profile": {
+    "advanced": "Додатково",
+    "display-name": "Незнайомець",
+    "display-name-verified": "Іранець",
+    "log-out": "Вийти",
+    "private-key": "Приватний ключ"
+  },
   "proposals": {
     "active": "Active",
     "all": "All",
@@ -134,6 +142,19 @@
     "submit-btn": "Зберегти пароль",
     "subtitle": "Не забудьте свій пароль; його не можна відновити",
     "title": "Встановити пароль"
+  },
+  "settings": {
+    "app-version": "Версія застосунку: {{version}}",
+    "auth-method-sheet-title": "Метод автентифікації",
+    "auth-methods": "Методи автентифікації",
+    "biometric": "Біометрія",
+    "language": "Мова",
+    "passcode": "Код доступу",
+    "select-language": "Оберіть мову",
+    "select-theme": "Оберіть тему",
+    "submit": "Застосувати",
+    "theme": "Тема",
+    "title": "Налаштування"
   },
   "sign-in": {
     "divider": "or",
