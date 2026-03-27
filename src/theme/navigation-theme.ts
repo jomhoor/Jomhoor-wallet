@@ -21,6 +21,8 @@ export function getNavigationTheme(palette: BaseTheme, isDark: boolean): Theme {
 /** Default native-stack chrome for in-app flows with visible headers. */
 export function getAppStackScreenOptions(palette: BaseTheme): NativeStackNavigationOptions {
   return {
+    animation: 'slide_from_right',
+    contentStyle: { backgroundColor: palette.backgroundPrimary },
     headerBackTitle: '',
     headerShadowVisible: false,
     headerStyle: { backgroundColor: 'transparent' },

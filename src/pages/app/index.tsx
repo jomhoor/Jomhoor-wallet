@@ -17,6 +17,7 @@ import HubScreen from './pages/hub'
 import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
 import ProposalsScreen from './pages/proposals'
+import SettingsScreen from './pages/settings'
 import WalletScreen from './pages/wallet'
 
 const Stack = createNativeStackNavigator<AppStackParamsList>()
@@ -45,6 +46,7 @@ export default function App(props: RootStackScreenProps<'App'>) {
       <Stack.Screen name='Compass' component={CompassScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Wallet' component={WalletScreen} />
       <Stack.Screen name='Profile' component={ProfileScreen} />
+      <Stack.Screen name='Settings' component={SettingsScreen} />
       <Stack.Screen name='InviteOthers' component={InviteOthers} options={{ animation: 'fade' }} />
       <Stack.Screen name='Scan' component={DocumentScanScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Poll' component={PollScreen} options={{ headerShown: false }} />

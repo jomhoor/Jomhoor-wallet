@@ -27,4 +27,4 @@ pre-commit:
     format:
       run: |
         [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
-        yarn format:fix && git add .
+        yarn format:fix
