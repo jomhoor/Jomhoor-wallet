@@ -1,15 +1,15 @@
 import { useNavigation } from '@react-navigation/native'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Text, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, translate } from '@/core'
 import type { LocalAuthStackScreenProps } from '@/route-types'
 import { BiometricStatuses, localAuthStore } from '@/store'
 import { cn } from '@/theme'
-import { UiButton, UiNumPad, UiScreenScrollable } from '@/ui'
+import { UiButton, UiNumPad } from '@/ui'
 
 import HiddenPasscodeView from '../components/HiddenPasscodeView'
+import LocalAuthPageLayout from '../components/LocalAuthPageLayout'
 
 const PASSCODE_MAX_LENGTH = 4
 
@@ -32,7 +32,7 @@ function SetPasscodeHeader({
       : translate('set-passcode.reenter-subtitle')
 
   return (
-    <View>
+    <View className={cn('items-center gap-2')}>
       <Text className={cn('typography-h4 text-center text-textPrimary')}>{title}</Text>
       <Text
         className={cn('typography-body3 text-center', {
@@ -48,7 +48,6 @@ function SetPasscodeHeader({
 
 export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPasscode'>) {
   const navigation = useNavigation()
-  const insets = useSafeAreaInsets()
 
   const setPasscodeInStore = localAuthStore.useLocalAuthStore(s => s.setPasscode)
   const biometricStatus = localAuthStore.useLocalAuthStore(s => s.biometricStatus)
@@ -57,8 +56,6 @@ export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPassco
   const [passcode, setPasscode] = useState('')
   const [confirmPasscode, setConfirmPasscode] = useState('')
   const [showMismatchError, setShowMismatchError] = useState(false)
-
-  const scrollBottomInset = useMemo(() => ({ bottom: insets.bottom }), [insets.bottom])
 
   const resetFlow = useCallback(() => {
     setPasscode('')
@@ -115,19 +112,18 @@ export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPassco
   const onPrimaryPress = phase === 'create' ? goToConfirmPhase : savePasscode
 
   return (
-    <UiScreenScrollable style={scrollBottomInset}>
-      <View className={cn('flex-1')}>
-        <View className={cn('my-auto flex w-full items-center gap-gutter px-screen-x py-gutter')}>
+    <LocalAuthPageLayout
+      top={
+        <>
           <SetPasscodeHeader phase={phase} showMismatchError={showMismatchError} />
-
           <HiddenPasscodeView length={activeValue.length} maxLength={PASSCODE_MAX_LENGTH} />
-        </View>
-
-        <View className={cn('flex w-full gap-section px-screen-x py-gutter')}>
+        </>
+      }
+      bottom={
+        <>
+          <View className='min-h-12' />
           <UiNumPad value={activeValue} setValue={onNumpadChange} />
-
           <UiButton title={primaryLabel} onPress={onPrimaryPress} disabled={!isPasscodeComplete} />
-
           {phase === 'confirm' && (
             <UiButton
               title={translate('set-passcode.reset-btn')}
@@ -135,8 +131,8 @@ export default function SetPasscode(_props: LocalAuthStackScreenProps<'SetPassco
               onPress={resetFlow}
             />
           )}
-        </View>
-      </View>
-    </UiScreenScrollable>
+        </>
+      }
+    />
   )
 }

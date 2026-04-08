@@ -19,14 +19,14 @@
     }
   },
   "enable-biometrics": {
-    "enable-btn": "Enable",
-    "skip-btn": "Skip",
-    "title": "Enable Biometric Auth"
+    "enable-btn": "تفعيل",
+    "skip-btn": "تخطي",
+    "title": "تفعيل المصادقة البيومترية"
   },
   "enable-passcode": {
-    "enable-btn": "Enable",
-    "skip-btn": "Skip",
-    "title": "Enable Passcode"
+    "enable-btn": "تفعيل",
+    "skip-btn": "تخطي",
+    "title": "تفعيل رمز المرور"
   },
   "errors": {
     "default": "Something went wrong"
@@ -39,21 +39,20 @@
     "documents": "المستندات",
     "enter-url": "أدخل رابط التطبيق",
     "hub": "المحور",
-    "make-default": "تعيين كافتراضي",
-    "make-default-msg": "تعيين \"{{name}}\" كتطبيق رئيسي؟",
     "profile": "الملف الشخصي",
     "proposals": "المقترحات",
+    "settings": "الإعدادات",
     "title": "محفظة جمهور",
     "wallet": "المحفظة"
   },
   "lockscreen": {
-    "attempts-left": "Attempts Left: {{attemptsLeft}}",
-    "countdown-seconds": "{{seconds}} sec",
-    "default-title": "Enter passcode",
-    "forgot-btn": "Forgot password",
-    "locked-permanently": "Account locked permanently, until logout",
-    "locked-temp": "Account locked",
-    "logout-btn": "Logout"
+    "attempts-left": "محاولات متبقية: {{attemptsLeft}}",
+    "countdown-seconds": "{{seconds}} ث",
+    "default-title": "أدخل رمز المرور",
+    "forgot-btn": "نسيت رمز المرور",
+    "locked-permanently": "الحساب مقفل بشكل دائم حتى تسجيل الخروج",
+    "locked-temp": "الحساب مقفل",
+    "logout-btn": "تسجيل الخروج"
   },
   "notifications": {
     "default-message-default": "Just a message",
@@ -103,6 +102,13 @@
     "try-again": "Try Again",
     "vote": "Vote"
   },
+  "profile": {
+    "advanced": "متقدم",
+    "display-name": "غريب",
+    "display-name-verified": "إيراني",
+    "log-out": "تسجيل الخروج",
+    "private-key": "المفتاح الخاص"
+  },
   "proposals": {
     "active": "Active",
     "all": "All",
@@ -128,14 +134,27 @@
     "votes-count": "{{count}} votes"
   },
   "set-passcode": {
-    "continue-btn": "Continue",
-    "error-mismatch": "The passcodes you entered do not match",
-    "reenter-subtitle": "Please re-enter your passcode",
-    "reenter-title": "Re-enter Your Passcode",
-    "reset-btn": "Start over",
-    "submit-btn": "Save passcode",
-    "subtitle": "Do not forget your passcode; it cannot be restored",
-    "title": "Set Passcode"
+    "continue-btn": "متابعة",
+    "error-mismatch": "رموز المرور التي أدخلتها غير متطابقة",
+    "reenter-subtitle": "يرجى إعادة إدخال رمز المرور",
+    "reenter-title": "أعد إدخال رمز المرور",
+    "reset-btn": "البدء من جديد",
+    "submit-btn": "حفظ رمز المرور",
+    "subtitle": "لا تنسَ رمز المرور؛ لا يمكن استعادته",
+    "title": "تعيين رمز المرور"
+  },
+  "settings": {
+    "app-version": "إصدار التطبيق: {{version}}",
+    "auth-method-sheet-title": "طريقة المصادقة",
+    "auth-methods": "طرق المصادقة",
+    "biometric": "البيومترية",
+    "language": "اللغة",
+    "passcode": "رمز المرور",
+    "select-language": "اختر اللغة",
+    "select-theme": "اختر المظهر",
+    "submit": "تطبيق",
+    "theme": "المظهر",
+    "title": "الإعدادات"
   },
   "sign-in": {
     "divider": "or",

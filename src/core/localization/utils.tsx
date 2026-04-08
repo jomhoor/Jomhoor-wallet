@@ -2,9 +2,8 @@ import type TranslateOptions from 'i18next'
 import i18n from 'i18next'
 import memoize from 'lodash/memoize'
 import { useCallback } from 'react'
-import { I18nManager, NativeModules, Platform } from 'react-native'
+import { I18nManager } from 'react-native'
 import { useMMKVString } from 'react-native-mmkv'
-import RNRestart from 'react-native-restart'
 
 import { storage } from '@/core/storage'
 import { setDayjsLocale } from '@/helpers/formatters'
@@ -22,7 +21,7 @@ export const getLanguage = (): Language => (storage.getString(LOCAL) as Language
 export const translate = memoize(
   (key: TxKeyPath, options = undefined) => i18n.t(key, options) as unknown as string,
   (key: TxKeyPath, options: typeof TranslateOptions) =>
-    options ? key + JSON.stringify(options) : key,
+    [i18n.language, key, options ? JSON.stringify(options) : ''].join('|'),
 )
 
 export const changeLanguage = (lang: Language) => {
@@ -36,17 +35,6 @@ export const changeLanguage = (lang: Language) => {
   }
 
   setDayjsLocale(lang)
-
-  // TODO: mb remove after fix rtl in ios
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    if (__DEV__) NativeModules.DevSettings?.reload?.()
-    else
-      setTimeout(() => {
-        RNRestart.restart()
-      }, 300)
-  } else if (Platform.OS === 'web') {
-    window.location.reload()
-  }
 }
 
 export const useSelectedLanguage = () => {
