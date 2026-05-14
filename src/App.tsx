@@ -10,7 +10,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { APIProvider } from '@/api/client'
 import { initInterceptors } from '@/api/interceptors'
 import { AppInitializationErrorBoundary } from '@/common'
-import { useSelectedLanguage } from '@/core'
 import AppRoutes from '@/routes'
 import { authStore, localAuthStore, walletStore } from '@/store'
 import { loadSelectedTheme } from '@/theme'
@@ -31,8 +30,6 @@ export default function App() {
   const isLocalAuthStoreHydrated = localAuthStore.useLocalAuthStore(state => state._hasHydrated)
   const isWalletStoreHydrated = walletStore.useWalletStore(state => state._hasHydrated)
   const initLocalAuthStore = localAuthStore.useInitLocalAuthStore()
-
-  const { language } = useSelectedLanguage()
 
   const isStoresHydrated = useMemo(() => {
     return isAuthStoreHydrated && isLocalAuthStoreHydrated && isWalletStoreHydrated
@@ -57,7 +54,7 @@ export default function App() {
   }
 
   return (
-    <View style={{ flex: 1 }} key={[language, isStoresHydrated].join(';')} onLayout={initApp}>
+    <View style={{ flex: 1 }} key={[isStoresHydrated].join(';')} onLayout={initApp}>
       <SafeAreaProvider>
         {isAppInitialized && (
           <GestureHandlerRootView>

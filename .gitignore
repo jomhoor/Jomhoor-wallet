@@ -39,6 +39,7 @@ web-build/
 .vercel
 .idea
 .vscode
+.cursor
 *.swp
 
 # local env files
