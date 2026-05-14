@@ -1,18 +1,16 @@
 import { useNavigation } from '@react-navigation/native'
 import { AuthenticationType } from 'expo-local-authentication'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Text, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, nu, translate } from '@/core'
 import HiddenPasscodeView from '@/pages/local-auth/components/HiddenPasscodeView'
+import LocalAuthPageLayout from '@/pages/local-auth/components/LocalAuthPageLayout'
 import type { LocalAuthStackScreenProps } from '@/route-types'
 import { authStore, BiometricStatuses, localAuthStore, MAX_ATTEMPTS } from '@/store'
 import { cn, useAppTheme } from '@/theme'
-import { UiButton, UiIcon, UiNumPad, UiScreenScrollable } from '@/ui'
-
-type SafeAreaPadding = { paddingTop: number; paddingBottom: number }
+import { UiButton, UiIcon, UiNumPad } from '@/ui'
 
 const PASSCODE_MAX_LENGTH = 4
 const WRONG_PASSCODE_FEEDBACK_MS = 1000
@@ -55,7 +53,6 @@ function useWrongPasscodeFeedback(attemptsLeft: number, onClearPasscode: () => v
 
 export default function Lockscreen({}: LocalAuthStackScreenProps<'Lockscreen'>) {
   const { i18n } = useTranslation()
-  const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
   const biometricStatus = localAuthStore.useLocalAuthStore(s => s.biometricStatus)
@@ -71,14 +68,6 @@ export default function Lockscreen({}: LocalAuthStackScreenProps<'Lockscreen'>) 
   const [passcode, setPasscode] = useState('')
   const clearPasscode = useCallback(() => setPasscode(''), [])
   const passcodeError = useWrongPasscodeFeedback(attemptsLeft, clearPasscode)
-
-  const safeAreaPadding = useMemo(
-    () => ({
-      paddingTop: insets.top,
-      paddingBottom: insets.bottom,
-    }),
-    [insets.bottom, insets.top],
-  )
 
   const tryLogout = useCallback(async () => {
     logout()
@@ -114,72 +103,77 @@ export default function Lockscreen({}: LocalAuthStackScreenProps<'Lockscreen'>) 
 
   const isAccountLocked = lockDeadline != null
 
+  if (isAccountLocked) {
+    return (
+      <LockedOutContent
+        lockDeadline={lockDeadline}
+        onLockExpired={checkLockDeadline}
+        onLogout={tryLogout}
+      />
+    )
+  }
+
   return (
-    <UiScreenScrollable className={cn('flex flex-1 items-center justify-center')}>
-      {isAccountLocked ? (
-        <LockedOutContent
-          safeAreaPadding={safeAreaPadding}
-          lockDeadline={lockDeadline}
-          onLockExpired={checkLockDeadline}
-          onLogout={tryLogout}
-        />
-      ) : (
-        <PasscodeEntryContent
-          safeAreaPadding={safeAreaPadding}
-          passcode={passcode}
-          passcodeError={passcodeError}
-          attemptsLeft={attemptsLeft}
-          i18nLanguage={i18n.language}
-          biometricStatus={biometricStatus}
-          onPasscodeChange={onPasscodeChange}
-          onBiometricPress={unlockWithBiometrics}
-          onForgot={tryLogout}
-        />
-      )}
-    </UiScreenScrollable>
+    <PasscodeEntryContent
+      passcode={passcode}
+      passcodeError={passcodeError}
+      attemptsLeft={attemptsLeft}
+      i18nLanguage={i18n.language}
+      biometricStatus={biometricStatus}
+      onPasscodeChange={onPasscodeChange}
+      onBiometricPress={unlockWithBiometrics}
+      onForgot={tryLogout}
+    />
   )
 }
 
 function LockedOutContent({
-  safeAreaPadding,
   lockDeadline,
   onLockExpired,
   onLogout,
 }: {
-  safeAreaPadding: SafeAreaPadding
   lockDeadline: number
   onLockExpired: () => void
   onLogout: () => void | Promise<void>
 }) {
   const isPermanent = lockDeadline === Infinity
 
-  return (
-    <View style={safeAreaPadding} className='w-full flex-1'>
-      {isPermanent ? (
-        <View className='flex flex-1 items-center gap-2 px-gutter'>
-          <Text className={cn('typography-h4 my-auto text-center text-textPrimary')}>
+  if (isPermanent) {
+    return (
+      <LocalAuthPageLayout
+        topClassName='gap-2'
+        top={
+          <Text className={cn('typography-h4 text-center text-textPrimary')}>
             {translate('lockscreen.locked-permanently')}
           </Text>
+        }
+        bottom={
           <UiButton
-            className='mt-auto w-full'
+            className='w-full'
             title={translate('lockscreen.logout-btn')}
             onPress={() => void onLogout()}
           />
-        </View>
-      ) : (
-        <View className='my-auto flex items-center gap-2'>
+        }
+      />
+    )
+  }
+
+  return (
+    <LocalAuthPageLayout
+      topClassName='gap-2'
+      top={
+        <>
           <Text className={cn('typography-h4 text-center text-textPrimary')}>
             {translate('lockscreen.locked-temp')}
           </Text>
           <Countdown deadline={lockDeadline} onFinish={onLockExpired} />
-        </View>
-      )}
-    </View>
+        </>
+      }
+    />
   )
 }
 
 function PasscodeEntryContent({
-  safeAreaPadding,
   passcode,
   passcodeError,
   attemptsLeft,
@@ -189,7 +183,6 @@ function PasscodeEntryContent({
   onBiometricPress,
   onForgot,
 }: {
-  safeAreaPadding: SafeAreaPadding
   passcode: string
   passcodeError: boolean
   attemptsLeft: number
@@ -203,45 +196,48 @@ function PasscodeEntryContent({
   const showAttemptsWarning = attemptsLeft < MAX_ATTEMPTS
 
   return (
-    <View style={safeAreaPadding} className='w-full flex-1'>
-      <View className={cn('my-auto flex w-full items-center gap-10 px-screen-x py-gutter')}>
-        <Text className={cn('typography-h4 text-center text-textPrimary')}>
-          {translate('lockscreen.default-title')}
-        </Text>
-
-        <HiddenPasscodeView
-          isError={passcodeError}
-          length={passcode.length}
-          maxLength={PASSCODE_MAX_LENGTH}
-        />
-      </View>
-
-      <View className={cn('flex w-full gap-10 px-screen-x py-gutter')}>
-        {showAttemptsWarning ? (
-          <Text className={cn('typography-subtitle1 min-h-12 text-center text-errorDark')}>
-            {translate('lockscreen.attempts-left', {
-              attemptsLeft: nu.localized(attemptsLeft, i18nLanguage),
-            })}
+    <LocalAuthPageLayout
+      top={
+        <>
+          <Text className={cn('typography-h4 text-center text-textPrimary')}>
+            {translate('lockscreen.default-title')}
           </Text>
-        ) : (
-          <View className='min-h-12' />
-        )}
 
-        <UiNumPad
-          value={passcode}
-          setValue={onPasscodeChange}
-          onExtraPress={biometricsEnabled ? () => void onBiometricPress() : undefined}
-          extra={biometricsEnabled ? <BiometricsIcon size={32} /> : undefined}
-        />
+          <HiddenPasscodeView
+            isError={passcodeError}
+            length={passcode.length}
+            maxLength={PASSCODE_MAX_LENGTH}
+          />
+        </>
+      }
+      bottom={
+        <>
+          {showAttemptsWarning ? (
+            <Text className={cn('typography-subtitle1 min-h-12 text-center text-errorDark')}>
+              {translate('lockscreen.attempts-left', {
+                attemptsLeft: nu.localized(attemptsLeft, i18nLanguage),
+              })}
+            </Text>
+          ) : (
+            <View className='min-h-12' />
+          )}
 
-        <UiButton
-          variant='outlined'
-          color='error'
-          title={translate('lockscreen.forgot-btn')}
-          onPress={() => void onForgot()}
-        />
-      </View>
-    </View>
+          <UiNumPad
+            value={passcode}
+            setValue={onPasscodeChange}
+            onExtraPress={biometricsEnabled ? () => void onBiometricPress() : undefined}
+            extra={biometricsEnabled ? <BiometricsIcon size={32} /> : undefined}
+          />
+
+          <UiButton
+            variant='outlined'
+            color='error'
+            title={translate('lockscreen.forgot-btn')}
+            onPress={() => void onForgot()}
+          />
+        </>
+      }
+    />
   )
 }
 
