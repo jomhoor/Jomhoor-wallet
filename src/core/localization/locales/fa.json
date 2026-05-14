@@ -39,10 +39,9 @@
     "documents": "مدارک",
     "enter-url": "آدرس dApp را وارد کنید",
     "hub": "هاب",
-    "make-default": "تنظیم به‌عنوان پیش‌فرض",
-    "make-default-msg": "\"{{name}}\" را به‌عنوان dApp اصلی تنظیم کنید؟",
     "profile": "پروفایل",
     "proposals": "پیشنهادات",
+    "settings": "تنظیمات",
     "title": "کیف پول جمهور",
     "wallet": "کیف پول"
   },
@@ -103,6 +102,13 @@
     "try-again": "تلاش مجدد",
     "vote": "رای دادن"
   },
+  "profile": {
+    "advanced": "پیشرفته",
+    "display-name": "غریبه",
+    "display-name-verified": "ایرانی",
+    "log-out": "خروج",
+    "private-key": "کلید خصوصی"
+  },
   "proposals": {
     "active": "فعال",
     "all": "همه",
@@ -136,6 +142,19 @@
     "submit-btn": "ذخیره رمز عبور",
     "subtitle": "رمز عبور خود را فراموش نکنید؛ قابل بازیابی نیست",
     "title": "تنظیم رمز عبور"
+  },
+  "settings": {
+    "app-version": "نسخه برنامه: {{version}}",
+    "auth-method-sheet-title": "روش احراز هویت",
+    "auth-methods": "روش‌های احراز هویت",
+    "biometric": "بیومتریک",
+    "language": "زبان",
+    "passcode": "رمز عبور",
+    "select-language": "انتخاب زبان",
+    "select-theme": "انتخاب تم",
+    "submit": "ثبت",
+    "theme": "تم",
+    "title": "تنظیمات"
   },
   "sign-in": {
     "divider": "یا",
