@@ -33,22 +33,23 @@ export default function EnablePasscode(_props: LocalAuthStackScreenProps<'Enable
       style={scrollBottomInset}
       className={cn('flex flex-1 items-center justify-center')}
     >
-      <View className={cn('flex-1')}>
+      <View className={cn('flex-1 items-center justify-center')}>
         <LocalAuthPromoHero
           icon={<UiIcon customIcon='lockIcon' size={64} color={palette.baseWhite} />}
           title={translate('enable-passcode.title')}
         />
 
-        <View className={cn('flex w-full gap-section px-screen-x py-gutter')}>
+        <View className={cn('mt-auto w-full flex-row gap-section px-screen-x py-gutter')}>
           <UiButton
-            className='typography-buttonMedium text-textPrimary'
-            title={translate('enable-passcode.enable-btn')}
-            onPress={goToSetPasscode}
+            className='typography-buttonMedium flex-1 text-textSecondary'
+            title={translate('enable-passcode.skip-btn')}
+            variant='outlined'
+            onPress={skipPasscode}
           />
           <UiButton
-            className='typography-buttonMedium text-textSecondary'
-            title={translate('enable-passcode.skip-btn')}
-            onPress={skipPasscode}
+            className='typography-buttonMedium flex-1 text-textPrimary'
+            title={translate('enable-passcode.enable-btn')}
+            onPress={goToSetPasscode}
           />
         </View>
       </View>

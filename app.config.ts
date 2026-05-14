@@ -23,6 +23,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     bundleIdentifier: Env.BUNDLE_ID,
+    // Universal Links: the app intercepts https://sso.jomhoor.org/auth/sso* URLs.
+    // The AASA file at https://sso.jomhoor.org/.well-known/apple-app-site-association
+    // must list the team ID + bundle ID for this to work.
+    // auth.jomhoor.org is intentionally excluded — it's browser-only.
+    associatedDomains: ['applinks:sso.jomhoor.org'],
     entitlements: {
       'com.apple.developer.kernel.increased-memory-limit': true,
       'com.apple.developer.kernel.extended-virtual-addressing': true
@@ -48,6 +53,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: '#2E3C4B',
     },
     package: Env.PACKAGE,
+    // App Links: the app handles https://sso.jomhoor.org/auth/sso* URLs.
+    // The assetlinks.json at https://sso.jomhoor.org/.well-known/assetlinks.json
+    // must list the package name and SHA-256 cert fingerprint for verification.
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          {
+            scheme: 'https',
+            host: 'sso.jomhoor.org',
+            pathPrefix: '/auth/sso',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
   },
   web: {
     favicon: './assets/favicon.png',
