@@ -89,7 +89,7 @@ export default function DocumentsWithoutDocs() {
             <UiHorizontalDivider className='my-4' />
 
             <Text className='typography-body2 text-textSecondary'>
-              Iranians.vote app is built using the following technologies: NFC card readers,
+              Jomhoor app is built using the following technologies: NFC card readers,
               zero-knowledge proofs, end-to-end encryption, and decentralized identity standards to
               ensure secure and private digital identity verification.
             </Text>
@@ -138,7 +138,7 @@ export default function DocumentsWithoutDocs() {
             <UiHorizontalDivider className='my-4' />
 
             <Text className='typography-body2 text-textSecondary'>
-              Iranians.vote app is built using the following technologies: NFC card readers,
+              Jomhoor app is built using the following technologies: NFC card readers,
               zero-knowledge proofs, end-to-end encryption, and decentralized identity standards to
               ensure secure and private digital identity verification.
             </Text>
