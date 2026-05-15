@@ -7,7 +7,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, translate } from '@/core'
-import { useCopyToClipboard, useForm, useLoading } from '@/hooks'
+import { useCopyToClipboard, useForm, useLoading, useWalletRegistration } from '@/hooks'
 import type { AuthStackScreenProps } from '@/route-types'
 import { localAuthStore, walletStore } from '@/store'
 import { cn } from '@/theme'
@@ -19,6 +19,7 @@ type Props = ViewProps & AuthStackScreenProps<'CreateWallet'>
 export default function CreateWallet({ route }: Props) {
   const generatePrivateKey = walletStore.useGeneratePrivateKey()
   const setPrivateKey = walletStore.useWalletStore(state => state.setPrivateKey)
+  const { register: registerWithSSO } = useWalletRegistration()
 
   const isImporting = useMemo(() => {
     return route?.params?.isImporting
@@ -59,12 +60,16 @@ export default function CreateWallet({ route }: Props) {
       // await login(privateKey)
 
       setIsFirstEnter(false)
+
+      // Non-blocking background registration with the SSO service.
+      // The hook reads the freshly stored key from the wallet store.
+      registerWithSSO().catch(err => console.warn('[CreateWallet] SSO registration error:', err))
     } catch (error) {
       // TODO: network inspector
       ErrorHandler.process(error)
     }
     enableForm()
-  }, [disableForm, enableForm, formState, setIsFirstEnter, setPrivateKey])
+  }, [disableForm, enableForm, formState, setIsFirstEnter, setPrivateKey, registerWithSSO])
 
   // eslint-disable-next-line unused-imports/no-unused-vars
   const pasteFromClipboard = useCallback(async () => {

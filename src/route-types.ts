@@ -51,6 +51,11 @@ export type AppStackParamsList = {
   Scan?: {
     documentType?: DocType
   }
+  SsoConsent: {
+    challenge: string
+    clientId: string
+    state: string
+  }
 }
 
 export type AppStackScreenProps<T extends keyof AppStackParamsList> = NativeStackScreenProps<

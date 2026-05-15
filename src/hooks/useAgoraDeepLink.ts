@@ -1,15 +1,22 @@
 /**
  * Deep link handler for Agora wallet authentication.
  *
- * Handles `jomhoor://auth/agora?challenge=<token>&apiBaseUrl=<url>` deep links
- * triggered by scanning the QR code shown on the desktop Agora wallet-auth page.
+ * Handles `jomhoor://auth/agora?challenge=<token>` deep links triggered by
+ * scanning the QR code shown on the desktop Agora wallet-auth page.
+ *
+ * SECURITY (M0): The Agora API origin is ALWAYS taken from build-time
+ * `Config.AGORA_ORIGIN`. Any `apiBaseUrl` (or similarly-named) query param in
+ * the deep link is IGNORED. Allowing the QR to specify the destination would
+ * let a malicious QR exfiltrate `{challenge, walletAddress, nationality}` to
+ * an attacker-controlled host (phishing-via-QR). Multi-environment support
+ * must be done via build-time config, never via untrusted runtime input.
  *
  * Flow:
  * 1. Desktop Agora shows QR code containing `jomhoor://auth/agora?challenge=...`
  * 2. User scans QR with phone camera
  * 3. iOS opens the Jomhoor app via the registered URL scheme
  * 4. This hook intercepts the URL, extracts the challenge
- * 5. Submits { challenge, walletAddress, nationality } to the Agora API
+ * 5. Submits { challenge, walletAddress, nationality } to `Config.AGORA_ORIGIN`
  * 6. Desktop Agora's polling picks up the result and completes authentication
  */
 
@@ -72,7 +79,13 @@ export function useAgoraDeepLink() {
       }
 
       const challenge = parsed.queryParams.challenge as string
-      const apiBaseUrl = (parsed.queryParams.apiBaseUrl as string) || DEFAULT_AGORA_API_URL
+      // SECURITY: never honor `apiBaseUrl` from the QR payload. See file header.
+      if (parsed.queryParams.apiBaseUrl) {
+        console.warn(
+          '[DeepLink] Ignoring untrusted apiBaseUrl from QR; using build-time Config.AGORA_ORIGIN',
+        )
+      }
+      const apiBaseUrl = DEFAULT_AGORA_API_URL
 
       const walletAddress = getWalletAddress()
       if (!walletAddress) {
