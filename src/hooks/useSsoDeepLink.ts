@@ -58,13 +58,18 @@ export function useSsoDeepLink() {
         )
       }
 
+      // For cross-device (desktop QR) flow: extract desktop_session_id.
+      // SECURITY: this is just an opaque session ID — the wallet uses build-time
+      // Config.AGORA_ORIGIN for the POST target, not any URL from the deep link.
+      const desktopSessionId = params['desktop_session_id'] as string | undefined
+
       if (!challenge || !clientId || !state) {
         console.warn('[SsoDeepLink] Missing required params in SSO deep link:', url)
         return
       }
 
       console.warn('[SsoDeepLink] Navigating to SsoConsent, client_id:', clientId)
-      navigation.navigate('SsoConsent', { challenge, clientId, state })
+      navigation.navigate('SsoConsent', { challenge, clientId, state, desktopSessionId })
     }
 
     // Cold-start: URL that opened the app

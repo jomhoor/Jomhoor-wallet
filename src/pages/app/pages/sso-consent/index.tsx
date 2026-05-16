@@ -13,24 +13,29 @@
  * On Approve:
  *   1. Sign the challenge nonce with the BabyJubjub wallet key
  *   2. POST /v1/authorize/verify  → { redirect_url }
- *   3. Open redirect_url in the system browser to complete the OAuth2 flow
+ *   3a. [Mobile flow] Open redirect_url in the system browser to complete the OAuth2 flow
+ *   3b. [Desktop QR flow] Parse the code from redirect_url and POST it to the
+ *       Taraaz backend /api/v1/auth/sso/desktop/mobile-complete. The desktop polls
+ *       for completion and gets logged in.
  *
  * On Reject: navigate back without calling the backend.
  */
 
 import { useNavigation } from '@react-navigation/native'
+import { isAxiosError } from 'axios'
 import * as Linking from 'expo-linking'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Platform, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { type ClientMetadata, fetchClientMetadata, ssoClient } from '@/api/modules/sso'
+import { Config } from '@/config'
 import type { AppStackScreenProps } from '@/route-types'
 import { ssoStore, walletStore } from '@/store'
 import { UiButton } from '@/ui'
 
 export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoConsent'>) {
-  const { challenge, clientId, state: _state } = route.params
+  const { challenge, clientId, state: _state, desktopSessionId } = route.params
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -119,10 +124,39 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         walletSignature: signature,
       })
 
-      // Hand the browser the auth code via the redirect URL.
-      // The RP's server will exchange it for tokens server-side.
-      await Linking.openURL(data.redirect_url)
-      navigation.goBack()
+      if (desktopSessionId) {
+        // Desktop QR flow: extract the OAuth code from the redirect URL and send it
+        // to the Taraaz backend so the desktop session can be completed.
+        // SECURITY: We use build-time Config.AGORA_ORIGIN, never a URL from the deep link.
+        const redirectUrl = new URL(data.redirect_url)
+        const code = redirectUrl.searchParams.get('code')
+        if (!code) {
+          throw new Error('[SsoConsent] redirect_url missing code param')
+        }
+        const agoraOrigin = Config.AGORA_ORIGIN
+        const resp = await fetch(
+          `${agoraOrigin}/api/v1/auth/sso/desktop/mobile-complete`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: desktopSessionId, code }),
+          },
+        )
+        if (!resp.ok) {
+          const body = await resp.text()
+          console.error('[SsoConsent] mobile-complete failed:', resp.status, body)
+          throw new Error('Desktop session completion failed')
+        }
+        Alert.alert(
+          'Sign-in complete',
+          'Your desktop browser has been signed in. You can return to it now.',
+        )
+        navigation.goBack()
+      } else {
+        // Mobile flow: hand the browser the auth code via the redirect URL.
+        await Linking.openURL(data.redirect_url)
+        navigation.goBack()
+      }
     } catch (err) {
       console.error('[SsoConsent] verify failed:', err)
       Alert.alert('Authentication Failed', 'Could not complete authentication. Please try again.')
@@ -175,7 +209,9 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
 
         <Text style={{ fontSize: 15, color: '#6b7280', textAlign: 'center' }}>
           <Text style={{ fontWeight: '600', color: '#111827' }}>{displayName}</Text>
-          {' is requesting access to your Jomhoor identity.'}
+          {desktopSessionId
+            ? ' is requesting access from a desktop browser.'
+            : ' is requesting access to your Jomhoor identity.'}
         </Text>
         {clientMetaError && (
           <Text style={{ fontSize: 12, color: '#b45309', textAlign: 'center' }}>
@@ -217,7 +253,3 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   )
 }
 
-// Minimal Axios error shape check (avoids importing axios just for the type guard).
-function isAxiosError(err: unknown): err is { response?: { status: number } } {
-  return typeof err === 'object' && err !== null && 'response' in err
-}

@@ -55,6 +55,7 @@ export type AppStackParamsList = {
     challenge: string
     clientId: string
     state: string
+    desktopSessionId?: string // present when scanning a desktop QR code
   }
 }
 
