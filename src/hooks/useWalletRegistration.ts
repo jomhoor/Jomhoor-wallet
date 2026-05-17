@@ -1,9 +1,12 @@
 import { babyJub, eddsa, ffUtils, Hex, poseidon, PublicKey, Signature } from '@iden3/js-crypto'
+import * as AppAttest from '@modules/appattest'
+import { sha256 } from '@noble/hashes/sha256'
 import { Buffer } from 'buffer'
 import { useCallback } from 'react'
 import { Platform } from 'react-native'
 
 import { registerWallet, requestWalletChallenge } from '@/api/modules/sso'
+import { getStorageItemAsync, setStorageItemAsync } from '@/core/secure-store'
 import { ssoStore } from '@/store/modules/sso'
 import { walletStore } from '@/store/modules/wallet'
 
@@ -12,6 +15,79 @@ const BN254_FP = BigInt(
   '21888242871839275222246405745257275088548364400416034343698204186575808495617',
 )
 
+const APPATTEST_KEY_STORAGE_KEY = 'appattest_key_id'
+
+/**
+ * Thrown when the device does not support the required attestation mechanism
+ * (DCAppAttestService on iOS, Play Integrity on Android). The caller should
+ * surface a "Device Not Supported" screen; do NOT swallow this error.
+ */
+export class AttestationNotSupportedError extends Error {
+  constructor(platform: string, cause?: unknown) {
+    super(`App attestation is not supported on this ${platform} device`)
+    this.name = 'AttestationNotSupportedError'
+    if (cause instanceof Error) {
+      this.stack = this.stack + '\nCaused by: ' + cause.stack
+    }
+  }
+}
+
+/**
+ * Builds the appAttestation payload for the current platform.
+ * Throws AttestationNotSupportedError if the device cannot perform attestation.
+ */
+export async function collectAttestation(challengeHex: string): Promise<Record<string, string>> {
+  const challengeBytes = Buffer.from(challengeHex.replace(/^0x/, ''), 'hex')
+
+  if (Platform.OS === 'ios') {
+    // Reuse the stored key ID so each device uses the same key across sessions.
+    let keyId = await getStorageItemAsync(APPATTEST_KEY_STORAGE_KEY)
+    if (!keyId) {
+      try {
+        keyId = await AppAttest.generateKey()
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('NOT_AVAILABLE') || msg.includes('not supported')) {
+          throw new AttestationNotSupportedError('iOS', err)
+        }
+        throw err
+      }
+      await setStorageItemAsync(APPATTEST_KEY_STORAGE_KEY, keyId)
+    }
+
+    // clientDataHash = SHA-256(challengeBytes) — this is what the server verifies.
+    const clientDataHash = sha256(challengeBytes)
+    const clientDataHashB64 = Buffer.from(clientDataHash).toString('base64')
+
+    let attestation: string
+    try {
+      attestation = await AppAttest.attestKey(keyId, clientDataHashB64)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('NOT_AVAILABLE') || msg.includes('not supported')) {
+        throw new AttestationNotSupportedError('iOS', err)
+      }
+      throw err
+    }
+
+    return { keyId, attestation }
+  } else {
+    // Android: nonce = base64(SHA-256(challengeBytes))
+    const nonce = Buffer.from(sha256(challengeBytes)).toString('base64')
+    let token: string
+    try {
+      token = await AppAttest.getPlayIntegrityToken(nonce)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('NOT_AVAILABLE') || msg.includes('not supported')) {
+        throw new AttestationNotSupportedError('Android', err)
+      }
+      throw err
+    }
+    return { token }
+  }
+}
+
 /**
  * useWalletRegistration returns a `register` callback that:
  *  1. Skips if the *current* wallet address is already registered.
@@ -19,12 +95,15 @@ const BN254_FP = BigInt(
  *     (avoids a stale-closure race where the hook captured publicKey/walletAddress
  *     before setPrivateKey() updated the store in the same tick).
  *  3. Requests a one-time challenge from the SSO service.
- *  4. Signs the challenge with the wallet's BabyJubjub private key.
- *  5. Posts the registration payload to the SSO service.
- *  6. Persists the registered address on success or HTTP 409 (already registered).
+ *  4. Collects platform attestation (iOS App Attest / Android Play Integrity).
+ *  5. Signs the challenge with the wallet's BabyJubjub private key.
+ *  6. Posts the registration payload to the SSO service.
+ *  7. Persists the registered address on success or HTTP 409 (already registered).
  *
- * Errors are logged but not thrown — registration is a background side-effect
- * and must not block the wallet creation UX.
+ * AttestationNotSupportedError is NOT swallowed — callers must handle it by
+ * showing the DeviceNotSupported screen. All other errors are logged but
+ * not thrown — registration is a background side-effect and must not block
+ * the wallet creation UX.
  */
 export function useWalletRegistration() {
   const { registeredAddress, setRegisteredAddress } = ssoStore.useSsoStore()
@@ -81,6 +160,10 @@ export function useWalletRegistration() {
       const { data: challengeData } = await requestWalletChallenge(platform)
       const { challenge } = challengeData
 
+      // Collect platform attestation — throws AttestationNotSupportedError if
+      // the device does not support it. Let that propagate to the caller.
+      const appAttestation = await collectAttestation(challenge)
+
       const walletSignature = await signChallenge(challenge)
 
       await registerWallet({
@@ -91,11 +174,14 @@ export function useWalletRegistration() {
         },
         challenge,
         walletSignature,
-        appAttestation: {},
+        appAttestation,
       })
 
       setRegisteredAddress(walletAddress)
     } catch (err: unknown) {
+      // AttestationNotSupportedError must propagate — don't swallow it.
+      if (err instanceof AttestationNotSupportedError) throw err
+
       // HTTP 409 means the wallet is already registered — treat as success.
       if (isAxiosError(err) && err.response?.status === 409) {
         setRegisteredAddress(walletAddress)

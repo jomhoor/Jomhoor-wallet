@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { type ClientMetadata, fetchClientMetadata, ssoClient } from '@/api/modules/sso'
 import { Config } from '@/config'
+import { AttestationNotSupportedError, collectAttestation } from '@/hooks/useWalletRegistration'
 import type { AppStackScreenProps } from '@/route-types'
 import { ssoStore, walletStore } from '@/store'
 import { UiButton } from '@/ui'
@@ -118,7 +119,7 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
           },
           challenge: challengeData.challenge,
           walletSignature: regSig,
-          appAttestation: {},
+          appAttestation: await collectAttestation(challengeData.challenge),
         }
         try {
           await apiClient.post('/v1/wallets/register', regPayload)
@@ -171,16 +172,22 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         navigation.goBack()
       }
     } catch (err) {
-      if (isAxiosError(err)) {
+      if (err instanceof AttestationNotSupportedError) {
+        Alert.alert(
+          'Device Not Supported',
+          'This device does not support the security features required to sign in. Please use a physical iOS device or an Android device with Google Play Services.',
+        )
+      } else if (isAxiosError(err)) {
         console.error(
           '[SsoConsent] verify failed:',
           err.response?.status,
           err.response?.data ?? err.message,
         )
+        Alert.alert('Authentication Failed', 'Could not complete authentication. Please try again.')
       } else {
         console.error('[SsoConsent] verify failed:', err)
+        Alert.alert('Authentication Failed', 'Could not complete authentication. Please try again.')
       }
-      Alert.alert('Authentication Failed', 'Could not complete authentication. Please try again.')
     } finally {
       setLoading(false)
     }

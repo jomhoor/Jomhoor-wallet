@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { isHexString } from 'ethers'
 import { useCallback, useMemo } from 'react'
 import type { ViewProps } from 'react-native'
@@ -7,8 +8,14 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, translate } from '@/core'
-import { useCopyToClipboard, useForm, useLoading, useWalletRegistration } from '@/hooks'
-import type { AuthStackScreenProps } from '@/route-types'
+import {
+  AttestationNotSupportedError,
+  useCopyToClipboard,
+  useForm,
+  useLoading,
+  useWalletRegistration,
+} from '@/hooks'
+import type { AuthStackParamsList, AuthStackScreenProps } from '@/route-types'
 import { localAuthStore, walletStore } from '@/store'
 import { cn } from '@/theme'
 import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
@@ -25,7 +32,7 @@ export default function CreateWallet({ route }: Props) {
     return route?.params?.isImporting
   }, [route])
 
-  const navigation = useNavigation()
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamsList>>()
 
   const insets = useSafeAreaInsets()
 
@@ -63,13 +70,27 @@ export default function CreateWallet({ route }: Props) {
 
       // Non-blocking background registration with the SSO service.
       // The hook reads the freshly stored key from the wallet store.
-      registerWithSSO().catch(err => console.warn('[CreateWallet] SSO registration error:', err))
+      registerWithSSO().catch(err => {
+        if (err instanceof AttestationNotSupportedError) {
+          navigation.navigate('DeviceNotSupported')
+          return
+        }
+        console.warn('[CreateWallet] SSO registration error:', err)
+      })
     } catch (error) {
       // TODO: network inspector
       ErrorHandler.process(error)
     }
     enableForm()
-  }, [disableForm, enableForm, formState, setIsFirstEnter, setPrivateKey, registerWithSSO])
+  }, [
+    disableForm,
+    enableForm,
+    formState,
+    navigation,
+    setIsFirstEnter,
+    setPrivateKey,
+    registerWithSSO,
+  ])
 
   // eslint-disable-next-line unused-imports/no-unused-vars
   const pasteFromClipboard = useCallback(async () => {

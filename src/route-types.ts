@@ -18,6 +18,7 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
 export type AuthStackParamsList = {
   Intro: undefined
   CreateWallet: { isImporting: boolean } | undefined
+  DeviceNotSupported: undefined
 }
 
 export type AuthStackScreenProps<T extends keyof AuthStackParamsList> = NativeStackScreenProps<
