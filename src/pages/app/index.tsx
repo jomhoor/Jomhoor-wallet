@@ -1,7 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useLayoutEffect } from 'react'
 
-import { useAgoraDeepLink } from '@/hooks/useAgoraDeepLink'
 import InviteOthers from '@/pages/app/pages/invite-others'
 import type { AppStackParamsList, RootStackScreenProps } from '@/route-types'
 import { authStore } from '@/store'
@@ -29,8 +28,6 @@ export default function App(props: RootStackScreenProps<'App'>) {
   const isFirstEnter = localAuthStore.useLocalAuthStore(state => state.isFirstEnter)
   const logout = authStore.useLogout()
 
-  // Handle jomhoor://auth/agora?challenge=... deep links for desktop QR auth
-  useAgoraDeepLink()
   useLayoutEffect(() => {
     if (isFirstEnter) {
       logout()
