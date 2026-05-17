@@ -76,6 +76,7 @@
     "@gorhom/bottom-sheet": "^5.0.6",
     "@hookform/resolvers": "^3.9.0",
     "@iden3/js-crypto": "^1.3.1",
+    "@iland/passport-verification": "file:./packages/passport-verification",
     "@li0ard/tsemrtd": "^0.2.2",
     "@lukachi/rn-csca": "^0.2.0",
     "@noble/curves": "^1.9.2",
