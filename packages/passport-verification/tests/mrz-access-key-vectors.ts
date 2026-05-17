@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import passport from '../dist/passport.js'
+import passport from '../dist/passport'
 
 // Mirrors Jomhoor's current passport-nfc-reader.ts behavior for MRZ key building.
 function jomhoorMrzCheckDigit(s) {
