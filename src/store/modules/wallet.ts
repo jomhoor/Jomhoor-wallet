@@ -168,6 +168,14 @@ const useWalletAddress = () => {
   return useMemo(() => '0x' + Buffer.from(publicKeyHash).toString('hex'), [publicKeyHash])
 }
 
+const useHasHydrated = () => useWalletStore(state => state._hasHydrated)
+
+const useIsWalletReady = () => {
+  const hasHydrated = useHasHydrated()
+  const privateKey = useWalletStore(state => state.privateKey)
+  return hasHydrated && privateKey !== ''
+}
+
 export const walletStore = {
   useWalletStore,
 
@@ -179,4 +187,6 @@ export const walletStore = {
   useRegistrationChallenge,
   useSignChallenge,
   useWalletAddress,
+  useHasHydrated,
+  useIsWalletReady,
 }

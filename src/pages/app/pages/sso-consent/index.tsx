@@ -47,7 +47,8 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   const walletAddress = walletStore.useWalletAddress()
   const publicKey = walletStore.usePublicKey()
   const signChallenge = walletStore.useSignChallenge()
-  const { walletRegistered, setWalletRegistered } = ssoStore.useSsoStore()
+  const isWalletReady = walletStore.useIsWalletReady()
+  const { registeredAddress, setRegisteredAddress } = ssoStore.useSsoStore()
 
   const [loading, setLoading] = useState(false)
   const [clientMeta, setClientMeta] = useState<ClientMetadata | null>(null)
@@ -77,23 +78,38 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   const truncated = walletAddress ? `${walletAddress.slice(0, 8)}…${walletAddress.slice(-6)}` : '—'
 
   async function handleApprove() {
-    if (!walletAddress) {
-      Alert.alert('Wallet not ready', 'No wallet address found. Please create a wallet first.')
+    if (!isWalletReady || !walletAddress) {
+      Alert.alert(
+        'Wallet not ready',
+        'No wallet found on this device. Please complete wallet setup before signing in.',
+      )
+      return
+    }
+
+    // Defence in depth: refuse to ever register/sign with the BabyJubjub identity
+    // point (x=0, y=1), which is what mulPointEScalar(Base8, 0) returns when the
+    // private key is empty. Hitting this means hydration raced the SSO deep link.
+    const pkPoint = publicKey.p as [bigint, bigint]
+    if (pkPoint[0] === 0n) {
+      Alert.alert(
+        'Wallet not ready',
+        'Wallet key is not initialised yet. Please reopen the app and try again.',
+      )
       return
     }
 
     setLoading(true)
     try {
       // Ensure this wallet is known to the SSO service before calling verify.
-      // This handles the case where wallet creation happened before sso-svc was reachable.
-      if (!walletRegistered) {
+      // Compare addresses (not a boolean) so a regenerated private key after reinstall
+      // forces a fresh registration instead of trusting a stale flag.
+      if (registeredAddress !== walletAddress) {
         const platform = Platform.OS === 'ios' ? 'ios' : 'android'
         const { data: challengeData } = await apiClient.post<{ challenge: string }>(
           '/v1/wallets/challenge',
           { platform },
         )
         const regSig = await signChallenge(challengeData.challenge)
-        const pkPoint = publicKey.p as [bigint, bigint]
         const regPayload = {
           walletAddress,
           publicKey: {
@@ -113,7 +129,7 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
             throw regErr
           }
         }
-        setWalletRegistered(true)
+        setRegisteredAddress(walletAddress)
       }
 
       const signature = await signChallenge(challenge)
@@ -134,14 +150,11 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
           throw new Error('[SsoConsent] redirect_url missing code param')
         }
         const agoraOrigin = Config.AGORA_ORIGIN
-        const resp = await fetch(
-          `${agoraOrigin}/api/v1/auth/sso/desktop/mobile-complete`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: desktopSessionId, code }),
-          },
-        )
+        const resp = await fetch(`${agoraOrigin}/api/v1/auth/sso/desktop/mobile-complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: desktopSessionId, code }),
+        })
         if (!resp.ok) {
           const body = await resp.text()
           console.error('[SsoConsent] mobile-complete failed:', resp.status, body)
@@ -158,7 +171,15 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         navigation.goBack()
       }
     } catch (err) {
-      console.error('[SsoConsent] verify failed:', err)
+      if (isAxiosError(err)) {
+        console.error(
+          '[SsoConsent] verify failed:',
+          err.response?.status,
+          err.response?.data ?? err.message,
+        )
+      } else {
+        console.error('[SsoConsent] verify failed:', err)
+      }
       Alert.alert('Authentication Failed', 'Could not complete authentication. Please try again.')
     } finally {
       setLoading(false)
@@ -252,4 +273,3 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
     </View>
   )
 }
-

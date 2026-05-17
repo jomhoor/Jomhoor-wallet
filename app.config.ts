@@ -27,7 +27,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // The AASA file at https://sso.jomhoor.org/.well-known/apple-app-site-association
     // must list the team ID + bundle ID for this to work.
     // auth.jomhoor.org is intentionally excluded — it's browser-only.
-    associatedDomains: ['applinks:sso.jomhoor.org'],
+    associatedDomains: [
+      // production + staging: standard Universal Link
+      'applinks:sso.jomhoor.org',
+      // development builds: Apple requires ?mode=developer so iOS resolves
+      // the AASA via CDN bypass and allows Universal Links in debug builds.
+      ...(Env.APP_ENV !== 'production' ? ['applinks:sso.jomhoor.org?mode=developer'] : []),
+    ],
     entitlements: {
       'com.apple.developer.kernel.increased-memory-limit': true,
       'com.apple.developer.kernel.extended-virtual-addressing': true

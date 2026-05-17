@@ -3,16 +3,20 @@ import { combine, createJSONStorage, persist } from 'zustand/middleware'
 
 import { zustandStorage } from '@/store/helpers'
 
-// Persists wallet SSO registration state so the app doesn't re-register on every launch.
+// Persists which wallet address has been registered with the SSO service so the app
+// doesn't re-register on every launch. We track the ADDRESS rather than a boolean
+// because on iOS the privateKey (Keychain) and a boolean flag (MMKV) can desync
+// across app reinstalls — a new sk would silently keep the stale "registered" flag,
+// causing /v1/authorize/verify to fail with "wallet not registered".
 const useSsoStore = create(
   persist(
     combine(
       {
-        walletRegistered: false,
+        registeredAddress: '' as string,
       },
       set => ({
-        setWalletRegistered: (value: boolean) => set({ walletRegistered: value }),
-        reset: () => set({ walletRegistered: false }),
+        setRegisteredAddress: (value: string) => set({ registeredAddress: value }),
+        reset: () => set({ registeredAddress: '' }),
       }),
     ),
     {

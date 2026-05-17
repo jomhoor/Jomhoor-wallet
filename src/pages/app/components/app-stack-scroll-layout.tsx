@@ -51,7 +51,7 @@ export function AppStackScrollLayout({
         className={cn('gap-4', scrollClassName)}
       >
         <View className='flex flex-row items-center justify-between'>
-          <Text className='typography-h4 text-textPrimary'>{title}</Text>
+          <Text className='typography-h4 pt-2 leading-[52px] text-textPrimary'>{title}</Text>
           {headerRight}
         </View>
         {body}
