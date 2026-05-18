@@ -28,12 +28,19 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Platform, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { type ClientMetadata, fetchClientMetadata, ssoClient } from '@/api/modules/sso'
+import {
+  type ClientMetadata,
+  fetchClientMetadata,
+  fetchZkAssertionStatus,
+  ssoClient,
+} from '@/api/modules/sso'
 import { Config } from '@/config'
 import { AttestationNotSupportedError, collectAttestation } from '@/hooks/useWalletRegistration'
 import type { AppStackScreenProps } from '@/route-types'
-import { ssoStore, walletStore } from '@/store'
+import { identityStore, ssoStore, walletStore } from '@/store'
+import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import { UiButton } from '@/ui'
+import { generateAndSubmitSsoZkAssertion } from '@/utils/circuits/sso-zk-proof'
 
 export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoConsent'>) {
   const { challenge, clientId, state: _state, desktopSessionId } = route.params
@@ -49,11 +56,21 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   const publicKey = walletStore.usePublicKey()
   const signChallenge = walletStore.useSignChallenge()
   const isWalletReady = walletStore.useIsWalletReady()
+  const privateKey = walletStore.useWalletStore(state => state.privateKey)
+  const identities = identityStore.useIdentityStore(state => state.identities)
   const { registeredAddress, setRegisteredAddress } = ssoStore.useSsoStore()
 
   const [loading, setLoading] = useState(false)
   const [clientMeta, setClientMeta] = useState<ClientMetadata | null>(null)
   const [clientMetaError, setClientMetaError] = useState(false)
+
+  // M5 — ZK escalation state. Populated by the pre-flight effect below when
+  // the relying party advertises zk_required=true. `null` means "not yet
+  // checked" so the UI can stay in a loading state until we know whether to
+  // gate Approve behind the verify-identity panel.
+  const [zkValid, setZkValid] = useState<boolean | null>(null)
+  const [zkChecking, setZkChecking] = useState(false)
+  const [zkProving, setZkProving] = useState(false)
 
   // M4: fetch the requesting app's display metadata (name, logo) so the
   // consent screen doesn't show a raw client_id. Falls back gracefully if the
@@ -75,6 +92,79 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
 
   const displayName = clientMeta?.name ?? clientId
   const logoUrl = clientMeta?.logo_url
+
+  // M5 — ZK escalation pre-flight. Runs once we know (a) the relying party's
+  // zk_required flag and (b) which wallet we're signing as. Calls the
+  // unauthenticated GET /v1/wallets/:addr/assertions/zk so we can route the
+  // user through verification BEFORE Approve fires (avoids a silent 403 from
+  // /v1/authorize/verify). Failures fall back to `zkValid=false`, prompting
+  // verification — strictly safer than assuming a valid assertion exists.
+  useEffect(() => {
+    if (!clientMeta?.zk_required) {
+      // No escalation required: short-circuit so Approve is enabled
+      // immediately without a network round-trip.
+      setZkValid(true)
+      return
+    }
+    if (!walletAddress) return
+
+    let cancelled = false
+    setZkChecking(true)
+    fetchZkAssertionStatus(walletAddress, apiClient)
+      .then(({ data }) => {
+        if (!cancelled) setZkValid(!!data.valid)
+      })
+      .catch(err => {
+        console.warn('[SsoConsent] fetchZkAssertionStatus failed:', err?.message ?? err)
+        if (!cancelled) setZkValid(false)
+      })
+      .finally(() => {
+        if (!cancelled) setZkChecking(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clientMeta?.zk_required, walletAddress, apiClient])
+
+  // Pick the first ZK-capable identity for escalation. Today only INID is
+  // wired into the wallet's query-identity flow (see ssoCircuitIdForIdentity);
+  // passport variants will land here once their circuits are wired.
+  const zkIdentity = identities.find((i): i is NoirEIDIdentity => i instanceof NoirEIDIdentity)
+
+  async function handleVerifyZk() {
+    if (!isWalletReady || !walletAddress || !privateKey) {
+      Alert.alert('Wallet not ready', 'Please reopen the app and try again.')
+      return
+    }
+    if (!zkIdentity) {
+      Alert.alert(
+        'No verified identity',
+        'Register an Iranian National ID card on this device before signing in to this service.',
+      )
+      return
+    }
+    setZkProving(true)
+    try {
+      await generateAndSubmitSsoZkAssertion({
+        identity: zkIdentity,
+        walletAddress,
+        privateKey,
+      })
+      setZkValid(true)
+    } catch (err) {
+      console.error('[SsoConsent] zk escalation failed:', err)
+      const msg = isAxiosError(err)
+        ? `${err.response?.status ?? ''} ${
+            typeof err.response?.data === 'string' ? err.response.data : err.message
+          }`.trim()
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error'
+      Alert.alert('Verification failed', `Could not generate the identity proof. ${msg}`.trim())
+    } finally {
+      setZkProving(false)
+    }
+  }
 
   const truncated = walletAddress ? `${walletAddress.slice(0, 8)}…${walletAddress.slice(-6)}` : '—'
 
@@ -266,13 +356,50 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         </Text>
       </View>
 
+      {/* M5 — ZK escalation panel. Renders only when the relying party requires
+          a live `zk_verified` assertion and our pre-flight could not find one.
+          Approve stays disabled until the user runs verification, so we never
+          let them hit the silent 403 from /v1/authorize/verify. */}
+      {clientMeta?.zk_required && zkValid === false && (
+        <View
+          style={{
+            backgroundColor: '#fef3c7',
+            borderRadius: 12,
+            padding: 16,
+            gap: 8,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400e' }}>
+            Identity verification required
+          </Text>
+          <Text style={{ fontSize: 13, color: '#92400e' }}>
+            {displayName} requires a zero-knowledge proof that you hold a verified Iranian National
+            ID. This stays on-device — only the proof is sent.
+          </Text>
+          <UiButton
+            title={zkProving ? 'Generating proof…' : 'Verify identity'}
+            onPress={handleVerifyZk}
+            disabled={zkProving || !zkIdentity}
+          />
+          {!zkIdentity && (
+            <Text style={{ fontSize: 12, color: '#92400e' }}>
+              No verified ID card found on this device. Register one first, then return here.
+            </Text>
+          )}
+        </View>
+      )}
+
       {/* Actions */}
       <View style={{ gap: 12 }}>
-        {loading ? (
+        {loading || zkChecking ? (
           <ActivityIndicator size='large' />
         ) : (
           <>
-            <UiButton title='Approve' onPress={handleApprove} />
+            <UiButton
+              title='Approve'
+              onPress={handleApprove}
+              disabled={clientMeta?.zk_required ? !zkValid : false}
+            />
             <UiButton title='Reject' onPress={handleReject} color='secondary' />
           </>
         )}

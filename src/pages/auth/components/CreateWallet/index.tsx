@@ -178,6 +178,23 @@ export default function CreateWallet({ route }: Props) {
                   {translate('auth.sign-up.tip')}
                 </Text>
               </UiCard>
+              {/*
+                M5 #5 — Phase-1 wallet-loss warning.
+                Per docs/SSO/plan.txt §"ACCOUNT RECOVERY MODEL": a freshly
+                created wallet that has NOT yet bound a nullifier (i.e. the
+                user has not scanned their ID and obtained a Jomhoor SSO
+                assertion) cannot be recovered. Recovery (M5 #3) only
+                migrates assertions/pairwise subjects bound to a prior
+                wallet via the same nullifier_hash — Phase 1 has no such
+                anchor. Make this explicit before the user finishes
+                creating the wallet.
+              */}
+              <UiCard className='mt-3 flex w-full flex-row items-center justify-between gap-3 bg-errorLight'>
+                <UiIcon customIcon='infoIcon' className='color-errorMain' />
+                <Text className='typography-body4 flex-1 text-errorMain'>
+                  {translate('auth.sign-up.wallet-loss-warning')}
+                </Text>
+              </UiCard>
             </View>
           )}
         </View>

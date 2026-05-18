@@ -15,7 +15,8 @@
       "tip": "Provide your private key to log in. Remember, only you should ever know this key."
     },
     "sign-up": {
-      "tip": "Please store the private key safely and do not share it with anyone. If you lose this key, you will not be able to recover the account and will lose access forever."
+      "tip": "Please store the private key safely and do not share it with anyone. If you lose this key, you will not be able to recover the account and will lose access forever.",
+      "wallet-loss-warning": "This wallet exists only on this phone. If you reinstall the app or lose this phone before verifying your identity, this wallet — and any account linked to it — is gone for good."
     }
   },
   "enable-biometrics": {
