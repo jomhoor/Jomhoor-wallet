@@ -77,3 +77,77 @@ export const fetchClientMetadata = async (
 ) => {
   return client.get<ClientMetadata>(`/v1/clients/${encodeURIComponent(clientId)}`)
 }
+
+// ── M5: ZK escalation ─────────────────────────────────────────────────────────
+
+export type ZKAssertionStatus = {
+  valid: boolean
+  expires_at?: string
+}
+
+// GET /v1/wallets/:address/assertions/zk
+// Pre-flight check used by the consent screen BEFORE asking the user to sign,
+// when the relying party advertises zk_required=true. Lets the wallet route
+// the user through ZK escalation up-front instead of hitting a silent 403
+// from /v1/authorize/verify. Unauthenticated — returns only a boolean and an
+// optional expiry, never the nullifier hash or assertion source.
+export const fetchZkAssertionStatus = async (
+  walletAddress: string,
+  client: typeof ssoClient = ssoClient,
+) => {
+  return client.get<ZKAssertionStatus>(
+    `/v1/wallets/${encodeURIComponent(walletAddress)}/assertions/zk`,
+  )
+}
+
+// Wire shape for POST /v1/assertions/zk. The server forwards `proof` as
+// the raw `bytes` argument of the on-chain verifier (`verify(bytes,bytes32[])`)
+// and `pub_signals` as the bytes32[] argument. Both Noir (UltraPlonk) and
+// Circom (Groth16) circuits emit values that map cleanly onto this shape:
+// `proof` is the hex blob the verifier contract expects, and each
+// `pub_signals[i]` is a field element (decimal or hex).
+export type SubmitZkAssertionRequest = {
+  walletAddress: string
+  circuit_id: string
+  proof: string
+  pub_signals: string[]
+}
+
+// POST /v1/assertions/zk
+// Wallet posts a fresh query proof bound to the SSO event_id. On success
+// sso-svc inserts an `assertions` row that /v1/tokens/validate surfaces live.
+// Empty body on success.
+export const submitZkAssertion = async (
+  body: SubmitZkAssertionRequest,
+  client: typeof ssoClient = ssoClient,
+) => {
+  return client.post<void>('/v1/assertions/zk', body)
+}
+
+// ── M5: ZK-nullifier wallet recovery ──────────────────────────────────────────
+
+// Same wire shape as SubmitZkAssertionRequest — sso-svc uses the same
+// on-chain verifier path. The semantic difference is what the server does
+// after a successful verify: rebind `assertions` + `pairwise_subjects` from
+// the wallet that previously bound this nullifier_hash to the new wallet
+// passed here, so relying parties keep seeing the same pairwise `sub`.
+export type RecoverWalletRequest = SubmitZkAssertionRequest
+
+export type RecoverWalletResponse = {
+  walletRecovered: boolean
+  // false → nullifier was never seen before; the call was a no-op recovery
+  // (a fresh assertion was still inserted, but no rebind happened).
+  priorWalletExisted: boolean
+}
+
+// POST /v1/wallets/recover
+// Called after the user installs the wallet on a new device, completes
+// /v1/wallets/register, and re-scans their ID. The fresh ZK proof is the
+// only authority — sso-svc does NOT require the old wallet's signature
+// (that key is presumed lost). See docs/SSO/plan.txt §"ACCOUNT RECOVERY MODEL".
+export const recoverWallet = async (
+  body: RecoverWalletRequest,
+  client: typeof ssoClient = ssoClient,
+) => {
+  return client.post<RecoverWalletResponse>('/v1/wallets/recover', body)
+}
