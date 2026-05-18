@@ -101,6 +101,11 @@ const client = z.object({
   POINTS_SVC_ID: z.string(),
   AGORA_ORIGIN: z.string().url(),
   SSO_API_URL: z.string().url(),
+  // SSO ZK escalation (M5). Decimal-string field element. MUST match the
+  // sso-svc `zkp.event_id` config (env var SSO_ZKP_EVENT_ID server-side).
+  // The wallet pins this as the circuit `event_id` input when generating a
+  // query proof for /v1/assertions/zk so sso-svc accepts the proof.
+  SSO_ZKP_EVENT_ID: z.string().min(1),
 })
 
 const buildTime = z.object({
@@ -136,6 +141,7 @@ const _clientEnv = {
   IPFS_NODE_URL: process.env.EXPO_PUBLIC_IPFS_NODE_URL,
   AGORA_ORIGIN: process.env.EXPO_PUBLIC_AGORA_ORIGIN,
   SSO_API_URL: process.env.EXPO_PUBLIC_SSO_API_URL,
+  SSO_ZKP_EVENT_ID: process.env.EXPO_PUBLIC_SSO_ZKP_EVENT_ID,
 }
 
 /**
