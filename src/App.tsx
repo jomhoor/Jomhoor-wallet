@@ -9,7 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { APIProvider } from '@/api/client'
 import { initInterceptors } from '@/api/interceptors'
-import { AppInitializationErrorBoundary } from '@/common'
+import { AppInitializationErrorBoundary, UpdateGate } from '@/common'
 import AppRoutes from '@/routes'
 import { authStore, localAuthStore, walletStore } from '@/store'
 import { loadSelectedTheme } from '@/theme'
@@ -63,6 +63,7 @@ export default function App() {
                 <BottomSheetModalProvider>
                   <SystemBars style='auto' />
                   <AppRoutes />
+                  <UpdateGate />
                 </BottomSheetModalProvider>
               </APIProvider>
               <Toasts />

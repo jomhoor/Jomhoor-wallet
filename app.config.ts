@@ -54,6 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bitcode: false
   },
   android: {
+    versionCode: 5,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#2E3C4B',
