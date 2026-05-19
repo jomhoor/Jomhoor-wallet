@@ -6,6 +6,9 @@ import {
 
 import {
   DocumentPreviewStep,
+  FaceComparisonStep,
+  FaceLivenessStep,
+  GazeChallengeStep,
   GenerateProofStep,
   RevocationStep,
   ScanMrzStep,
@@ -31,6 +34,9 @@ function DocumentScanContent() {
         [Steps.SelectDocTypeStep]: () => <SelectDocTypeStep />,
         [Steps.ScanMrzStep]: () => <ScanMrzStep />,
         [Steps.ScanPassportNfcStep]: () => <ScanPassportNfcStep />,
+        [Steps.FaceLivenessStep]: () => <FaceLivenessStep />,
+        [Steps.FaceGazeStep]: () => <GazeChallengeStep />,
+        [Steps.FaceComparisonStep]: () => <FaceComparisonStep />,
         [Steps.ScanNfcStep]: () => <ScanNfcStep />,
         [Steps.DocumentPreviewStep]: () => <DocumentPreviewStep />,
         [Steps.GenerateProofStep]: () => <GenerateProofStep />,

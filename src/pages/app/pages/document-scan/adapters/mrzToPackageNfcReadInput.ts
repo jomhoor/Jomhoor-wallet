@@ -2,7 +2,7 @@ import {
   createPassportCredentials,
   type PassportNfcBackend,
   type PassportNfcReadInput,
-} from '@iland/passport-verification/passport'
+} from '@iland/passport-verification'
 
 type MrzToNfcInputParams = {
   documentNumber: string

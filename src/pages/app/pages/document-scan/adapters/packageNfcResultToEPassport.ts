@@ -1,4 +1,4 @@
-import type { PassportNfcReadResult } from '@iland/passport-verification/passport'
+import type { PassportNfcReadResult } from '@iland/passport-verification'
 
 import { EPassport, type PersonDetails } from '@/utils/e-document'
 

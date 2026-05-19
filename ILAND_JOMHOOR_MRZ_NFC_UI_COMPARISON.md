@@ -368,7 +368,7 @@ import {
   PassportNfcScanScreen,
   readPassportNfc,
   type PassportNfcReadResult,
-} from '@iland/passport-verification/passport'
+} from '@iland/passport-verification'
 
 import {
   FaceLivenessScreen,

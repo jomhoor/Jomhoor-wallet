@@ -1,4 +1,7 @@
 export { default as DocumentPreviewStep } from './DocumentPreviewStep'
+export { default as FaceComparisonStep } from './FaceComparisonStep'
+export { default as FaceLivenessStep } from './FaceLivenessStep'
+export { default as GazeChallengeStep } from './GazeChallengeStep'
 export { default as GenerateProofStep } from './GenerateProofStep'
 export { default as RevocationStep } from './RevocationStep'
 export { default as ScanMrzStep } from './ScanMrzStep'

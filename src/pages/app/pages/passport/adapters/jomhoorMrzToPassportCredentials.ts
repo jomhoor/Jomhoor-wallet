@@ -1,7 +1,7 @@
 import {
   createPassportCredentials,
   type PassportCredentials,
-} from '@iland/passport-verification/passport'
+} from '@iland/passport-verification'
 
 export class JomhoorMrzAdapterError extends Error {
   public readonly code: 'INVALID_INPUT' | 'MISSING_FIELD' | 'INVALID_DATE'

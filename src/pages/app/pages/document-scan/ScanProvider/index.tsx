@@ -1,3 +1,8 @@
+import type {
+  FaceComparisonResult,
+  GazeChallengeResult,
+  LivenessResult,
+} from '@iland/passport-verification/face'
 import type { FieldRecords } from 'mrz'
 import type { PropsWithChildren } from 'react'
 import { useCallback } from 'react'
@@ -8,6 +13,10 @@ import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-ei
 import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
 import { ErrorHandler } from '@/core'
 import { tryCatch } from '@/helpers/try-catch'
+import {
+  resolveDocumentScanFaceFlowEnabled,
+  resolveNextPassportStepAfterNfc,
+} from '@/pages/app/pages/document-scan/adapters'
 import { identityStore } from '@/store/modules/identity'
 import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
@@ -18,6 +27,9 @@ export enum Steps {
   SelectDocTypeStep,
   ScanMrzStep,
   ScanPassportNfcStep,
+  FaceLivenessStep,
+  FaceGazeStep,
+  FaceComparisonStep,
   ScanNfcStep,
   DocumentPreviewStep,
   GenerateProofStep,
@@ -46,6 +58,16 @@ type DocumentScanContext = {
   setTempMrz: (value: FieldRecords) => void
   tempEDoc?: EDocument
   setTempEDoc: (value: EDocument) => void
+  faceVerification: {
+    enabled: boolean
+    liveness?: LivenessResult
+    gaze?: GazeChallengeResult
+    comparison?: FaceComparisonResult
+  }
+  setFaceLivenessResult: (value: LivenessResult) => void
+  setFaceGazeResult: (value: GazeChallengeResult) => void
+  setFaceComparisonResult: (value: FaceComparisonResult) => void
+  resetFaceVerification: () => void
 
   createIdentity: () => Promise<void>
   revokeIdentity: () => Promise<void>
@@ -78,6 +100,21 @@ const documentScanContext = createContext<DocumentScanContext>({
   tempEDoc: undefined,
   setTempEDoc: () => {
     throw new Error('setEDoc not implemented')
+  },
+  faceVerification: {
+    enabled: false,
+  },
+  setFaceLivenessResult: () => {
+    throw new Error('setFaceLivenessResult not implemented')
+  },
+  setFaceGazeResult: () => {
+    throw new Error('setFaceGazeResult not implemented')
+  },
+  setFaceComparisonResult: () => {
+    throw new Error('setFaceComparisonResult not implemented')
+  },
+  resetFaceVerification: () => {
+    throw new Error('resetFaceVerification not implemented')
   },
 
   createIdentity: async () => {
@@ -116,9 +153,15 @@ export function ScanContextProvider({
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
 
   const [selectedDocType, setSelectedDocType] = useState(docType)
+  const faceFlowEnabled = resolveDocumentScanFaceFlowEnabled()
 
   const [tempMRZ, setTempMRZ] = useState<FieldRecords>()
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
+  const [faceVerification, setFaceVerification] = useState<DocumentScanContext['faceVerification']>(
+    {
+      enabled: faceFlowEnabled,
+    },
+  )
 
   const [identity, setIdentity] = useState<IdentityItem>()
 
@@ -172,27 +215,80 @@ export function ScanContextProvider({
 
   // ---------------------------------------------------------------------------------------------
 
-  const handleSetSelectedDocType = useCallback((value: DocType) => {
-    setSelectedDocType(value)
-    if (value === DocType.PASSPORT) {
-      setCurrentStep(Steps.ScanMrzStep)
-    } else {
-      setCurrentStep(Steps.ScanNfcStep)
-    }
-  }, [])
+  const handleSetSelectedDocType = useCallback(
+    (value: DocType) => {
+      setSelectedDocType(value)
+      setFaceVerification({
+        enabled: faceFlowEnabled,
+      })
+      if (value === DocType.PASSPORT) {
+        setCurrentStep(Steps.ScanMrzStep)
+      } else {
+        setCurrentStep(Steps.ScanNfcStep)
+      }
+    },
+    [faceFlowEnabled],
+  )
 
-  const handleSetMrz = useCallback((value: FieldRecords) => {
-    setTempMRZ(value)
-    setCurrentStep(Steps.ScanPassportNfcStep)
-  }, [])
+  const handleSetMrz = useCallback(
+    (value: FieldRecords) => {
+      setTempMRZ(value)
+      setFaceVerification({
+        enabled: faceFlowEnabled,
+      })
+      setCurrentStep(Steps.ScanPassportNfcStep)
+    },
+    [faceFlowEnabled],
+  )
 
   const handleSetEDoc = useCallback(
     (value: EDocument) => {
       setTempEDoc(value)
+      const shouldRunFaceFlow =
+        selectedDocType === DocType.PASSPORT &&
+        faceFlowEnabled &&
+        value instanceof EPassport &&
+        !faceVerification.comparison?.passed
+
+      if (shouldRunFaceFlow) {
+        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled)
+        setCurrentStep(
+          nextStep === 'face-liveness' ? Steps.FaceLivenessStep : Steps.DocumentPreviewStep,
+        )
+        return
+      }
+
       setCurrentStep(Steps.DocumentPreviewStep)
     },
-    [setTempEDoc],
+    [faceFlowEnabled, faceVerification.comparison?.passed, selectedDocType, setTempEDoc],
   )
+
+  const setFaceLivenessResult = useCallback((value: LivenessResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      liveness: value,
+    }))
+  }, [])
+
+  const setFaceGazeResult = useCallback((value: GazeChallengeResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      gaze: value,
+    }))
+  }, [])
+
+  const setFaceComparisonResult = useCallback((value: FaceComparisonResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      comparison: value,
+    }))
+  }, [])
+
+  const resetFaceVerification = useCallback(() => {
+    setFaceVerification({
+      enabled: faceFlowEnabled,
+    })
+  }, [faceFlowEnabled])
 
   return (
     <documentScanContext.Provider
@@ -209,8 +305,13 @@ export function ScanContextProvider({
 
         tempMRZ,
         tempEDoc,
+        faceVerification,
         setTempMrz: handleSetMrz,
         setTempEDoc: handleSetEDoc,
+        setFaceLivenessResult,
+        setFaceGazeResult,
+        setFaceComparisonResult,
+        resetFaceVerification,
 
         createIdentity,
         revokeIdentity: revokeIdentity,

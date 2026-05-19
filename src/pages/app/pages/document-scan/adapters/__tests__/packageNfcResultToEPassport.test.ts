@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import type { PassportNfcReadResult } from '@iland/passport-verification/passport'
+import type { PassportNfcReadResult } from '@iland/passport-verification'
 
 jest.mock('@/utils/e-document', () => ({
   EPassport: class MockEPassport {

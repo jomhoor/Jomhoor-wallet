@@ -1,4 +1,4 @@
-import type { PassportNfcErrorCode } from '@iland/passport-verification/passport'
+import type { PassportNfcErrorCode } from '@iland/passport-verification'
 
 export type PassportNfcUiErrorMessage = {
   primary: string

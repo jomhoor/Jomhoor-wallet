@@ -222,7 +222,7 @@ Boundary rules:
 Root exports:
 
 ```ts
-export * from '@iland/passport-verification/passport'
+export * from '@iland/passport-verification'
 export * from '@iland/passport-verification/face'
 export * from '@iland/passport-verification/identity-flow'
 ```
@@ -243,7 +243,7 @@ import {
   type PassportNfcReadResult,
   type PassportNfcError,
   type PassportNfcBackend,
-} from '@iland/passport-verification/passport'
+} from '@iland/passport-verification'
 ```
 
 Face domain:
