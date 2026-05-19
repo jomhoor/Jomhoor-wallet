@@ -1,9 +1,13 @@
 import { useNavigation } from '@react-navigation/core'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import {
+  mapPassportNfcErrorToMessage,
+  resolvePassportNfcBackend,
+} from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
 import { readPassport, stopPassportNfc } from '@/utils/e-document/passport-nfc-reader'
@@ -27,28 +31,45 @@ export default function ScanPassportNfcStep() {
 
   const [readState, setReadState] = useState<ReadState>('idle')
   const [errorMsg, setErrorMsg] = useState<string>('')
+  const [errorDetail, setErrorDetail] = useState<string>('')
+  const [errorCode, setErrorCode] = useState<string>('')
+  const readInFlightRef = useRef(false)
 
   const docNumber = String(tempMRZ?.documentNumber ?? '')
   const birthDate = String(tempMRZ?.birthDate ?? '')
   const expiryDate = String(tempMRZ?.expirationDate ?? '')
+  const selectedBackend = resolvePassportNfcBackend()
+  const debugEnabled =
+    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
+    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
 
   const onReadPress = useCallback(async () => {
+    if (readInFlightRef.current) return
+
     if (!tempMRZ) {
       setErrorMsg('MRZ data is missing. Please go back and scan MRZ first.')
+      setErrorDetail('')
+      setErrorCode('')
       setReadState('error')
       return
     }
 
     if (!docNumber || !birthDate || !expiryDate) {
       setErrorMsg('Incomplete MRZ data. Please rescan the MRZ.')
+      setErrorDetail('')
+      setErrorCode('')
       setReadState('error')
       return
     }
 
+    readInFlightRef.current = true
     setErrorMsg('')
+    setErrorDetail('')
+    setErrorCode('')
     setReadState('waiting')
 
     try {
+      await stopPassportNfc()
       const passport = await readPassport(docNumber, birthDate, expiryDate, {
         onConnected: () => setReadState('reading'),
         onReading: () => setReadState('reading'),
@@ -56,22 +77,24 @@ export default function ScanPassportNfcStep() {
 
       setTempEDoc(passport)
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : String(e))
+      const mappedError = mapPassportNfcErrorToMessage(e, { debugEnabled })
+      setErrorMsg(mappedError.primary)
+      setErrorDetail(mappedError.secondary ?? '')
+      setErrorCode(mappedError.code ?? '')
       setReadState('error')
+    } finally {
+      readInFlightRef.current = false
     }
-  }, [tempMRZ, docNumber, birthDate, expiryDate, setTempEDoc])
+  }, [tempMRZ, docNumber, birthDate, expiryDate, setTempEDoc, debugEnabled])
 
   useEffect(() => {
     return () => {
+      readInFlightRef.current = false
       stopPassportNfc()
     }
   }, [])
 
   const isScanning = readState === 'waiting' || readState === 'reading'
-  const isAuthError = errorMsg.includes('EXTERNAL AUTHENTICATE') || errorMsg.includes('6982')
-  const isConnectionError =
-    errorMsg.toLowerCase().includes('nfc connection lost') ||
-    errorMsg.toLowerCase().includes('transceive fail')
 
   return (
     <View style={{ paddingBottom: insets.bottom, paddingTop: insets.top }} className='flex-1 p-6'>
@@ -93,6 +116,11 @@ export default function ScanPassportNfcStep() {
       <Text className='typography-body3 mb-4 mt-1 text-textSecondary'>
         Open your passport to the photo page, then hold it flat against the back of your phone.
       </Text>
+      {debugEnabled ? (
+        <Text className='typography-body4 mb-3 text-textSecondary'>
+          NFC backend: {selectedBackend}
+        </Text>
+      ) : null}
 
       {/* MRZ data card — always visible so user can verify */}
       {tempMRZ && (
@@ -151,25 +179,17 @@ export default function ScanPassportNfcStep() {
 
       {readState === 'error' && (
         <View className='bg-errorMain/10 mb-4 rounded-xl p-4'>
-          <Text className='typography-body2 text-center text-errorMain'>
-            {isAuthError
-              ? 'Authentication failed — the passport rejected the MRZ data.'
-              : isConnectionError
-                ? 'NFC connection lost.'
-                : errorMsg}
-          </Text>
-          {isAuthError && (
+          <Text className='typography-body2 text-center text-errorMain'>{errorMsg}</Text>
+          {errorDetail ? (
             <Text className='typography-body3 mt-2 text-center text-textSecondary'>
-              The document number, date of birth, or expiry date from the MRZ scan may be incorrect.
-              Please rescan the MRZ page and check that the data above matches your passport.
+              {errorDetail}
             </Text>
-          )}
-          {isConnectionError && (
-            <Text className='typography-body3 mt-2 text-center text-textSecondary'>
-              Hold your passport flat against the back of the phone and keep it completely still
-              until reading finishes.
+          ) : null}
+          {debugEnabled && errorCode ? (
+            <Text className='typography-body4 mt-2 text-center text-textSecondary'>
+              code: {errorCode}
             </Text>
-          )}
+          ) : null}
         </View>
       )}
 

@@ -33,9 +33,24 @@ function log(...msg: unknown[]) {
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
 
-  if (__DEV__ && debugEnabled) {
+  if (!(__DEV__ && debugEnabled)) return
+
+  const first = typeof msg[0] === 'string' ? msg[0] : ''
+  const allowedPrefixes = [
+    'Starting passport NFC read',
+    'NfcManager started',
+    'Cancelled previous technology request',
+    'Requesting IsoDep technology',
+    'IsoDep technology granted',
+    'SELECT failed',
+    'All DGs read. Building EPassport',
+    'EPassport created successfully',
+    'SELF-TEST:',
+  ]
+  const isSafeEvent = allowedPrefixes.some(prefix => first.startsWith(prefix))
+  if (isSafeEvent) {
     // eslint-disable-next-line no-console
-    console.log('[PASSPORT-NFC]', ...msg)
+    console.log('[PASSPORT-NFC]', first)
   }
 }
 
