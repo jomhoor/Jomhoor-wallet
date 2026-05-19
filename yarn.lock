@@ -2918,8 +2918,8 @@ __metadata:
 
 "@iland/passport-verification@file:./packages/passport-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=03ca48&locator=jomhoor%40workspace%3A."
-  checksum: 10/a89655f97b60b877429ed6bf0961ea1271d52d88e75bdbffabd7154d474dfb18d78592acb51186a047d20510eeb48f8ec955530febe3a495ab90edbbb957ae6f
+  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=f091e1&locator=jomhoor%40workspace%3A."
+  checksum: 10/01a3eebb56ce52b4b6c65369b41848b6ba2a6d247f14d3698c09949c11b75cfa87fc319fc97082b0242af25289c20cfe1ecd89c74228601fbb5137f5f9a9f1df
   languageName: node
   linkType: hard
 
@@ -14051,6 +14051,7 @@ __metadata:
     react-native-svg-transformer: "npm:^1.5.0"
     react-native-toast-message: "npm:^2.2.0"
     react-native-vision-camera: "npm:4.6.3"
+    react-native-vision-camera-face-detector: "npm:~1.10.2"
     react-native-vision-camera-text-recognition: "npm:^3.1.1"
     react-native-webview: "npm:^13.16.1"
     react-native-worklets-core: "npm:1.6.3"
@@ -18116,6 +18117,17 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10/9a61a8f3d4aad8245b87c3018c0d56b5ca9a2e5a500c2c4734e12f4314d2c0648b4bfe4b90a063b482b81efddec5b3cef82864d04261886224abf960230e08b5
+  languageName: node
+  linkType: hard
+
+"react-native-vision-camera-face-detector@npm:~1.10.2":
+  version: 1.10.2
+  resolution: "react-native-vision-camera-face-detector@npm:1.10.2"
+  peerDependencies:
+    react: ">= 18"
+    react-native: ">= 0.74"
+    react-native-vision-camera: ">= 4.0"
+  checksum: 10/a55ea2c2244258f391fe646a4ce3b52342e79abd4b2dcd32674c48e7b141b72a2acf84b312a3b264208bfc51af14acb7d3ff08e5ea89084586e4ebf88d86bb22
   languageName: node
   linkType: hard
 
