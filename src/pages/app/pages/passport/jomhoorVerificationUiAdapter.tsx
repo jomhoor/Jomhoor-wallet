@@ -1,4 +1,4 @@
-import type { VerificationUiAdapter } from '@iland/passport-verification/shared'
+import type { VerificationUiAdapter } from '@iland/passport-verification'
 import type { PropsWithChildren } from 'react'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 

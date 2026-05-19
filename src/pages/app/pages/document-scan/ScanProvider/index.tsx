@@ -2,7 +2,7 @@ import type {
   FaceComparisonResult,
   GazeChallengeResult,
   LivenessResult,
-} from '@iland/passport-verification/face'
+} from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { PropsWithChildren } from 'react'
 import { useCallback } from 'react'

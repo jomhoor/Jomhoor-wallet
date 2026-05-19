@@ -1,4 +1,4 @@
-import type { LivenessResult } from '@iland/passport-verification/face'
+import type { LivenessResult } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/core'
 import { Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'

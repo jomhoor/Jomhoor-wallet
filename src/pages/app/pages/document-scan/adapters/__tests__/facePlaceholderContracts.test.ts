@@ -4,7 +4,7 @@ import type {
   FaceComparisonResult,
   GazeChallengeResult,
   LivenessResult,
-} from '@iland/passport-verification/face'
+} from '@iland/passport-verification'
 
 describe('face placeholder mock contracts', () => {
   it('matches liveness contract shape', () => {
