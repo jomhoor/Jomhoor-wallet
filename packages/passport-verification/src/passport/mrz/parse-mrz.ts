@@ -273,14 +273,26 @@ export const validatePassportFields = (
   errors: string[]
   normalized: {
     documentNumber: string
+    dateOfBirthYYMMDD: string
+    expiryDateYYMMDD: string
+    /** @deprecated use `dateOfBirthYYMMDD` */
     dateOfBirth: string
+    /** @deprecated use `expiryDateYYMMDD` */
     dateOfExpiry: string
   }
 } => {
+  const rawDateOfBirth = input?.dateOfBirthYYMMDD ?? input?.dateOfBirth
+  const rawDateOfExpiry = input?.expiryDateYYMMDD ?? input?.dateOfExpiry
+
+  const dateOfBirthYYMMDD = normalizeMrzDate(rawDateOfBirth)
+  const expiryDateYYMMDD = normalizeMrzDate(rawDateOfExpiry)
+
   const normalized = {
     documentNumber: normalizeDocumentNumber(input?.documentNumber),
-    dateOfBirth: normalizeMrzDate(input?.dateOfBirth),
-    dateOfExpiry: normalizeMrzDate(input?.dateOfExpiry),
+    dateOfBirthYYMMDD,
+    expiryDateYYMMDD,
+    dateOfBirth: dateOfBirthYYMMDD,
+    dateOfExpiry: expiryDateYYMMDD,
   }
   const errors: string[] = []
 
@@ -288,11 +300,11 @@ export const validatePassportFields = (
     errors.push('Document number must contain 1 to 9 MRZ-safe alphanumeric characters.')
   }
 
-  if (!DATE_PATTERN.test(normalized.dateOfBirth)) {
+  if (!DATE_PATTERN.test(normalized.dateOfBirthYYMMDD)) {
     errors.push('Date of birth must be a 6-digit YYMMDD value.')
   }
 
-  if (!DATE_PATTERN.test(normalized.dateOfExpiry)) {
+  if (!DATE_PATTERN.test(normalized.expiryDateYYMMDD)) {
     errors.push('Date of expiry must be a 6-digit YYMMDD value.')
   }
 
@@ -314,10 +326,10 @@ export const buildMrzKey = (input: PassportFieldInput): string => {
 
   const documentNumberMrz = padMrzField(normalized.documentNumber, 9)
   const documentNumberCheckDigit = calculateMrzCheckDigit(documentNumberMrz)
-  const dateOfBirthCheckDigit = calculateMrzCheckDigit(normalized.dateOfBirth)
-  const dateOfExpiryCheckDigit = calculateMrzCheckDigit(normalized.dateOfExpiry)
+  const dateOfBirthCheckDigit = calculateMrzCheckDigit(normalized.dateOfBirthYYMMDD)
+  const dateOfExpiryCheckDigit = calculateMrzCheckDigit(normalized.expiryDateYYMMDD)
 
-  return `${documentNumberMrz}${documentNumberCheckDigit}${normalized.dateOfBirth}${dateOfBirthCheckDigit}${normalized.dateOfExpiry}${dateOfExpiryCheckDigit}`
+  return `${documentNumberMrz}${documentNumberCheckDigit}${normalized.dateOfBirthYYMMDD}${dateOfBirthCheckDigit}${normalized.expiryDateYYMMDD}${dateOfExpiryCheckDigit}`
 }
 
 export const parseMrzKey = (
@@ -326,7 +338,11 @@ export const parseMrzKey = (
   mrzKey: string
   documentNumber: string
   documentNumberMrz: string
+  dateOfBirthYYMMDD: string
+  expiryDateYYMMDD: string
+  /** @deprecated use `dateOfBirthYYMMDD` */
   dateOfBirth: string
+  /** @deprecated use `expiryDateYYMMDD` */
   dateOfExpiry: string
   checkDigits: {
     documentNumber: number | null
@@ -345,6 +361,8 @@ export const parseMrzKey = (
     mrzKey: normalized,
     documentNumber: stripFillers(documentNumberMrz),
     documentNumberMrz,
+    dateOfBirthYYMMDD: normalized.slice(10, 16),
+    expiryDateYYMMDD: normalized.slice(17, 23),
     dateOfBirth: normalized.slice(10, 16),
     dateOfExpiry: normalized.slice(17, 23),
     checkDigits: {
@@ -386,23 +404,23 @@ export const validateMrzKey = (value: unknown): MrzKeyValidationResult => {
     ),
     dateOfBirth: buildCheckResult(
       'date of birth',
-      parsed.dateOfBirth,
+      parsed.dateOfBirthYYMMDD,
       parsed.checkDigits.dateOfBirth,
       errors,
     ),
     dateOfExpiry: buildCheckResult(
       'date of expiry',
-      parsed.dateOfExpiry,
+      parsed.expiryDateYYMMDD,
       parsed.checkDigits.dateOfExpiry,
       errors,
     ),
   }
 
-  if (!DATE_PATTERN.test(parsed.dateOfBirth)) {
+  if (!DATE_PATTERN.test(parsed.dateOfBirthYYMMDD)) {
     errors.push('MRZ key date of birth segment must be a 6-digit YYMMDD value.')
   }
 
-  if (!DATE_PATTERN.test(parsed.dateOfExpiry)) {
+  if (!DATE_PATTERN.test(parsed.expiryDateYYMMDD)) {
     errors.push('MRZ key date of expiry segment must be a 6-digit YYMMDD value.')
   }
 
@@ -465,7 +483,11 @@ export const createPassportCredentials = (
 ): PassportCredentials => {
   const hasMrzKey = typeof input?.mrzKey === 'string' && input.mrzKey.trim().length > 0
   const hasFields =
-    input?.documentNumber != null || input?.dateOfBirth != null || input?.dateOfExpiry != null
+    input?.documentNumber != null ||
+    input?.dateOfBirthYYMMDD != null ||
+    input?.expiryDateYYMMDD != null ||
+    input?.dateOfBirth != null ||
+    input?.dateOfExpiry != null
 
   if (hasMrzKey) {
     const mrzKeyValidation = validateMrzKey(input.mrzKey)
@@ -478,8 +500,10 @@ export const createPassportCredentials = (
 
     const fromMrzKey: PassportCredentials = {
       documentNumber: mrzKeyValidation.parsed.documentNumber,
-      dateOfBirth: mrzKeyValidation.parsed.dateOfBirth,
-      dateOfExpiry: mrzKeyValidation.parsed.dateOfExpiry,
+      dateOfBirthYYMMDD: mrzKeyValidation.parsed.dateOfBirthYYMMDD,
+      expiryDateYYMMDD: mrzKeyValidation.parsed.expiryDateYYMMDD,
+      dateOfBirth: mrzKeyValidation.parsed.dateOfBirthYYMMDD,
+      dateOfExpiry: mrzKeyValidation.parsed.expiryDateYYMMDD,
       mrzKey: mrzKeyValidation.normalized,
     }
 
@@ -497,8 +521,8 @@ export const createPassportCredentials = (
 
     if (
       fieldValidation.normalized.documentNumber !== fromMrzKey.documentNumber ||
-      fieldValidation.normalized.dateOfBirth !== fromMrzKey.dateOfBirth ||
-      fieldValidation.normalized.dateOfExpiry !== fromMrzKey.dateOfExpiry
+      fieldValidation.normalized.dateOfBirthYYMMDD !== fromMrzKey.dateOfBirthYYMMDD ||
+      fieldValidation.normalized.expiryDateYYMMDD !== fromMrzKey.expiryDateYYMMDD
     ) {
       throw new PassportUtilityError(
         PassportUtilityErrorCode.MRZ_KEY_FIELD_MISMATCH,
@@ -518,7 +542,11 @@ export const createPassportCredentials = (
   }
 
   return {
-    ...fieldValidation.normalized,
+    documentNumber: fieldValidation.normalized.documentNumber,
+    dateOfBirthYYMMDD: fieldValidation.normalized.dateOfBirthYYMMDD,
+    expiryDateYYMMDD: fieldValidation.normalized.expiryDateYYMMDD,
+    dateOfBirth: fieldValidation.normalized.dateOfBirthYYMMDD,
+    dateOfExpiry: fieldValidation.normalized.expiryDateYYMMDD,
     mrzKey: buildMrzKey(fieldValidation.normalized),
   }
 }

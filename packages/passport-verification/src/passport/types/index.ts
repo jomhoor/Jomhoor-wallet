@@ -2,7 +2,11 @@ export type MrzInput = string | string[]
 
 export type PassportFieldInput = {
   documentNumber?: string | null
+  dateOfBirthYYMMDD?: string | null
+  expiryDateYYMMDD?: string | null
+  /** @deprecated use `dateOfBirthYYMMDD` */
   dateOfBirth?: string | null
+  /** @deprecated use `expiryDateYYMMDD` */
   dateOfExpiry?: string | null
 }
 
@@ -12,9 +16,13 @@ export type PassportCredentialsInput = PassportFieldInput & {
 
 export type PassportCredentials = {
   documentNumber: string
-  dateOfBirth: string
-  dateOfExpiry: string
+  dateOfBirthYYMMDD: string
+  expiryDateYYMMDD: string
   mrzKey: string
+  /** @deprecated use `dateOfBirthYYMMDD` */
+  dateOfBirth?: string
+  /** @deprecated use `expiryDateYYMMDD` */
+  dateOfExpiry?: string
 }
 
 export const MRZ_FORMATS = {
@@ -58,7 +66,11 @@ export type MrzValidationResult = {
   checks: Record<string, boolean>
   normalized?: {
     documentNumber: string
+    dateOfBirthYYMMDD: string
+    expiryDateYYMMDD: string
+    /** @deprecated use `dateOfBirthYYMMDD` */
     dateOfBirth: string
+    /** @deprecated use `expiryDateYYMMDD` */
     dateOfExpiry: string
   }
 }

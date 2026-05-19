@@ -504,7 +504,7 @@ yarn start
 
 Expected result:
 
-- TypeScript resolves `@iland/passport-verification/passport`.
+- TypeScript resolves `@iland/passport-verification`.
 - Metro starts and app launches.
 
 Risk level:
@@ -707,7 +707,7 @@ yarn android
 
 ### Jomhoor integration tests
 
-- Import resolution test for `@iland/passport-verification/passport`.
+- Import resolution test for `@iland/passport-verification`.
 - `yarn type-check` green or only pre-existing unrelated failures.
 - Metro startup without module resolution errors.
 - Document-scan flow unchanged for MRZ and NFC step transitions.

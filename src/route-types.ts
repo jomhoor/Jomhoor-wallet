@@ -44,6 +44,7 @@ export type AppStackParamsList = {
   Wallet: undefined
   Profile: undefined
   Settings: undefined
+  Passport: undefined
   InviteOthers?: {
     tag?: string
   }

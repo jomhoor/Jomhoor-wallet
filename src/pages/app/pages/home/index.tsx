@@ -17,8 +17,8 @@ import { GRID_UNIT } from '@/theme/config/spacing'
 import { UiCard, UiIcon } from '@/ui'
 
 type HomeDestination = {
-  labelKey: 'home.profile' | 'home.proposals' | 'home.hub' | 'home.compass'
-  route: 'Profile' | 'Proposals' | 'Hub' | 'Compass'
+  labelKey: 'home.profile' | 'home.proposals' | 'home.hub' | 'home.compass' | 'home.passport'
+  route: 'Profile' | 'Proposals' | 'Hub' | 'Compass' | 'Passport'
   icon: { lib: string; name: string } | { custom: string }
   color: string
 }
@@ -48,6 +48,12 @@ function getHomeDestinations(p: BaseTheme): HomeDestination[] {
       route: 'Compass',
       icon: { lib: 'Ionicons', name: 'compass-outline' },
       color: p.warningMain,
+    },
+    {
+      labelKey: 'home.passport',
+      route: 'Passport',
+      icon: { lib: 'Ionicons', name: 'checkmark-done-outline' },
+      color: p.secondaryMain,
     },
   ]
 }
