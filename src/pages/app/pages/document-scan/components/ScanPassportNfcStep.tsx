@@ -56,8 +56,6 @@ export default function ScanPassportNfcStep() {
 
       setTempEDoc(passport)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e)
-      console.error('[ScanPassportNfcStep] error:', msg)
       setErrorMsg(e instanceof Error ? e.message : String(e))
       setReadState('error')
     }

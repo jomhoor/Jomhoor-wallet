@@ -17,13 +17,23 @@ import NfcManager, { NfcTech } from 'react-native-nfc-manager'
 const createHash = require('create-hash')
 const DES = require('des.js')
 
-import { EPassport, PersonDetails } from './e-document'
+import {
+  createPackageNfcReadInput,
+  packageNfcResultToEPassport,
+  resolvePassportNfcBackend,
+} from '@/pages/app/pages/document-scan/adapters'
+
+import { EPassport, type PersonDetails } from './e-document'
 
 // ---------------------------------------------------------------------------
 // Logging
 // ---------------------------------------------------------------------------
 function log(...msg: unknown[]) {
-  if (__DEV__) {
+  const debugEnabled =
+    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
+    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
+
+  if (__DEV__ && debugEnabled) {
     // eslint-disable-next-line no-console
     console.log('[PASSPORT-NFC]', ...msg)
   }
@@ -33,7 +43,6 @@ function log(...msg: unknown[]) {
 // Hex helpers
 // ---------------------------------------------------------------------------
 const toBytes = (hex: string): number[] => (hex.match(/.{1,2}/g) ?? []).map(b => parseInt(b, 16))
-const hexToUint8Array = (hex: string): Uint8Array => new Uint8Array(toBytes(hex))
 
 const toHex = (bytes: number[] | Uint8Array): string =>
   Array.from(bytes)
@@ -93,7 +102,6 @@ function deriveBacSeed(
   const expiryCheck = mrzCheckDigit(expiry)
 
   const mrzKey = `${docNum}${docCheck}${dob}${dobCheck}${expiry}${expiryCheck}`
-  log('MRZ key string:', mrzKey)
 
   const mrzBytes = new TextEncoder().encode(mrzKey)
   const hash = sha1Sync(mrzBytes)
@@ -741,82 +749,25 @@ function selfTestCrypto() {
 
 let selfTestDone = false
 
-function shouldUseNativeIosPassportBackend(): boolean {
-  return (
-    process.env.EXPO_PUBLIC_PASSPORT_NFC_BACKEND === 'native' ||
-    process.env.EXPO_PUBLIC_PASSPORT_NFC_BACKEND === 'native-ios'
-  )
-}
-
-function buildPersonDetailsFromNative(
-  parsed: Record<string, unknown> | undefined,
-  portraitBase64?: string,
-): PersonDetails {
-  return {
-    firstName: typeof parsed?.firstName === 'string' ? parsed.firstName : null,
-    lastName: typeof parsed?.lastName === 'string' ? parsed.lastName : null,
-    gender: typeof parsed?.gender === 'string' ? parsed.gender : null,
-    birthDate: typeof parsed?.dateOfBirth === 'string' ? parsed.dateOfBirth : null,
-    expiryDate: typeof parsed?.documentExpiryDate === 'string' ? parsed.documentExpiryDate : null,
-    documentNumber: typeof parsed?.documentNumber === 'string' ? parsed.documentNumber : null,
-    nationality: typeof parsed?.nationality === 'string' ? parsed.nationality : null,
-    issuingAuthority: typeof parsed?.issuingAuthority === 'string' ? parsed.issuingAuthority : null,
-    passportImageRaw: typeof portraitBase64 === 'string' ? portraitBase64 : null,
-  }
-}
-
-async function readPassportNativeIos(
+async function readPassportWithPackageBackend(
   documentNumber: string,
   dateOfBirth: string,
   expiryDate: string,
+  backend: 'native-ios' | 'native-android',
   opts?: PassportReadOptions,
 ): Promise<EPassport> {
   opts?.onConnected?.()
   opts?.onReading?.()
 
-  const result = await readPassportNfc({
+  const input = createPackageNfcReadInput({
     documentNumber,
-    dateOfBirthYYMMDD: dateOfBirth,
-    expiryDateYYMMDD: expiryDate,
-    backend: 'native-ios',
-    requestedDataGroups: ['COM', 'SOD', 'DG1', 'DG2', 'DG11', 'DG12', 'DG13', 'DG15', 'CardAccess'],
+    dateOfBirth,
+    expiryDate,
+    backend,
   })
 
-  const raw = (result.raw ?? {}) as Record<string, unknown>
-  const files = (raw.files ?? {}) as Record<string, Record<string, unknown>>
-  const dg1 = files.DG1
-  const sod = files.SOD
-
-  if (!dg1 || dg1.status !== 'ok' || typeof dg1.rawHex !== 'string') {
-    throw new Error('Native NFC read did not return DG1.')
-  }
-
-  if (!sod || sod.status !== 'ok' || typeof sod.rawHex !== 'string') {
-    throw new Error('Native NFC read did not return SOD.')
-  }
-
-  const dg15 = files.DG15
-  const dg11 = files.DG11
-  const dg2 = files.DG2
-  const activeAuthentication = raw.activeAuthentication as Record<string, unknown> | undefined
-  const dg1Parsed = dg1.parsed as Record<string, unknown> | undefined
-  const dg2Base64 = typeof dg2?.imageBase64 === 'string' ? dg2.imageBase64 : undefined
-
-  return new EPassport({
-    docCode: typeof dg1Parsed?.mrz === 'string' && dg1Parsed.mrz.startsWith('P') ? 'P' : 'P',
-    personDetails: buildPersonDetailsFromNative(dg1Parsed, dg2Base64),
-    sodBytes: hexToUint8Array(sod.rawHex),
-    dg1Bytes: hexToUint8Array(dg1.rawHex),
-    ...(dg15 && dg15.status === 'ok' && typeof dg15.rawHex === 'string'
-      ? { dg15Bytes: hexToUint8Array(dg15.rawHex) }
-      : {}),
-    ...(dg11 && dg11.status === 'ok' && typeof dg11.rawHex === 'string'
-      ? { dg11Bytes: hexToUint8Array(dg11.rawHex) }
-      : {}),
-    ...(typeof activeAuthentication?.signature === 'string'
-      ? { aaSignature: hexToUint8Array(activeAuthentication.signature) }
-      : {}),
-  })
+  const result = await readPassportNfc(input)
+  return packageNfcResultToEPassport(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -844,8 +795,15 @@ export async function readPassport(
   expiryDate: string,
   opts?: PassportReadOptions,
 ): Promise<EPassport> {
-  if (shouldUseNativeIosPassportBackend()) {
-    return readPassportNativeIos(documentNumber, dateOfBirth, expiryDate, opts)
+  const selectedBackend = resolvePassportNfcBackend()
+  if (selectedBackend === 'native-ios' || selectedBackend === 'native-android') {
+    return readPassportWithPackageBackend(
+      documentNumber,
+      dateOfBirth,
+      expiryDate,
+      selectedBackend,
+      opts,
+    )
   }
 
   // Run crypto self-test once (Buffer polyfill must be available)
@@ -855,7 +813,6 @@ export async function readPassport(
   }
 
   log('Starting passport NFC read...')
-  log('MRZ input:', { documentNumber, dateOfBirth, expiryDate })
 
   // Ensure NFC is initialized
   try {
@@ -899,11 +856,8 @@ export async function readPassport(
 
     // Derive BAC keys from MRZ data
     const seed = deriveBacSeed(documentNumber, dateOfBirth, expiryDate)
-    log('BAC seed:', toHex(seed))
     const kenc = deriveKey(seed, 1)
-    log('BAC Kenc:', toHex(kenc))
     const kmac = deriveKey(seed, 2)
-    log('BAC Kmac:', toHex(kmac))
 
     // Generate random IFD nonce and key
     const rndIfd = new Uint8Array(8)
@@ -949,7 +903,7 @@ export async function readPassport(
       dg15Bytes: dg15,
     })
 
-    log('EPassport created successfully:', personDetails)
+    log('EPassport created successfully')
     return passport
   } finally {
     await NfcManager.cancelTechnologyRequest()
