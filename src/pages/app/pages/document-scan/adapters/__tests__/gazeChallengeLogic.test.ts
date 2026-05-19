@@ -23,7 +23,7 @@ describe('gaze challenge logic', () => {
   })
 
   it('evaluates sample as passed when yaw/pitch are near expected values', () => {
-    const waypoint = { x: 180, y: 190 }
+    const waypoint = { x: 180, y: 266 }
     const face: GazeDetectorFace = { yawAngle: 0, pitchAngle: 0 }
 
     const evaluation = evaluateGazeSample(face, waypoint, { width: 360, height: 760 })
