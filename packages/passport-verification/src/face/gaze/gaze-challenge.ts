@@ -18,10 +18,16 @@ export type GazeFrameSize = {
 export type GazeChallengeConfig = {
   waypointCount: number
   padding: number
+  horizontalPadding: number
+  verticalPadding: number
   yawRange: number
   pitchRange: number
   errorThreshold: number
   passRatioThreshold: number
+  horizontalAreaStartRatio: number
+  horizontalAreaEndRatio: number
+  verticalAreaStartRatio: number
+  verticalAreaEndRatio: number
 }
 
 export type GazeSampleEvaluation = {
@@ -42,10 +48,16 @@ export type GazeSample = GazeSampleEvaluation & {
 const DEFAULT_GAZE_CHALLENGE_CONFIG: GazeChallengeConfig = {
   waypointCount: 5, // Total number of gaze waypoints to complete in the challenge
   padding: 80, // Minimum distance from the edges of the frame for waypoints
-  yawRange: 25, // Maximum yaw angle range for gaze
-  pitchRange: 15, // Maximum pitch angle range for gaze
-  errorThreshold: 12, // Maximum allowable error for gaze to be considered correct
-  passRatioThreshold: 0.7, // Minimum ratio of passed samples required to pass the challenge
+  horizontalPadding: 80, // Horizontal inset for waypoint generation/mapping
+  verticalPadding: 80, // Vertical inset for waypoint generation/mapping
+  yawRange: 18, // Softer yaw target range for better usability
+  pitchRange: 10, // Softer pitch target range for better usability
+  errorThreshold: 16, // More tolerant threshold for regular users
+  passRatioThreshold: 0.5, // Lower pass ratio makes challenge easier to complete
+  horizontalAreaStartRatio: 0.2, // Start of interactive area on X axis (0.2 = left edge)
+  horizontalAreaEndRatio: 0.8, // End of interactive area on X axis (0.8 = right edge)
+  verticalAreaStartRatio: 0.2, // Start of interactive area on Y axis (0.2 = top edge)
+  verticalAreaEndRatio: 0.5, // End of interactive area on Y axis (0.5 = top half only)
 }
 
 export function getDefaultGazeChallengeConfig(): GazeChallengeConfig {
@@ -58,12 +70,21 @@ export function generateGazeWaypoints(
   random = Math.random,
 ): GazeWaypoint[] {
   const merged = { ...DEFAULT_GAZE_CHALLENGE_CONFIG, ...(config ?? {}) }
-  const maxX = Math.max(frameSize.width - merged.padding * 2, 1)
-  const maxY = Math.max(frameSize.height - merged.padding * 2, 1)
+  const horizontalPadding = merged.horizontalPadding ?? merged.padding
+  const verticalPadding = merged.verticalPadding ?? merged.padding
+  const areaStartX = frameSize.width * merged.horizontalAreaStartRatio
+  const areaEndX = frameSize.width * merged.horizontalAreaEndRatio
+  const areaStartY = frameSize.height * merged.verticalAreaStartRatio
+  const areaEndY = frameSize.height * merged.verticalAreaEndRatio
+
+  const minX = areaStartX + horizontalPadding
+  const maxX = Math.max(areaEndX - horizontalPadding, minX + 1)
+  const minY = areaStartY + verticalPadding
+  const maxY = Math.max(areaEndY - verticalPadding, minY + 1)
 
   return Array.from({ length: merged.waypointCount }, () => ({
-    x: merged.padding + random() * maxX,
-    y: merged.padding + random() * maxY,
+    x: minX + random() * (maxX - minX),
+    y: minY + random() * (maxY - minY),
   }))
 }
 
@@ -74,11 +95,20 @@ export function evaluateGazeSample(
   config?: Partial<GazeChallengeConfig>,
 ): GazeSampleEvaluation {
   const merged = { ...DEFAULT_GAZE_CHALLENGE_CONFIG, ...(config ?? {}) }
-  const halfWidth = Math.max(frameSize.width / 2, 1)
-  const halfHeight = Math.max(frameSize.height / 2, 1)
+  const horizontalPadding = merged.horizontalPadding ?? merged.padding
+  const verticalPadding = merged.verticalPadding ?? merged.padding
+  const areaStartX = frameSize.width * merged.horizontalAreaStartRatio + horizontalPadding
+  const areaEndX = frameSize.width * merged.horizontalAreaEndRatio - horizontalPadding
+  const areaStartY = frameSize.height * merged.verticalAreaStartRatio + verticalPadding
+  const areaEndY = frameSize.height * merged.verticalAreaEndRatio - verticalPadding
 
-  const expectedYaw = ((waypoint.x - halfWidth) / halfWidth) * merged.yawRange
-  const expectedPitch = ((waypoint.y - halfHeight) / halfHeight) * merged.pitchRange
+  const centerX = (areaStartX + areaEndX) / 2
+  const centerY = (areaStartY + areaEndY) / 2
+  const halfAreaWidth = Math.max((areaEndX - areaStartX) / 2, 1)
+  const halfAreaHeight = Math.max((areaEndY - areaStartY) / 2, 1)
+
+  const expectedYaw = ((waypoint.x - centerX) / halfAreaWidth) * merged.yawRange
+  const expectedPitch = ((waypoint.y - centerY) / halfAreaHeight) * merged.pitchRange
 
   const actualYaw = face.yawAngle ?? 0
   const actualPitch = face.pitchAngle ?? 0

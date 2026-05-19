@@ -30,9 +30,16 @@ import { UiButton, UiIcon } from '@/ui'
 
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
 
-const WAYPOINT_DWELL_MS = 1800
+const WAYPOINT_DWELL_MS = 1500
 const WAYPOINT_ANIMATION_MS = 500
 const CAMERA_STARTUP_DELAY_MS = 250
+const USER_FRIENDLY_GAZE_CONFIG = {
+  waypointCount: 4,
+  yawRange: 18,
+  pitchRange: 10,
+  errorThreshold: 16,
+  passRatioThreshold: 0.4,
+}
 
 export default function GazeChallengeStep(): JSX.Element {
   const navigation = useNavigation()
@@ -138,6 +145,7 @@ export default function GazeChallengeStep(): JSX.Element {
       targetsTotal: waypointsRef.current.length,
       startedAt: startedAtRef.current,
       completedAt,
+      passRatioThreshold: USER_FRIENDLY_GAZE_CONFIG.passRatioThreshold,
     })
 
     const score = typeof result.score === 'number' ? result.score : 0
@@ -174,7 +182,7 @@ export default function GazeChallengeStep(): JSX.Element {
   }
 
   const startGazeChallenge = () => {
-    const waypoints = generateGazeWaypoints({ width, height })
+    const waypoints = generateGazeWaypoints({ width, height }, USER_FRIENDLY_GAZE_CONFIG)
 
     waypointsRef.current = waypoints
     samplesRef.current = []
@@ -198,7 +206,12 @@ export default function GazeChallengeStep(): JSX.Element {
     const activeWaypoint = waypointsRef.current[currentWaypointIndex]
     if (!activeFace || !activeWaypoint) return
 
-    const evaluation = evaluateGazeSample(activeFace, activeWaypoint, { width, height })
+    const evaluation = evaluateGazeSample(
+      activeFace,
+      activeWaypoint,
+      { width, height },
+      USER_FRIENDLY_GAZE_CONFIG,
+    )
     samplesRef.current.push({
       ...evaluation,
       waypointIndex: currentWaypointIndex,

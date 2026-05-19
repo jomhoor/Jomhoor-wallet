@@ -18,12 +18,12 @@ describe('gaze challenge logic', () => {
       expect(waypoint.x).toBeGreaterThan(0)
       expect(waypoint.x).toBeLessThan(360)
       expect(waypoint.y).toBeGreaterThan(0)
-      expect(waypoint.y).toBeLessThan(760)
+      expect(waypoint.y).toBeLessThanOrEqual(760 / 2)
     })
   })
 
   it('evaluates sample as passed when yaw/pitch are near expected values', () => {
-    const waypoint = { x: 180, y: 380 }
+    const waypoint = { x: 180, y: 190 }
     const face: GazeDetectorFace = { yawAngle: 0, pitchAngle: 0 }
 
     const evaluation = evaluateGazeSample(face, waypoint, { width: 360, height: 760 })
