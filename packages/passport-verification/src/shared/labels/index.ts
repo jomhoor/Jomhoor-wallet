@@ -14,6 +14,8 @@ export const defaultVerificationLabels = {
   'flow.step.comparison': 'Comparison',
   'flow.step.review': 'Review',
   'flow.step.complete': 'Complete',
+  'mrz.captureHost': 'Capture MRZ',
+  'mrz.hostCaptured': 'MRZ credentials received.',
   'mrz.title': 'Scan passport',
   'mrz.description': 'Scan the MRZ section of your passport.',
   'nfc.title': 'Read passport chip',

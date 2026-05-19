@@ -13,6 +13,10 @@ type PlaceholderVerificationStepProps = {
   title: string
   description: string
   isFinalAction: boolean
+  primaryActionLabel?: string
+  loading?: boolean
+  errorMessage?: string
+  supplementalMessage?: string
   onNext: () => void
   onCancel?: () => void
 }
@@ -26,6 +30,10 @@ export function PlaceholderVerificationStep({
   title,
   description,
   isFinalAction,
+  primaryActionLabel,
+  loading = false,
+  errorMessage,
+  supplementalMessage,
   onNext,
   onCancel,
 }: PlaceholderVerificationStepProps): JSX.Element {
@@ -34,9 +42,11 @@ export function PlaceholderVerificationStep({
   const placeholderModeText = 'Placeholder mode only. No live camera/NFC is running in this phase.'
 
   const stepLabel = resolveVerificationLabel(labels, `flow.step.${step}`, step)
-  const primaryActionLabel = isFinalAction
-    ? resolveVerificationLabel(labels, 'flow.finish', 'Finish')
-    : resolveVerificationLabel(labels, 'flow.next', 'Next')
+  const resolvedPrimaryActionLabel =
+    primaryActionLabel ??
+    (isFinalAction
+      ? resolveVerificationLabel(labels, 'flow.finish', 'Finish')
+      : resolveVerificationLabel(labels, 'flow.next', 'Next'))
 
   return (
     <ui.Screen>
@@ -49,9 +59,11 @@ export function PlaceholderVerificationStep({
 
       <Card>
         <ui.Text tone='muted'>{placeholderModeText}</ui.Text>
+        {supplementalMessage ? <ui.Text tone='secondary'>{supplementalMessage}</ui.Text> : null}
+        {errorMessage ? <ui.Text tone='error'>{errorMessage}</ui.Text> : null}
       </Card>
 
-      <ui.Button title={primaryActionLabel} onPress={onNext} />
+      <ui.Button title={resolvedPrimaryActionLabel} onPress={onNext} loading={loading} />
       {onCancel ? (
         <ui.Button
           title={resolveVerificationLabel(labels, 'flow.cancel', 'Cancel')}

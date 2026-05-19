@@ -13,7 +13,7 @@ export type PassportIdentityFlowStep =
 
 export type PassportIdentityFinalDecision = 'verified' | 'failed' | 'manual_review' | 'cancelled'
 
-export type PassportIdentityVerificationResult = {
+export type PassportIdentityFlowData = {
   passport: {
     credentials?: PassportCredentials
     mrz?: unknown
@@ -26,18 +26,30 @@ export type PassportIdentityVerificationResult = {
     gaze?: GazeChallengeResult
     comparison?: FaceComparisonResult
   }
-  finalDecision: PassportIdentityFinalDecision
   errors?: VerificationError[]
+}
+
+export type PassportIdentityVerificationResult = {
+  passport: PassportIdentityFlowData['passport']
+  face?: PassportIdentityFlowData['face']
+  finalDecision: PassportIdentityFinalDecision
+  errors?: PassportIdentityFlowData['errors']
   debug?: {
     backend?: string
     timingsMs?: Record<string, number>
   }
 }
 
+export type PassportIdentityMrzMode =
+  | 'host-provided'
+  | 'package-placeholder'
+  | 'package-photo'
+  | 'package-live'
+
 export type PassportIdentityFlowConfig = {
   initialStep?: PassportIdentityFlowStep
   nfcBackend?: 'native-ios' | 'native-android' | 'jomhoor-js' | 'stub'
-  mrzMode?: 'host-provided' | 'package-photo' | 'package-live'
+  mrzMode?: PassportIdentityMrzMode
   face?: {
     enabled?: boolean
     livenessEnabled?: boolean

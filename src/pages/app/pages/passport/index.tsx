@@ -1,4 +1,5 @@
 import type {
+  PassportCredentials,
   PassportIdentityVerificationResult,
   PassportVerificationNativeStatus,
 } from '@iland/passport-verification'
@@ -7,19 +8,35 @@ import {
   PassportIdentityFlow,
 } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/native'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, View } from 'react-native'
 
 import type { AppStackScreenProps } from '@/route-types'
 import { UiButton } from '@/ui'
 
+import {
+  JomhoorMrzAdapterError,
+  jomhoorMrzToPassportCredentials,
+} from './adapters/jomhoorMrzToPassportCredentials'
+import { HostMrzCapture } from './components/HostMrzCapture'
 import { jomhoorVerificationUiAdapter } from './jomhoorVerificationUiAdapter'
+
+const maskDocumentIdentifier = (value: string | undefined): string => {
+  if (!value) return 'not available'
+  if (value.length <= 4) return `${value.slice(0, 1)}***`
+  return `${value.slice(0, 2)}****${value.slice(-2)}`
+}
 
 export default function PassportScreen({}: AppStackScreenProps<'Passport'>): JSX.Element {
   const navigation = useNavigation()
   const [status, setStatus] = useState<PassportVerificationNativeStatus | null>(null)
   const [nativeError, setNativeError] = useState<string | null>(null)
   const [result, setResult] = useState<PassportIdentityVerificationResult | null>(null)
+  const [isCollectingMrz, setIsCollectingMrz] = useState(false)
+  const mrzRequestRef = useRef<{
+    resolve: (credentials: PassportCredentials) => void
+    reject: (error?: unknown) => void
+  } | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -46,8 +63,8 @@ export default function PassportScreen({}: AppStackScreenProps<'Passport'>): JSX
 
     return {
       finalDecision: result.finalDecision,
-      documentNumber:
-        result.passport.normalized?.documentNumber ?? result.passport.credentials?.documentNumber,
+      maskedDocumentNumber: maskDocumentIdentifier(result.passport.credentials?.documentNumber),
+      hasCredentials: Boolean(result.passport.credentials),
       backend: result.debug?.backend ?? 'unknown',
       livenessPassed: result.face?.liveness?.passed ?? null,
       gazePassed: result.face?.gaze?.passed ?? null,
@@ -55,15 +72,60 @@ export default function PassportScreen({}: AppStackScreenProps<'Passport'>): JSX
     }
   }, [result])
 
+  const handleRequestHostMrz = useCallback((): Promise<PassportCredentials> => {
+    setIsCollectingMrz(true)
+    return new Promise<PassportCredentials>((resolve, reject) => {
+      mrzRequestRef.current = { resolve, reject }
+    })
+  }, [])
+
+  const handleHostMrzCaptured = useCallback((mrzFields: unknown) => {
+    const pending = mrzRequestRef.current
+    mrzRequestRef.current = null
+    setIsCollectingMrz(false)
+
+    if (!pending) return
+
+    try {
+      const credentials = jomhoorMrzToPassportCredentials(mrzFields)
+      pending.resolve(credentials)
+    } catch (error) {
+      if (error instanceof JomhoorMrzAdapterError) {
+        pending.reject(error)
+        return
+      }
+
+      pending.reject(new Error('Unable to normalize MRZ capture. Please try again.'))
+    }
+  }, [])
+
+  const handleHostMrzCancel = useCallback(() => {
+    const pending = mrzRequestRef.current
+    mrzRequestRef.current = null
+    setIsCollectingMrz(false)
+    pending?.reject(new Error('MRZ capture cancelled by user.'))
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (!mrzRequestRef.current) return
+      mrzRequestRef.current.reject(new Error('MRZ capture interrupted.'))
+      mrzRequestRef.current = null
+    }
+  }, [])
+
   return (
     <View className='flex-1 bg-backgroundPrimary'>
-      {!result ? (
+      {isCollectingMrz ? (
+        <HostMrzCapture onCaptured={handleHostMrzCaptured} onCancel={handleHostMrzCancel} />
+      ) : !result ? (
         <PassportIdentityFlow
           uiAdapter={jomhoorVerificationUiAdapter}
+          mrzMode='host-provided'
+          onRequestHostMrz={handleRequestHostMrz}
           config={{
             initialStep: 'mrz',
             nfcBackend: 'stub',
-            mrzMode: 'host-provided',
             face: {
               enabled: true,
               livenessEnabled: true,
@@ -78,7 +140,7 @@ export default function PassportScreen({}: AppStackScreenProps<'Passport'>): JSX
         <View className='flex-1 gap-3 p-6'>
           <Text className='typography-h5 text-textPrimary'>Passport Placeholder Flow Result</Text>
           <Text className='typography-body3 text-textSecondary'>
-            Phase 2 returns a mock typed result only. No proof or wallet actions are triggered.
+            Phase 3 uses host MRZ capture only. No proof or wallet actions are triggered.
           </Text>
           <Text className='typography-body3 text-textPrimary'>
             {JSON.stringify(resultSummary, null, 2)}
