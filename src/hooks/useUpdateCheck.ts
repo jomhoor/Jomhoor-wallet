@@ -9,11 +9,11 @@
 // The manifest is fetched best-effort: any network/parse error is silently
 // treated as 'ok' so a brief outage cannot brick app launch.
 
-import Constants from 'expo-constants'
-import { useCallback, useEffect, useState } from 'react'
-import { AppState, Platform } from 'react-native'
+import Constants from 'expo-constants';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 
-import { storage } from '@/core'
+import { storage } from '@/core';
 
 const MANIFEST_URL = 'https://jomhoor.org/wallet/latest.json'
 const FETCH_TIMEOUT_MS = 3000

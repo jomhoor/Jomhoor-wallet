@@ -1,19 +1,19 @@
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
-import * as SplashScreen from 'expo-splash-screen'
-import { useMemo, useState } from 'react'
-import { View } from 'react-native'
-import { SystemBars } from 'react-native-edge-to-edge'
-import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { KeyboardProvider } from 'react-native-keyboard-controller'
-import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import * as SplashScreen from 'expo-splash-screen';
+import { useMemo, useState } from 'react';
+import { View } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { APIProvider } from '@/api/client'
-import { initInterceptors } from '@/api/interceptors'
-import { AppInitializationErrorBoundary, UpdateGate } from '@/common'
-import AppRoutes from '@/routes'
-import { authStore, localAuthStore, walletStore } from '@/store'
-import { loadSelectedTheme } from '@/theme'
-import { Toasts } from '@/ui'
+import { APIProvider } from '@/api/client';
+import { initInterceptors } from '@/api/interceptors';
+import { AppInitializationErrorBoundary, UpdateGate } from '@/common';
+import AppRoutes from '@/routes';
+import { authStore, localAuthStore, walletStore } from '@/store';
+import { loadSelectedTheme } from '@/theme';
+import { Toasts } from '@/ui';
 
 loadSelectedTheme()
 

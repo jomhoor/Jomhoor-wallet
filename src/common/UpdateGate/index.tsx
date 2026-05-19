@@ -2,12 +2,12 @@
 // Shows a dismissible banner ("soft") or a blocking full-screen ("hard")
 // based on the manifest at https://jomhoor.org/wallet/latest.json.
 
-import { Linking, Text, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Linking, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getLanguage } from '@/core/localization/utils'
-import { useUpdateCheck } from '@/hooks'
-import { UiButton, UiIcon, UiModal } from '@/ui'
+import { getLanguage } from '@/core/localization/utils';
+import { useUpdateCheck } from '@/hooks';
+import { UiButton, UiIcon, UiModal } from '@/ui';
 
 type Copy = {
   softTitle: string
@@ -30,7 +30,8 @@ const COPY: Record<'fa' | 'en', Copy> = {
   },
   fa: {
     softTitle: 'نسخه‌ی جدید موجود است',
-    softBody: latest => `نسخه‌ی جدید (${latest}) منتشر شده است. برای دریافت آخرین به‌روزرسانی‌ها اپ را به‌روز کنید.`,
+    softBody: latest =>
+      `نسخه‌ی جدید (${latest}) منتشر شده است. برای دریافت آخرین به‌روزرسانی‌ها اپ را به‌روز کنید.`,
     hardTitle: 'به‌روزرسانی الزامی',
     hardBody: latest =>
       `این نسخه‌ی اپ دیگر پشتیبانی نمی‌شود. لطفاً به نسخه‌ی ${latest} ارتقا دهید.`,
