@@ -9,6 +9,14 @@
 // bounds are widened to "no restriction" so any registered identity satisfies
 // the proof — sso-svc itself enforces event_id, the on-chain SMT-root, and
 // runs the verifier contract.
+//
+// Wallet-address binding: we pass `eventData = walletAddress` so the proof's
+// pub_signals[event_data_index] equals the submitting wallet. sso-svc rejects
+// any proof whose event_data does not match the request's walletAddress —
+// without this binding a captured proof could be replayed at /v1/wallets/recover
+// against an attacker's freshly-registered wallet to steal the pairwise
+// subjects. Same payload is reused at both /v1/assertions/zk and
+// /v1/wallets/recover, so the binding protects both endpoints.
 import { hexlify, toUtf8Bytes } from 'ethers'
 
 import { recoverWallet, submitZkAssertion, type SubmitZkAssertionRequest } from '@/api/modules/sso'
@@ -71,9 +79,13 @@ export async function buildSsoZkAssertionPayload(args: {
   // that was committed at registration time.
   const { identityCounter, timestamp } = await circuit.getPassportInfo()
 
+  // event_data = walletAddress. The wallet address is poseidon([pkX, pkY]),
+  // already a BN254 field element, so it can be used directly as a circuit
+  // input. sso-svc recomputes the same value from the request's walletAddress
+  // and rejects the proof if the public input doesn't match.
   const proof = await circuit.prove({
     eventId: String(Config.SSO_ZKP_EVENT_ID),
-    eventData: '0',
+    eventData: walletAddress,
     selector: SSO_SELECTOR,
     skIdentity: `0x${privateKey}`,
     identityCounter: String(identityCounter),
