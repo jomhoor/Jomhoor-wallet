@@ -17,16 +17,16 @@
 // against an attacker's freshly-registered wallet to steal the pairwise
 // subjects. Same payload is reused at both /v1/assertions/zk and
 // /v1/wallets/recover, so the binding protects both endpoints.
-import { hexlify, toUtf8Bytes } from 'ethers'
+import { hexlify, toUtf8Bytes } from 'ethers';
 
-import { recoverWallet, submitZkAssertion, type SubmitZkAssertionRequest } from '@/api/modules/sso'
-import { Config } from '@/config'
-import { ZERO_DATE_HEX } from '@/pages/app/pages/poll/constants'
-import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
-import type { ProposalState } from '@/types/contracts'
+import { recoverWallet, submitZkAssertion, type SubmitZkAssertionRequest } from '@/api/modules/sso';
+import { Config } from '@/config';
+import { ZERO_DATE_HEX } from '@/pages/app/pages/poll/constants';
+import { NoirEIDIdentity } from '@/store/modules/identity/Identity';
+import type { ProposalState } from '@/types/contracts';
 
-import { EIDBasedQueryIdentityCircuit } from './eid-based-query-identity-circuit'
-import { ssoCircuitIdForIdentity } from './sso-circuit-id'
+import { EIDBasedQueryIdentityCircuit } from './eid-based-query-identity-circuit';
+import { ssoCircuitIdForIdentity } from './sso-circuit-id';
 
 // Selector bit 0 enables nullifier reveal; all other circuit-side checks are
 // disabled by leaving the corresponding bits cleared. sso-svc relies only on
