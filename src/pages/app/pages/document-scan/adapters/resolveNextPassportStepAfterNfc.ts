@@ -1,7 +1,9 @@
-export type NextPassportStepAfterNfc = 'face-liveness' | 'preview'
+export type NextPassportStepAfterNfc = 'nfc-details' | 'face-liveness' | 'preview'
 
 export function resolveNextPassportStepAfterNfc(
   faceFlowEnabled: boolean,
+  hasNfcDetails: boolean,
 ): NextPassportStepAfterNfc {
-  return faceFlowEnabled ? 'face-liveness' : 'preview'
+  if (!faceFlowEnabled) return 'preview'
+  return hasNfcDetails ? 'nfc-details' : 'face-liveness'
 }

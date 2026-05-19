@@ -40,12 +40,12 @@ export type GazeSample = GazeSampleEvaluation & {
 }
 
 const DEFAULT_GAZE_CHALLENGE_CONFIG: GazeChallengeConfig = {
-  waypointCount: 5,
-  padding: 80,
-  yawRange: 25,
-  pitchRange: 15,
-  errorThreshold: 12,
-  passRatioThreshold: 0.7,
+  waypointCount: 5, // Total number of gaze waypoints to complete in the challenge
+  padding: 80, // Minimum distance from the edges of the frame for waypoints
+  yawRange: 25, // Maximum yaw angle range for gaze
+  pitchRange: 15, // Maximum pitch angle range for gaze
+  errorThreshold: 12, // Maximum allowable error for gaze to be considered correct
+  passRatioThreshold: 0.7, // Minimum ratio of passed samples required to pass the challenge
 }
 
 export function getDefaultGazeChallengeConfig(): GazeChallengeConfig {

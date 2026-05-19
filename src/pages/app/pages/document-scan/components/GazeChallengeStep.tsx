@@ -14,10 +14,16 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Camera as VisionCamera,
+  runAsync,
   useCameraDevice,
   useCameraPermission,
+  useFrameProcessor,
 } from 'react-native-vision-camera'
-import { Camera } from 'react-native-vision-camera-face-detector'
+import {
+  type FrameFaceDetectionOptions,
+  useFaceDetector,
+} from 'react-native-vision-camera-face-detector'
+import { Worklets } from 'react-native-worklets-core'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
@@ -26,6 +32,7 @@ type GazeState = 'idle' | 'running' | 'success' | 'failed'
 
 const WAYPOINT_DWELL_MS = 1800
 const WAYPOINT_ANIMATION_MS = 500
+const CAMERA_STARTUP_DELAY_MS = 250
 
 export default function GazeChallengeStep(): JSX.Element {
   const navigation = useNavigation()
@@ -41,6 +48,7 @@ export default function GazeChallengeStep(): JSX.Element {
   const [faceDetected, setFaceDetected] = useState(false)
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0)
   const [latestScorePercent, setLatestScorePercent] = useState(0)
+  const [cameraReady, setCameraReady] = useState(false)
 
   const runningRef = useRef(false)
   const finishedRef = useRef(false)
@@ -48,7 +56,15 @@ export default function GazeChallengeStep(): JSX.Element {
   const waypointsRef = useRef<GazeWaypoint[]>([])
   const samplesRef = useRef<GazeSample[]>([])
   const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const cameraRef = useRef<VisionCamera | null>(null)
+  const faceDetectionOptions = useRef<FrameFaceDetectionOptions>({
+    performanceMode: 'fast',
+    classificationMode: 'all',
+    landmarkMode: 'all',
+    contourMode: 'none',
+    cameraFacing: 'front',
+    autoMode: true,
+  }).current
+  const { detectFaces, stopListeners } = useFaceDetector(faceDetectionOptions)
 
   const dotX = useSharedValue(width / 2)
   const dotY = useSharedValue(height / 2)
@@ -58,6 +74,23 @@ export default function GazeChallengeStep(): JSX.Element {
       void requestPermission()
     }
   }, [hasPermission, requestPermission])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setCameraReady(true)
+    }, CAMERA_STARTUP_DELAY_MS)
+
+    return () => {
+      clearTimeout(timeout)
+      setCameraReady(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      stopListeners()
+    }
+  }, [stopListeners])
 
   useEffect(() => {
     return () => {
@@ -71,7 +104,7 @@ export default function GazeChallengeStep(): JSX.Element {
   }, [])
 
   const totalTargets = waypointsRef.current.length
-  const isCameraActive = Boolean(isFocused && hasPermission && device)
+  const isCameraActive = Boolean(isFocused && hasPermission && device && cameraReady)
 
   const statusText = useMemo(() => {
     if (!hasPermission) return 'Camera permission is required for gaze challenge.'
@@ -173,23 +206,31 @@ export default function GazeChallengeStep(): JSX.Element {
     })
   }
 
+  const onFacesDetected = Worklets.createRunOnJS((faces: GazeDetectorFace[]) => {
+    handleFacesDetected(faces)
+  })
+
+  const frameProcessor = useFrameProcessor(
+    frame => {
+      'worklet'
+      runAsync(frame, () => {
+        'worklet'
+        const faces = detectFaces(frame)
+        onFacesDetected(faces as unknown as GazeDetectorFace[])
+      })
+    },
+    [detectFaces, onFacesDetected],
+  )
+
   return (
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1'>
       {isCameraActive && device ? (
-        <Camera
+        <VisionCamera
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          ref={cameraRef}
           device={device}
           isActive={isCameraActive}
-          faceDetectionCallback={handleFacesDetected}
-          faceDetectionOptions={{
-            performanceMode: 'fast',
-            classificationMode: 'all',
-            landmarkMode: 'all',
-            contourMode: 'none',
-            cameraFacing: 'front',
-            autoMode: true,
-          }}
+          frameProcessor={frameProcessor}
+          pixelFormat='yuv'
         />
       ) : (
         <View className='absolute inset-0 items-center justify-center bg-backgroundPrimary'>

@@ -11,10 +11,16 @@ import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Camera as VisionCamera,
+  runAsync,
   useCameraDevice,
   useCameraPermission,
+  useFrameProcessor,
 } from 'react-native-vision-camera'
-import { Camera } from 'react-native-vision-camera-face-detector'
+import {
+  type FrameFaceDetectionOptions,
+  useFaceDetector,
+} from 'react-native-vision-camera-face-detector'
+import { Worklets } from 'react-native-worklets-core'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
@@ -22,6 +28,7 @@ import { UiButton, UiIcon } from '@/ui'
 type LivenessState = 'idle' | 'running' | 'done'
 
 const STEP_DEBOUNCE_MS = 450
+const CAMERA_TRANSITION_DELAY_MS = 250
 
 export default function FaceLivenessStep(): JSX.Element {
   const navigation = useNavigation()
@@ -35,6 +42,7 @@ export default function FaceLivenessStep(): JSX.Element {
   const [livenessState, setLivenessState] = useState<LivenessState>('idle')
   const [challengeIndex, setChallengeIndex] = useState(0)
   const [faceDetected, setFaceDetected] = useState(false)
+  const [cameraEnabled, setCameraEnabled] = useState(true)
 
   const runningRef = useRef(false)
   const finishedRef = useRef(false)
@@ -43,7 +51,15 @@ export default function FaceLivenessStep(): JSX.Element {
   const confidenceRef = useRef<Partial<Record<string, number>>>({})
   const startedAtRef = useRef(0)
   const sequenceRef = useRef<ChallengeDefinition[]>(createLivenessChallengeSequence())
-  const cameraRef = useRef<VisionCamera | null>(null)
+  const faceDetectionOptions = useRef<FrameFaceDetectionOptions>({
+    performanceMode: 'fast',
+    classificationMode: 'all',
+    landmarkMode: 'all',
+    contourMode: 'none',
+    cameraFacing: 'front',
+    autoMode: true,
+  }).current
+  const { detectFaces, stopListeners } = useFaceDetector(faceDetectionOptions)
 
   useEffect(() => {
     if (!hasPermission) {
@@ -51,10 +67,16 @@ export default function FaceLivenessStep(): JSX.Element {
     }
   }, [hasPermission, requestPermission])
 
+  useEffect(() => {
+    return () => {
+      stopListeners()
+    }
+  }, [stopListeners])
+
   const totalSteps = sequenceRef.current.length
   const currentChallenge = sequenceRef.current[challengeIndex]
 
-  const isCameraActive = Boolean(isFocused && hasPermission && device)
+  const isCameraActive = Boolean(isFocused && hasPermission && device && cameraEnabled)
 
   const statusText = useMemo(() => {
     if (!hasPermission) return 'Camera permission is required for liveness check.'
@@ -99,6 +121,8 @@ export default function FaceLivenessStep(): JSX.Element {
         finishedRef.current = true
         runningRef.current = false
         setLivenessState('done')
+        setCameraEnabled(false)
+        stopListeners()
 
         const result = buildLivenessResult({
           sequence: sequenceRef.current,
@@ -108,7 +132,9 @@ export default function FaceLivenessStep(): JSX.Element {
         })
 
         setFaceLivenessResult(result)
-        setCurrentStep(Steps.FaceGazeStep)
+        setTimeout(() => {
+          setCurrentStep(Steps.FaceGazeStep)
+        }, CAMERA_TRANSITION_DELAY_MS)
         return
       }
 
@@ -117,7 +143,24 @@ export default function FaceLivenessStep(): JSX.Element {
     }, STEP_DEBOUNCE_MS)
   }
 
+  const onFacesDetected = Worklets.createRunOnJS((faces: DetectorFace[]) => {
+    handleFacesDetected(faces)
+  })
+
+  const frameProcessor = useFrameProcessor(
+    frame => {
+      'worklet'
+      runAsync(frame, () => {
+        'worklet'
+        const faces = detectFaces(frame)
+        onFacesDetected(faces as unknown as DetectorFace[])
+      })
+    },
+    [detectFaces, onFacesDetected],
+  )
+
   const startLiveness = () => {
+    setCameraEnabled(true)
     sequenceRef.current = createLivenessChallengeSequence()
     runningRef.current = true
     finishedRef.current = false
@@ -133,20 +176,12 @@ export default function FaceLivenessStep(): JSX.Element {
   return (
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1'>
       {isCameraActive && device ? (
-        <Camera
+        <VisionCamera
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          ref={cameraRef}
           device={device}
           isActive={isCameraActive}
-          faceDetectionCallback={handleFacesDetected}
-          faceDetectionOptions={{
-            performanceMode: 'fast',
-            classificationMode: 'all',
-            landmarkMode: 'all',
-            contourMode: 'none',
-            cameraFacing: 'front',
-            autoMode: true,
-          }}
+          frameProcessor={frameProcessor}
+          pixelFormat='yuv'
         />
       ) : (
         <View className='absolute inset-0 items-center justify-center bg-backgroundPrimary'>

@@ -1,4 +1,8 @@
 export {
+  extractPackageNfcDisplayDetails,
+  type PassportNfcDisplayDetails,
+} from './extractPackageNfcDisplayDetails'
+export {
   mapPassportNfcErrorToMessage,
   type PassportNfcUiErrorMessage,
 } from './mapPassportNfcErrorToMessage'

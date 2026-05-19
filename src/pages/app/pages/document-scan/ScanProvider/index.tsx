@@ -2,6 +2,7 @@ import type {
   FaceComparisonResult,
   GazeChallengeResult,
   LivenessResult,
+  PassportNfcReadResult,
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { PropsWithChildren } from 'react'
@@ -22,11 +23,13 @@ import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/e
 import { IdentityItem } from '@/store/modules/identity/Identity'
 import { walletStore } from '@/store/modules/wallet'
 import { DocType, EDocument, EPassport } from '@/utils/e-document/e-document'
+import type { PassportNfcScanOutput } from '@/utils/e-document/passport-nfc-reader'
 
 export enum Steps {
   SelectDocTypeStep,
   ScanMrzStep,
   ScanPassportNfcStep,
+  PassportNfcDetailsStep,
   FaceLivenessStep,
   FaceGazeStep,
   FaceComparisonStep,
@@ -58,6 +61,37 @@ type DocumentScanContext = {
   setTempMrz: (value: FieldRecords) => void
   tempEDoc?: EDocument
   setTempEDoc: (value: EDocument) => void
+  passportNfcDetails?: {
+    normalized?: {
+      firstName?: string
+      lastName?: string
+      nationality?: string
+      nidn?: string
+      expiryDate?: string
+      documentNumber?: string
+    }
+    portrait?: {
+      base64?: string
+      filePath?: string
+    }
+    packageNfcResult?: PassportNfcReadResult
+  }
+  setPassportNfcDetails: (value?: {
+    normalized?: {
+      firstName?: string
+      lastName?: string
+      nationality?: string
+      nidn?: string
+      expiryDate?: string
+      documentNumber?: string
+    }
+    portrait?: {
+      base64?: string
+      filePath?: string
+    }
+    packageNfcResult?: PassportNfcReadResult
+  }) => void
+  setPassportNfcScanOutput: (value: PassportNfcScanOutput) => void
   faceVerification: {
     enabled: boolean
     liveness?: LivenessResult
@@ -100,6 +134,13 @@ const documentScanContext = createContext<DocumentScanContext>({
   tempEDoc: undefined,
   setTempEDoc: () => {
     throw new Error('setEDoc not implemented')
+  },
+  passportNfcDetails: undefined,
+  setPassportNfcDetails: () => {
+    throw new Error('setPassportNfcDetails not implemented')
+  },
+  setPassportNfcScanOutput: () => {
+    throw new Error('setPassportNfcScanOutput not implemented')
   },
   faceVerification: {
     enabled: false,
@@ -157,6 +198,8 @@ export function ScanContextProvider({
 
   const [tempMRZ, setTempMRZ] = useState<FieldRecords>()
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
+  const [passportNfcDetails, setPassportNfcDetails] =
+    useState<DocumentScanContext['passportNfcDetails']>()
   const [faceVerification, setFaceVerification] = useState<DocumentScanContext['faceVerification']>(
     {
       enabled: faceFlowEnabled,
@@ -218,6 +261,7 @@ export function ScanContextProvider({
   const handleSetSelectedDocType = useCallback(
     (value: DocType) => {
       setSelectedDocType(value)
+      setPassportNfcDetails(undefined)
       setFaceVerification({
         enabled: faceFlowEnabled,
       })
@@ -233,6 +277,7 @@ export function ScanContextProvider({
   const handleSetMrz = useCallback(
     (value: FieldRecords) => {
       setTempMRZ(value)
+      setPassportNfcDetails(undefined)
       setFaceVerification({
         enabled: faceFlowEnabled,
       })
@@ -244,6 +289,7 @@ export function ScanContextProvider({
   const handleSetEDoc = useCallback(
     (value: EDocument) => {
       setTempEDoc(value)
+      setPassportNfcDetails(undefined)
       const shouldRunFaceFlow =
         selectedDocType === DocType.PASSPORT &&
         faceFlowEnabled &&
@@ -251,7 +297,7 @@ export function ScanContextProvider({
         !faceVerification.comparison?.passed
 
       if (shouldRunFaceFlow) {
-        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled)
+        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled, false)
         setCurrentStep(
           nextStep === 'face-liveness' ? Steps.FaceLivenessStep : Steps.DocumentPreviewStep,
         )
@@ -261,6 +307,64 @@ export function ScanContextProvider({
       setCurrentStep(Steps.DocumentPreviewStep)
     },
     [faceFlowEnabled, faceVerification.comparison?.passed, selectedDocType, setTempEDoc],
+  )
+
+  const handleSetPassportNfcScanOutput = useCallback(
+    (value: PassportNfcScanOutput) => {
+      setTempEDoc(value.ePassport)
+
+      const hasDetails =
+        Boolean(value.packageNfcResult) ||
+        Boolean(value.portrait?.base64 || value.portrait?.filePath) ||
+        Boolean(
+          value.normalized?.firstName ||
+            value.normalized?.lastName ||
+            value.normalized?.nationality ||
+            value.normalized?.nidn ||
+            value.normalized?.expiryDate ||
+            value.normalized?.documentNumber,
+        )
+
+      if (hasDetails) {
+        setPassportNfcDetails({
+          normalized: {
+            firstName: value.normalized?.firstName,
+            lastName: value.normalized?.lastName,
+            nationality: value.normalized?.nationality,
+            nidn: value.normalized?.nidn,
+            expiryDate: value.normalized?.expiryDate,
+            documentNumber: value.normalized?.documentNumber,
+          },
+          portrait: value.portrait,
+          packageNfcResult: value.packageNfcResult,
+        })
+      } else {
+        setPassportNfcDetails(undefined)
+      }
+
+      const shouldRunFaceFlow =
+        selectedDocType === DocType.PASSPORT &&
+        faceFlowEnabled &&
+        value.ePassport instanceof EPassport &&
+        !faceVerification.comparison?.passed
+
+      if (shouldRunFaceFlow) {
+        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled, hasDetails)
+
+        if (nextStep === 'nfc-details') {
+          setCurrentStep(Steps.PassportNfcDetailsStep)
+          return
+        }
+
+        setCurrentStep(
+          nextStep === 'face-liveness' ? Steps.FaceLivenessStep : Steps.DocumentPreviewStep,
+        )
+        return
+      }
+
+      setCurrentStep(Steps.DocumentPreviewStep)
+    },
+    [faceFlowEnabled, faceVerification.comparison?.passed, selectedDocType],
   )
 
   const setFaceLivenessResult = useCallback((value: LivenessResult) => {
@@ -305,9 +409,12 @@ export function ScanContextProvider({
 
         tempMRZ,
         tempEDoc,
+        passportNfcDetails,
         faceVerification,
         setTempMrz: handleSetMrz,
         setTempEDoc: handleSetEDoc,
+        setPassportNfcDetails,
+        setPassportNfcScanOutput: handleSetPassportNfcScanOutput,
         setFaceLivenessResult,
         setFaceGazeResult,
         setFaceComparisonResult,

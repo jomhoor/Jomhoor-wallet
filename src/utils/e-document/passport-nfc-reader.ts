@@ -10,6 +10,7 @@
  *   4. Return an EPassport object ready for ZK registration
  */
 
+import type { PassportNfcReadResult } from '@iland/passport-verification'
 import { cancelPassportNfcSession, readPassportNfc } from '@iland/passport-verification'
 import NfcManager, { NfcTech } from 'react-native-nfc-manager'
 
@@ -19,11 +20,31 @@ const DES = require('des.js')
 
 import {
   createPackageNfcReadInput,
+  extractPackageNfcDisplayDetails,
   packageNfcResultToEPassport,
   resolvePassportNfcBackend,
 } from '@/pages/app/pages/document-scan/adapters'
 
 import { EPassport, type PersonDetails } from './e-document'
+
+export type PassportNfcScanOutput = {
+  ePassport: EPassport
+  packageNfcResult?: PassportNfcReadResult
+  normalized?: {
+    documentNumber?: string
+    firstName?: string
+    lastName?: string
+    birthDate?: string
+    expiryDate?: string
+    nationality?: string
+    sex?: string
+    nidn?: string
+  }
+  portrait?: {
+    base64?: string
+    filePath?: string
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Logging
@@ -764,13 +785,13 @@ function selfTestCrypto() {
 
 let selfTestDone = false
 
-async function readPassportWithPackageBackend(
+async function readPassportWithPackageBackendOutput(
   documentNumber: string,
   dateOfBirth: string,
   expiryDate: string,
   backend: 'native-ios' | 'native-android',
   opts?: PassportReadOptions,
-): Promise<EPassport> {
+): Promise<PassportNfcScanOutput> {
   opts?.onConnected?.()
   opts?.onReading?.()
 
@@ -782,7 +803,40 @@ async function readPassportWithPackageBackend(
   })
 
   const result = await readPassportNfc(input)
-  return packageNfcResultToEPassport(result)
+  const displayDetails = extractPackageNfcDisplayDetails(result)
+
+  return {
+    ePassport: packageNfcResultToEPassport(result),
+    packageNfcResult: result,
+    normalized: {
+      firstName: result.normalized?.firstName ?? displayDetails.firstName,
+      lastName: result.normalized?.lastName ?? displayDetails.lastName,
+      nationality: result.normalized?.nationality ?? displayDetails.nationality,
+      expiryDate: result.normalized?.expiryDate ?? displayDetails.expiryDate,
+      documentNumber: result.normalized?.documentNumber ?? displayDetails.documentNumber,
+      birthDate: result.normalized?.birthDate,
+      sex: result.normalized?.sex,
+      ...(displayDetails.nidn ? { nidn: displayDetails.nidn } : {}),
+    },
+    portrait: displayDetails.portrait,
+  }
+}
+
+async function readPassportWithPackageBackend(
+  documentNumber: string,
+  dateOfBirth: string,
+  expiryDate: string,
+  backend: 'native-ios' | 'native-android',
+  opts?: PassportReadOptions,
+): Promise<EPassport> {
+  const output = await readPassportWithPackageBackendOutput(
+    documentNumber,
+    dateOfBirth,
+    expiryDate,
+    backend,
+    opts,
+  )
+  return output.ePassport
 }
 
 // ---------------------------------------------------------------------------
@@ -923,6 +977,27 @@ export async function readPassport(
   } finally {
     await NfcManager.cancelTechnologyRequest()
   }
+}
+
+export async function readPassportScanOutput(
+  documentNumber: string,
+  dateOfBirth: string,
+  expiryDate: string,
+  opts?: PassportReadOptions,
+): Promise<PassportNfcScanOutput> {
+  const selectedBackend = resolvePassportNfcBackend()
+  if (selectedBackend === 'native-ios' || selectedBackend === 'native-android') {
+    return readPassportWithPackageBackendOutput(
+      documentNumber,
+      dateOfBirth,
+      expiryDate,
+      selectedBackend,
+      opts,
+    )
+  }
+
+  const ePassport = await readPassport(documentNumber, dateOfBirth, expiryDate, opts)
+  return { ePassport }
 }
 
 export function stopPassportNfc() {

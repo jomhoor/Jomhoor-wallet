@@ -17,10 +17,14 @@ describe('resolveDocumentScanFaceFlowEnabledFromEnv', () => {
 
 describe('resolveNextPassportStepAfterNfc', () => {
   it('routes to preview when face flow is disabled', () => {
-    expect(resolveNextPassportStepAfterNfc(false)).toBe('preview')
+    expect(resolveNextPassportStepAfterNfc(false, false)).toBe('preview')
   })
 
-  it('routes to liveness when face flow is enabled', () => {
-    expect(resolveNextPassportStepAfterNfc(true)).toBe('face-liveness')
+  it('routes to nfc-details when face flow is enabled and details are available', () => {
+    expect(resolveNextPassportStepAfterNfc(true, true)).toBe('nfc-details')
+  })
+
+  it('routes to liveness when face flow is enabled and details are unavailable', () => {
+    expect(resolveNextPassportStepAfterNfc(true, false)).toBe('face-liveness')
   })
 })

@@ -10,7 +10,7 @@ import {
 } from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
-import { readPassport, stopPassportNfc } from '@/utils/e-document/passport-nfc-reader'
+import { readPassportScanOutput, stopPassportNfc } from '@/utils/e-document/passport-nfc-reader'
 
 type ReadState = 'idle' | 'waiting' | 'reading' | 'error'
 
@@ -25,7 +25,7 @@ function formatDate(yymmdd: string): string {
 }
 
 export default function ScanPassportNfcStep() {
-  const { tempMRZ, setTempEDoc, setCurrentStep } = useDocumentScanContext()
+  const { tempMRZ, setCurrentStep, setPassportNfcScanOutput } = useDocumentScanContext()
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -70,12 +70,12 @@ export default function ScanPassportNfcStep() {
 
     try {
       await stopPassportNfc()
-      const passport = await readPassport(docNumber, birthDate, expiryDate, {
+      const passportOutput = await readPassportScanOutput(docNumber, birthDate, expiryDate, {
         onConnected: () => setReadState('reading'),
         onReading: () => setReadState('reading'),
       })
 
-      setTempEDoc(passport)
+      setPassportNfcScanOutput(passportOutput)
     } catch (e: unknown) {
       const mappedError = mapPassportNfcErrorToMessage(e, { debugEnabled })
       setErrorMsg(mappedError.primary)
@@ -85,7 +85,7 @@ export default function ScanPassportNfcStep() {
     } finally {
       readInFlightRef.current = false
     }
-  }, [tempMRZ, docNumber, birthDate, expiryDate, setTempEDoc, debugEnabled])
+  }, [tempMRZ, docNumber, birthDate, expiryDate, setPassportNfcScanOutput, debugEnabled])
 
   useEffect(() => {
     return () => {
