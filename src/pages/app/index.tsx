@@ -14,7 +14,6 @@ import DocumentScanScreen from './pages/document-scan'
 import DocumentsScreen from './pages/documents'
 import HomeScreen from './pages/home'
 import HubScreen from './pages/hub'
-import PassportScreen from './pages/passport'
 import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
 import ProposalsScreen from './pages/proposals'
@@ -51,7 +50,6 @@ export default function App(props: RootStackScreenProps<'App'>) {
       <Stack.Screen name='InviteOthers' component={InviteOthers} options={{ animation: 'fade' }} />
       <Stack.Screen name='Scan' component={DocumentScanScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Poll' component={PollScreen} options={{ headerShown: false }} />
-      <Stack.Screen name='Passport' component={PassportScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   )
 }
