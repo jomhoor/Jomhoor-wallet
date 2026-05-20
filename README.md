@@ -231,26 +231,26 @@ See the platform repo's copilot-instructions for the full local-dev playbook, in
 
 The app auto-selects the ZK circuit system based on the scanned document's signing algorithm:
 
-| Document                            | Signature             | Circuit system                                                  |
-| ----------------------------------- | --------------------- | --------------------------------------------------------------- |
-| Iranian passport (modern)           | RSA 2048 SHA-256      | Circom (Groth16)                                                |
-| Iranian passport Variant A (Type 6) | RSA 2048 SHA-1 E58333 | Circom (Groth16)                                                |
-| Iranian passport Variant B          | RSA 3072 SHA-1 E33259 | Pending — needs `C_RSA_3072_33259` dispatcher (see platform M6) |
-| Iranian National ID (INID)          | RSA 2048              | Noir (`registerIdentity_inid_ca`)                               |
-| German passport / ID (TD1)          | ECDSA brainpoolP384r1 | Noir                                                            |
-| Most EU passports                   | RSA or ECDSA          | Auto-detected                                                   |
+| Document | Signature | Circuit system |
+| -------- | --------- | -------------- |
+| Iranian passport (modern) | RSA 2048 SHA-256 | Circom (Groth16) |
+| Iranian passport Variant A (Type 6) | RSA 2048 SHA-1 E58333 | Circom (Groth16) |
+| Iranian passport Variant B | RSA 3072 SHA-1 E33259 | Pending — needs `C_RSA_3072_33259` dispatcher (see platform M6) |
+| Iranian National ID (INID) | RSA 2048 | Noir (`registerIdentity_inid_ca`) |
+| German passport / ID (TD1) | ECDSA brainpoolP384r1 | Noir |
+| Most EU passports | RSA or ECDSA | Auto-detected |
 
 Decision flow: parse SOD → extract DS certificate → read signature algorithm OID → RSA routes to Circom, ECDSA routes to Noir. Specific circuit is chosen by hash algorithm, key size / curve, and document type (TD1 vs TD3).
 
 Key files:
 
-| File                                                        | Purpose                               |
-| ----------------------------------------------------------- | ------------------------------------- |
-| `src/utils/circuits/circuit-detector.ts`                    | Detect RSA vs ECDSA, extract key info |
-| `src/api/modules/registration/strategy-factory.ts`          | Return strategy for document          |
-| `src/api/modules/registration/variants/circom-epassport.ts` | Circom/Groth16 passport               |
-| `src/api/modules/registration/variants/noir-epassport.ts`   | Noir/UltraPlonk passport              |
-| `src/api/modules/registration/variants/noir-eid.ts`         | Noir for ID cards (TD1)               |
+| File | Purpose |
+| ---- | ------- |
+| `src/utils/circuits/circuit-detector.ts` | Detect RSA vs ECDSA, extract key info |
+| `src/api/modules/registration/strategy-factory.ts` | Return strategy for document |
+| `src/api/modules/registration/variants/circom-epassport.ts` | Circom/Groth16 passport |
+| `src/api/modules/registration/variants/noir-epassport.ts` | Noir/UltraPlonk passport |
+| `src/api/modules/registration/variants/noir-eid.ts` | Noir for ID cards (TD1) |
 
 > INID registration and voting are fully working end-to-end. German passport support is WIP — see the platform repo's notes on the cross-curve certificate chain.
 
@@ -262,13 +262,13 @@ Key files:
 
 Mobile-side surface:
 
-| File                                                     | Purpose                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `src/hooks/useWalletRegistration.ts`                     | Wallet generation + `collectAttestation()` + register call                |
-| `src/hooks/useSsoDeepLink.ts`                            | Validates `sso.jomhoor.org` host, dedupes nonces                          |
-| `src/pages/auth/components/DeviceNotSupported/index.tsx` | Modal for non-attestable devices (Huawei / rooted / emulator)             |
-| `src/pages/app/pages/sso-consent/index.tsx`              | Consent screen — fetches `/v1/clients/{id}`, calls `/v1/authorize/verify` |
-| `modules/appattest/`                                     | Native module producing App Attest / Play Integrity tokens                |
+| File | Purpose |
+| ---- | ------- |
+| `src/hooks/useWalletRegistration.ts` | Wallet generation + `collectAttestation()` + register call |
+| `src/hooks/useSsoDeepLink.ts` | Validates `sso.jomhoor.org` host, dedupes nonces |
+| `src/pages/auth/components/DeviceNotSupported/index.tsx` | Modal for non-attestable devices (Huawei / rooted / emulator) |
+| `src/pages/app/pages/sso-consent/index.tsx` | Consent screen — fetches `/v1/clients/{id}`, calls `/v1/authorize/verify` |
+| `modules/appattest/` | Native module producing App Attest / Play Integrity tokens |
 
 The SSO host is hard-coded per `APP_ENV` in `Config.SSO_API_URL` — deep-link query parameters (`api_url`, `apiBaseUrl`) are deliberately ignored. The single trust anchor host is `sso.jomhoor.org`.
 
@@ -281,7 +281,6 @@ For relying parties with `zk_required=true`, the wallet generates a Rarimo `quer
 > **Phase 1 — no wallet recovery.** The wallet private key lives only in SecureStore on the device. Re-installing the app or losing the phone produces a fresh BabyJubjub key and therefore a new identity; previous sessions, pairwise subjects, and assertions are not recoverable. ZK-nullifier-based recovery is Phase 2.
 
 **See also:**
-
 - Canonical SSO spec: `docs/SSO/plan.txt` in the platform monorepo
 - Backend service, endpoints, and database tables: [platform/README.md](../platform/README.md#sso-sign-in-with-jomhoor)
 
@@ -562,18 +561,18 @@ chmod +x android/gradlew
 
 ### Local-dev runtime errors
 
-| Error                                              | Likely cause                                                                          | Fix                                                                                               |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `function call to a non-contract account`          | `MockEvidenceRegistry` not deployed                                                   | `node scripts/deploy-mock-evidence-registry.js` in `passport-contracts`                           |
-| `invalid icao proof`                               | StateKeeper ICAO root mismatch                                                        | Redeploy contracts; persisting? `await sk.changeICAOMasterTreeRoot('0x490355b1…')`                |
-| `getProof` returns `0x`                            | Two Hardhat nodes (Docker + CLI)                                                      | `docker stop hardhat-node` and use CLI with `--hostname 0.0.0.0`                                  |
-| Phone can't reach RPC                              | Hardhat bound to `localhost` only                                                     | Restart with `--hostname 0.0.0.0`                                                                 |
-| Phone reads stale contracts                        | `rpcEvm` in `constants.ts` points to old IP                                           | Update `src/api/modules/rarimo/constants.ts`                                                      |
-| `InvalidDate` on voting                            | Hardhat clock behind real time                                                        | `node scripts/advance-time.js`                                                                    |
-| `KeyAlreadyExists` during certificate registration | DS cert already registered by another user                                            | Expected — strategy throws `CertificateAlreadyRegisteredError` and skips to identity registration |
-| `PAIRING_FAILED` (`0xd71fd263`) on INID vote       | Public-signal mismatch (selector, ZERO_DATE bounds, or missing `INIDUserData` fields) | Verify proposal selector = `65569`, all date bounds = `52983525027888`, 4-field `INIDUserData`    |
-| `vote overflow` on INID vote                       | `acceptedOptions` too small                                                           | Use `[7]` for 3 options, not `[3]`                                                                |
-| 403 "Insufficient funds in voting account"         | Proposal not funded in relayer DB                                                     | `UPDATE voting_contract_accounts SET residual_balance = …`                                        |
+| Error | Likely cause | Fix |
+| ----- | ------------ | --- |
+| `function call to a non-contract account` | `MockEvidenceRegistry` not deployed | `node scripts/deploy-mock-evidence-registry.js` in `passport-contracts` |
+| `invalid icao proof` | StateKeeper ICAO root mismatch | Redeploy contracts; persisting? `await sk.changeICAOMasterTreeRoot('0x490355b1…')` |
+| `getProof` returns `0x` | Two Hardhat nodes (Docker + CLI) | `docker stop hardhat-node` and use CLI with `--hostname 0.0.0.0` |
+| Phone can't reach RPC | Hardhat bound to `localhost` only | Restart with `--hostname 0.0.0.0` |
+| Phone reads stale contracts | `rpcEvm` in `constants.ts` points to old IP | Update `src/api/modules/rarimo/constants.ts` |
+| `InvalidDate` on voting | Hardhat clock behind real time | `node scripts/advance-time.js` |
+| `KeyAlreadyExists` during certificate registration | DS cert already registered by another user | Expected — strategy throws `CertificateAlreadyRegisteredError` and skips to identity registration |
+| `PAIRING_FAILED` (`0xd71fd263`) on INID vote | Public-signal mismatch (selector, ZERO_DATE bounds, or missing `INIDUserData` fields) | Verify proposal selector = `65569`, all date bounds = `52983525027888`, 4-field `INIDUserData` |
+| `vote overflow` on INID vote | `acceptedOptions` too small | Use `[7]` for 3 options, not `[3]` |
+| 403 "Insufficient funds in voting account" | Proposal not funded in relayer DB | `UPDATE voting_contract_accounts SET residual_balance = …` |
 
 ### Debugging
 
