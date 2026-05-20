@@ -2,6 +2,7 @@ import {
   compareFaces,
   DEFAULT_FACE_COMPARISON_THRESHOLD,
   type FaceComparisonResult,
+  getCenteredFaceSquareCrop,
   preloadFaceComparisonModel,
 } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/core'
@@ -15,7 +16,7 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
 
-type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'failed' | 'success'
+type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'cropped' | 'failed' | 'success'
 
 const CAMERA_STARTUP_DELAY_MS = 250
 
@@ -58,6 +59,10 @@ export default function FaceComparisonStep(): JSX.Element {
   const [isBusy, setIsBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [comparisonResult, setComparisonResult] = useState<FaceComparisonResult | null>(null)
+  const [croppedPreviewUris, setCroppedPreviewUris] = useState<{
+    referenceUri: string
+    liveUri: string
+  } | null>(null)
   const successTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const portraitUri = useMemo(
@@ -141,7 +146,7 @@ export default function FaceComparisonStep(): JSX.Element {
     }
   }, [comparisonState])
 
-  const handleCaptureAndCompare = async () => {
+  const handleCaptureAndPrepare = async () => {
     if (isBusy) return
     if (!cameraRef.current || !device || !portraitUri) return
 
@@ -152,6 +157,8 @@ export default function FaceComparisonStep(): JSX.Element {
     })
     setIsBusy(true)
     setErrorMessage(null)
+    setComparisonResult(null)
+    setCroppedPreviewUris(null)
     setComparisonState('capturing')
 
     try {
@@ -163,11 +170,56 @@ export default function FaceComparisonStep(): JSX.Element {
         liveImageUriKind: liveImageUri.startsWith('file://') ? 'file-uri' : 'other',
       })
 
+      const [preparedReferenceUri, preparedLiveUri] = await Promise.all([
+        getCenteredFaceSquareCrop(portraitUri),
+        getCenteredFaceSquareCrop(liveImageUri),
+      ])
+
+      logFaceDebug('crop-preview-ready', {
+        preparedReferenceUriKind: preparedReferenceUri.startsWith('file://') ? 'file-uri' : 'other',
+        preparedLiveUriKind: preparedLiveUri.startsWith('file://') ? 'file-uri' : 'other',
+      })
+
+      setCroppedPreviewUris({
+        referenceUri: preparedReferenceUri,
+        liveUri: preparedLiveUri,
+      })
+      setComparisonState('cropped')
+    } catch (error) {
+      const code = error instanceof Error ? error.name || error.message : 'unknown_error'
+      const message = error instanceof Error ? error.message : 'unknown_error'
+      logFaceDebug('prepare-error', {
+        code,
+        message,
+      })
+      setComparisonState('failed')
+      if (code === 'FACE_NOT_DETECTED') {
+        setErrorMessage('No face detected. Keep your face centered and retry.')
+      } else if (code === 'MULTIPLE_FACES_DETECTED') {
+        setErrorMessage('Multiple faces detected. Ensure only one face is in frame and retry.')
+      } else {
+        setErrorMessage('Face preparation failed. Please retry.')
+      }
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const handleComparePrepared = async () => {
+    if (isBusy) return
+    if (!croppedPreviewUris) return
+
+    setIsBusy(true)
+    setErrorMessage(null)
+    setComparisonState('capturing')
+
+    try {
       const result = await compareFaces({
-        liveImageUri,
-        referenceImage: passportNfcDetails?.portrait ?? {},
+        liveImageUri: croppedPreviewUris.liveUri,
+        referenceImage: { uri: croppedPreviewUris.referenceUri },
         threshold: DEFAULT_FACE_COMPARISON_THRESHOLD,
         modelName: 'mobilefacenet',
+        alreadyPreprocessed: true,
       })
       logFaceDebug('compare-result', {
         passed: result.passed,
@@ -250,7 +302,7 @@ export default function FaceComparisonStep(): JSX.Element {
       </View>
 
       <Text className='typography-body3 mt-3 text-textSecondary'>
-        Capture a live selfie and match it with the passport portrait read from NFC.
+        Capture a live selfie, preview both 112x112 cropped faces, then run comparison.
       </Text>
 
       <View className='mt-6 rounded-xl bg-componentPrimary p-4'>
@@ -266,16 +318,37 @@ export default function FaceComparisonStep(): JSX.Element {
           </View>
         ) : null}
 
+        {croppedPreviewUris ? (
+          <View className='mb-4 flex-row items-start justify-center gap-5'>
+            <View className='items-center'>
+              <Image
+                source={{ uri: croppedPreviewUris.referenceUri }}
+                style={{ width: 112, height: 112, borderRadius: 10 }}
+              />
+              <Text className='typography-body4 mt-2 text-textSecondary'>Passport crop</Text>
+            </View>
+            <View className='items-center'>
+              <Image
+                source={{ uri: croppedPreviewUris.liveUri }}
+                style={{ width: 112, height: 112, borderRadius: 10 }}
+              />
+              <Text className='typography-body4 mt-2 text-textSecondary'>Live crop</Text>
+            </View>
+          </View>
+        ) : null}
+
         <Text className='typography-body3 text-textPrimary'>
           {comparisonState === 'initializing'
             ? 'Preparing face model...'
             : comparisonState === 'capturing'
               ? 'Comparing live face with passport portrait...'
-              : comparisonState === 'success'
-                ? 'Face comparison passed.'
-                : comparisonState === 'failed'
-                  ? (errorMessage ?? 'Face comparison did not pass.')
-                  : 'Align your face and capture when ready.'}
+              : comparisonState === 'cropped'
+                ? 'Cropped previews ready. Review them, then compare.'
+                : comparisonState === 'success'
+                  ? 'Face comparison passed.'
+                  : comparisonState === 'failed'
+                    ? (errorMessage ?? 'Face comparison did not pass.')
+                    : 'Align your face and capture when ready.'}
         </Text>
 
         {comparisonState === 'initializing' || comparisonState === 'capturing' ? (
@@ -291,8 +364,8 @@ export default function FaceComparisonStep(): JSX.Element {
 
       <View className='mt-auto gap-3'>
         <UiButton
-          title='Capture and Compare'
-          onPress={handleCaptureAndCompare}
+          title={comparisonState === 'cropped' ? 'Compare Cropped Faces' : 'Capture and Prepare'}
+          onPress={comparisonState === 'cropped' ? handleComparePrepared : handleCaptureAndPrepare}
           className='w-full'
           disabled={
             comparisonState === 'initializing' ||
@@ -308,6 +381,7 @@ export default function FaceComparisonStep(): JSX.Element {
           variant='outlined'
           onPress={() => {
             setComparisonResult(null)
+            setCroppedPreviewUris(null)
             setErrorMessage(null)
             if (successTransitionTimeoutRef.current) {
               clearTimeout(successTransitionTimeoutRef.current)

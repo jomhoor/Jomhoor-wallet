@@ -38,7 +38,7 @@ function logNativeNfcJson(label: string, value: unknown): void {
   // dummy condition to not log payload
   if (payload.length < 1000) {
     // eslint-disable-next-line no-console
-    console.log(`[PASSPORT-NFC][NATIVE-BRIDGE][${label}]`)
+    console.log(`[PASSPORT-NFC][NATIVE-BRIDGE][${label}]`, payload)
   }
 }
 
@@ -168,7 +168,7 @@ export async function invokeNativeRead(input: PassportNfcReadInput): Promise<unk
   const payload = toNativeReadPayload(input)
   logNativeNfcJson('READ_PAYLOAD', payload)
   const response = await loaded.module.readPassport(payload)
-  logNativeNfcJson('READ_RESPONSE', response)
+  // logNativeNfcJson('READ_RESPONSE', response)
   return response
 }
 
