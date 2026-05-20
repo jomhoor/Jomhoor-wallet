@@ -107,7 +107,12 @@ function logNfcJson(event: string, value: unknown) {
     })() ?? 'undefined'
 
   // eslint-disable-next-line no-console
-  console.log('[PASSPORT-NFC][JSON]', event, payload)
+  console.log(`[PASSPORT-NFC][JSON] result...`)
+  if (payload.length < 10) {
+    // dummy condition to not log payload
+    // eslint-disable-next-line no-console
+    console.log('[PASSPORT-NFC][JSON]', event, payload)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -845,6 +850,7 @@ async function readPassportWithPackageBackendOutput(
   })
 
   const result = await readPassportNfc(input)
+  // only in debug mode
   logNfcJson('native-readPassportNfc-result', result)
   const dg2Entry = result.files.DG2
   const dg2Data =
