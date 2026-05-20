@@ -19,6 +19,16 @@ type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'failed' | 'succ
 
 const CAMERA_STARTUP_DELAY_MS = 250
 
+function isFaceDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG === 'enabled'
+}
+
+function logFaceDebug(event: string, metadata: Record<string, unknown>) {
+  if (!isFaceDebugEnabled()) return
+  // eslint-disable-next-line no-console
+  console.log('[FACE-COMPARISON][STEP]', event, metadata)
+}
+
 const buildPortraitUri = (portrait?: {
   base64?: string
   filePath?: string
@@ -48,6 +58,7 @@ export default function FaceComparisonStep(): JSX.Element {
   const [isBusy, setIsBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [comparisonResult, setComparisonResult] = useState<FaceComparisonResult | null>(null)
+  const successTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const portraitUri = useMemo(
     () => buildPortraitUri(passportNfcDetails?.portrait),
@@ -64,6 +75,11 @@ export default function FaceComparisonStep(): JSX.Element {
     let mounted = true
     const prepare = async () => {
       try {
+        logFaceDebug('prepare-start', {
+          hasPortraitUri: Boolean(portraitUri),
+          hasPortraitBase64: typeof passportNfcDetails?.portrait?.base64 === 'string',
+          hasPortraitFilePath: typeof passportNfcDetails?.portrait?.filePath === 'string',
+        })
         await preloadFaceComparisonModel()
         if (!mounted) return
 
@@ -76,10 +92,15 @@ export default function FaceComparisonStep(): JSX.Element {
         }
 
         setComparisonState('ready')
+        logFaceDebug('prepare-ready', {
+          hasDevice: Boolean(device),
+          hasPermission,
+        })
       } catch {
         if (!mounted) return
         setComparisonState('failed')
         setErrorMessage('Face model is unavailable on this build. Please retry.')
+        logFaceDebug('prepare-failed', {})
       }
     }
 
@@ -87,7 +108,22 @@ export default function FaceComparisonStep(): JSX.Element {
     return () => {
       mounted = false
     }
-  }, [portraitUri])
+  }, [
+    device,
+    hasPermission,
+    passportNfcDetails?.portrait?.base64,
+    passportNfcDetails?.portrait?.filePath,
+    portraitUri,
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (successTransitionTimeoutRef.current) {
+        clearTimeout(successTransitionTimeoutRef.current)
+        successTransitionTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (comparisonState !== 'ready') {
@@ -109,6 +145,11 @@ export default function FaceComparisonStep(): JSX.Element {
     if (isBusy) return
     if (!cameraRef.current || !device || !portraitUri) return
 
+    logFaceDebug('capture-start', {
+      hasDevice: Boolean(device),
+      hasPortraitUri: Boolean(portraitUri),
+      hasPermission,
+    })
     setIsBusy(true)
     setErrorMessage(null)
     setComparisonState('capturing')
@@ -118,12 +159,20 @@ export default function FaceComparisonStep(): JSX.Element {
       const liveImageUri = capturedPhoto.path.startsWith('file://')
         ? capturedPhoto.path
         : `file://${capturedPhoto.path}`
+      logFaceDebug('capture-complete', {
+        liveImageUriKind: liveImageUri.startsWith('file://') ? 'file-uri' : 'other',
+      })
 
       const result = await compareFaces({
         liveImageUri,
         referenceImage: passportNfcDetails?.portrait ?? {},
         threshold: DEFAULT_FACE_COMPARISON_THRESHOLD,
         modelName: 'mobilefacenet',
+      })
+      logFaceDebug('compare-result', {
+        passed: result.passed,
+        similarity: result.similarity,
+        threshold: result.threshold,
       })
 
       setComparisonResult(result)
@@ -136,16 +185,31 @@ export default function FaceComparisonStep(): JSX.Element {
 
       setFaceComparisonResult(result)
       setComparisonState('success')
-      setCurrentStep(Steps.DocumentPreviewStep)
+      successTransitionTimeoutRef.current = setTimeout(() => {
+        setCurrentStep(Steps.DocumentPreviewStep)
+      }, 2000)
     } catch (error) {
       const code = error instanceof Error ? error.name || error.message : 'unknown_error'
+      const message = error instanceof Error ? error.message : 'unknown_error'
+      logFaceDebug('compare-error', {
+        code,
+        message,
+      })
       setComparisonState('failed')
       if (code === 'REFERENCE_IMAGE_UNAVAILABLE') {
         setErrorMessage('Passport portrait is missing. Please retry NFC read.')
       } else if (code === 'LIVE_IMAGE_UNAVAILABLE') {
         setErrorMessage('Live capture failed. Please retry.')
+      } else if (code === 'FACE_NOT_DETECTED') {
+        setErrorMessage('No face detected. Keep your face centered and retry.')
+      } else if (code === 'MULTIPLE_FACES_DETECTED') {
+        setErrorMessage('Multiple faces detected. Ensure only one face is in frame and retry.')
       } else {
-        setErrorMessage('Face comparison failed. Please retry.')
+        setErrorMessage(
+          isFaceDebugEnabled()
+            ? `Face comparison failed (${code}). Please retry.`
+            : 'Face comparison failed. Please retry.',
+        )
       }
     } finally {
       setIsBusy(false)
@@ -233,6 +297,7 @@ export default function FaceComparisonStep(): JSX.Element {
           disabled={
             comparisonState === 'initializing' ||
             comparisonState === 'capturing' ||
+            comparisonState === 'success' ||
             !portraitUri ||
             !device ||
             !hasPermission
@@ -244,24 +309,28 @@ export default function FaceComparisonStep(): JSX.Element {
           onPress={() => {
             setComparisonResult(null)
             setErrorMessage(null)
+            if (successTransitionTimeoutRef.current) {
+              clearTimeout(successTransitionTimeoutRef.current)
+              successTransitionTimeoutRef.current = null
+            }
             setComparisonState(portraitUri ? 'ready' : 'failed')
           }}
           className='w-full'
-          disabled={comparisonState === 'capturing'}
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
         />
         <UiButton
           title='Back to Gaze Challenge'
           variant='outlined'
           onPress={() => setCurrentStep(Steps.FaceGazeStep)}
           className='w-full'
-          disabled={comparisonState === 'capturing'}
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
         />
         <UiButton
           title='Skip to Document Preview'
           variant='outlined'
           onPress={() => setCurrentStep(Steps.DocumentPreviewStep)}
           className='w-full'
-          disabled={comparisonState === 'capturing'}
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
         />
       </View>
     </View>

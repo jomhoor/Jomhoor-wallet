@@ -19,6 +19,23 @@ export type CompareFacesInput = {
 export const DEFAULT_FACE_COMPARISON_THRESHOLD = 0.1
 const FACE_MODEL_INPUT_SIZE = 112
 
+function isFaceDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG === 'enabled'
+}
+
+function toSafeUriKind(uri?: string): 'data-uri' | 'file-uri' | 'empty' | 'other' {
+  if (!uri) return 'empty'
+  if (uri.startsWith('data:')) return 'data-uri'
+  if (uri.startsWith('file://')) return 'file-uri'
+  return 'other'
+}
+
+function logFaceDebug(event: string, metadata: Record<string, unknown>) {
+  if (!isFaceDebugEnabled()) return
+  // eslint-disable-next-line no-console
+  console.log('[FACE-COMPARISON][DEBUG]', event, metadata)
+}
+
 type ModelRuntime = {
   loadFaceModel: () => Promise<unknown>
   extractFaceEmbeddingFromUri: (model: unknown, uri: string) => Promise<Float32Array>
@@ -49,6 +66,9 @@ function getImageSize(uri: string): Promise<{ width: number; height: number }> {
 }
 
 export async function getCenteredFaceSquareCrop(uri: string): Promise<string> {
+  logFaceDebug('crop-start', {
+    uriKind: toSafeUriKind(uri),
+  })
   const detectorImageSource = await getFaceDetectorCompatibleUri(uri)
   const detectedFace = await detectExactlyOneFace(detectorImageSource)
   const { width, height } = await getImageSize(uri)
@@ -94,6 +114,16 @@ export async function getCenteredFaceSquareCrop(uri: string): Promise<string> {
 
   await cleanupTemporaryImage(detectorImageSource, uri)
 
+  logFaceDebug('crop-finished', {
+    sourceUriKind: toSafeUriKind(uri),
+    detectorUriKind: toSafeUriKind(detectorImageSource),
+    width,
+    height,
+    cropSize,
+    faceBoxWidth: faceBox.width,
+    faceBoxHeight: faceBox.height,
+  })
+
   return cropped.uri.startsWith('file://') ? cropped.uri : `file://${cropped.uri}`
 }
 
@@ -116,6 +146,11 @@ async function detectExactlyOneFace(imageUri: string): Promise<DetectedFace> {
       minFaceSize: 0.1,
       trackingEnabled: false,
     },
+  })
+
+  logFaceDebug('face-detection-result', {
+    imageUriKind: toSafeUriKind(imageUri),
+    facesCount: faces.length,
   })
 
   if (faces.length === 0) {
@@ -238,6 +273,15 @@ export async function preloadFaceComparisonModel(): Promise<void> {
 }
 
 export async function compareFaces(input: CompareFacesInput): Promise<FaceComparisonResult> {
+  logFaceDebug('compare-start', {
+    liveImageUriKind: toSafeUriKind(input.liveImageUri),
+    hasReferenceBase64: typeof input.referenceImage.base64 === 'string',
+    hasReferenceFilePath: typeof input.referenceImage.filePath === 'string',
+    hasReferenceUri: typeof input.referenceImage.uri === 'string',
+    threshold: input.threshold ?? DEFAULT_FACE_COMPARISON_THRESHOLD,
+    modelName: input.modelName ?? 'mobilefacenet',
+  })
+
   const referenceUri = resolveFaceImageUri(input.referenceImage)
   if (!referenceUri) {
     const error = new Error('REFERENCE_IMAGE_UNAVAILABLE')
@@ -254,8 +298,19 @@ export async function compareFaces(input: CompareFacesInput): Promise<FaceCompar
   const modelRuntime = loadModelRuntime()
   const model = await modelRuntime.loadFaceModel()
 
-  const preparedReferenceUri = await getCenteredFaceSquareCrop(referenceUri)
-  const preparedLiveUri = await getCenteredFaceSquareCrop(input.liveImageUri)
+  let preparedReferenceUri: string
+  let preparedLiveUri: string
+  try {
+    preparedReferenceUri = await getCenteredFaceSquareCrop(referenceUri)
+    preparedLiveUri = await getCenteredFaceSquareCrop(input.liveImageUri)
+  } catch (error) {
+    const typed = error as Error
+    logFaceDebug('preprocess-failed', {
+      errorName: typed?.name ?? 'unknown',
+      errorMessage: typed?.message ?? 'unknown',
+    })
+    throw error
+  }
 
   let referenceEmbedding: Float32Array
   let liveEmbedding: Float32Array
@@ -272,6 +327,11 @@ export async function compareFaces(input: CompareFacesInput): Promise<FaceCompar
   }
 
   const similarity = modelRuntime.cosineSimilarity(referenceEmbedding, liveEmbedding)
+  logFaceDebug('compare-finished', {
+    similarity,
+    threshold: input.threshold ?? DEFAULT_FACE_COMPARISON_THRESHOLD,
+    passed: similarity >= (input.threshold ?? DEFAULT_FACE_COMPARISON_THRESHOLD),
+  })
   return toFaceComparisonResult({
     similarity,
     threshold: input.threshold,

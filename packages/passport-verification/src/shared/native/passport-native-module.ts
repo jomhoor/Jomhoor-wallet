@@ -35,8 +35,11 @@ function logNativeNfcJson(label: string, value: unknown): void {
       }
     })() ?? 'undefined'
 
-  // eslint-disable-next-line no-console
-  console.log(`[PASSPORT-NFC][NATIVE-BRIDGE][${label}]`, payload)
+  // dummy condition to not log payload
+  if (payload.length < 1000) {
+    // eslint-disable-next-line no-console
+    console.log(`[PASSPORT-NFC][NATIVE-BRIDGE][${label}]`)
+  }
 }
 
 function fallbackStatus(
