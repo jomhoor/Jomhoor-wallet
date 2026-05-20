@@ -24,7 +24,7 @@
 import { useNavigation } from '@react-navigation/native'
 import { isAxiosError } from 'axios'
 import * as Linking from 'expo-linking'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Platform, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -71,6 +71,13 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   const [zkValid, setZkValid] = useState<boolean | null>(null)
   const [zkChecking, setZkChecking] = useState(false)
   const [zkProving, setZkProving] = useState(false)
+
+  // Prevents double-press and re-verify after the challenge has been consumed.
+  // /v1/authorize/verify is single-use: once it returns 200 the challenge is
+  // deleted server-side. Any retry will get 400 and show "Authentication Failed"
+  // to the user. We keep inFlightRef=true permanently after verify succeeds so
+  // a retry (e.g. after a mobile-complete failure) cannot fire a second verify.
+  const inFlightRef = useRef(false)
 
   // M4: fetch the requesting app's display metadata (name, logo) so the
   // consent screen doesn't show a raw client_id. Falls back gracefully if the
@@ -169,6 +176,7 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
   const truncated = walletAddress ? `${walletAddress.slice(0, 8)}…${walletAddress.slice(-6)}` : '—'
 
   async function handleApprove() {
+    if (inFlightRef.current) return
     if (!isWalletReady || !walletAddress) {
       Alert.alert(
         'Wallet not ready',
@@ -189,7 +197,9 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
       return
     }
 
+    inFlightRef.current = true
     setLoading(true)
+    let verifySucceeded = false
     try {
       // Ensure this wallet is known to the SSO service before calling verify.
       // Compare addresses (not a boolean) so a regenerated private key after reinstall
@@ -230,6 +240,7 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         walletAddress,
         walletSignature: signature,
       })
+      verifySucceeded = true // challenge is now consumed — keep inFlightRef locked permanently
 
       if (desktopSessionId) {
         // Desktop QR flow: extract the OAuth code from the redirect URL and send it
@@ -251,6 +262,21 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
           console.error('[SsoConsent] mobile-complete failed:', resp.status, body)
           throw new Error('Desktop session completion failed')
         }
+        // The endpoint can return HTTP 200 with `{ success: false, reason: ... }`
+        // (e.g. invalid_session if the desktop is on a different backend host).
+        // Don't show "Sign-in complete" in that case.
+        let body: { success?: boolean; reason?: string } = {}
+        try {
+          body = (await resp.json()) as { success?: boolean; reason?: string }
+        } catch {
+          // Non-JSON body — treat as failure.
+        }
+        if (body.success !== true) {
+          console.error('[SsoConsent] mobile-complete returned failure:', body)
+          throw new Error(
+            `Desktop session completion failed${body.reason ? `: ${body.reason}` : ''}`,
+          )
+        }
         Alert.alert(
           'Sign-in complete',
           'Your desktop browser has been signed in. You can return to it now.',
@@ -262,6 +288,12 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
         navigation.goBack()
       }
     } catch (err) {
+      // Only allow the user to retry if verify itself was never called.
+      // Once verify returns 200 the challenge is consumed server-side; retrying
+      // would hit 400 "already used" and show another confusing error.
+      if (!verifySucceeded) {
+        inFlightRef.current = false
+      }
       if (err instanceof AttestationNotSupportedError) {
         Alert.alert(
           'Device Not Supported',
