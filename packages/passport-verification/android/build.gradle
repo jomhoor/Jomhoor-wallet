@@ -37,4 +37,6 @@ repositories {
 
 dependencies {
   implementation 'com.facebook.react:react-android'
+  implementation 'org.jmrtd:jmrtd:0.7.42'
+  implementation 'net.sf.scuba:scuba-sc-android:0.0.26'
 }

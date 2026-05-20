@@ -83,6 +83,7 @@ const BARCODE_CODE_TYPES = [
 const SCAN_FPS = 2
 const TOP_SAFE_REGION_RATIO = 0.5
 const BOTTOM_SAFE_REGION_START_RATIO = 0.5
+type ScanPhase = 'barcode' | 'mrz'
 
 const loadVisionCameraModule = (): VisionCameraModule | null => {
   try {
@@ -256,9 +257,8 @@ export function PassportMrzBarcodeScanScreen({
   const { scanText } = useTextRecognitionHook({ language: 'latin' })
 
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState)
-  const [statusMessage, setStatusMessage] = useState(
-    'Scan barcode (top) and MRZ (bottom) from the live camera feed.',
-  )
+  const [statusMessage, setStatusMessage] = useState('Scan barcode in the top area to continue.')
+  const [scanPhase, setScanPhase] = useState<ScanPhase>('barcode')
   const [mrzResult, setMrzResult] = useState<PassportMrzScanResult>()
   const [barcodeResult, setBarcodeResult] = useState<ParsedNidBarcode>()
   const [isFinalizing, setIsFinalizing] = useState(false)
@@ -300,6 +300,7 @@ export function PassportMrzBarcodeScanScreen({
 
   const handleDetectedText = useCallback(
     (payload: { fullText: string; bottomRegionText: string }) => {
+      if (scanPhase !== 'mrz') return
       if (hasCompletedRef.current || mrzResultRef.current) return
 
       const nextMrz =
@@ -316,7 +317,7 @@ export function PassportMrzBarcodeScanScreen({
       )
       completeIfReady()
     },
-    [completeIfReady],
+    [completeIfReady, scanPhase],
   )
 
   const runOnDetectedText = useMemo(() => {
@@ -370,6 +371,7 @@ export function PassportMrzBarcodeScanScreen({
 
   const handleCodeScanned = useCallback(
     (codes: Array<Record<string, unknown>>, scannerFrame: { height?: number }) => {
+      if (scanPhase !== 'barcode') return
       if (hasCompletedRef.current || barcodeResultRef.current?.nidn) return
       const detectedCodes = Array.isArray(codes) ? codes : []
 
@@ -386,14 +388,11 @@ export function PassportMrzBarcodeScanScreen({
 
       barcodeResultRef.current = parsed
       setBarcodeResult(parsed)
-      setStatusMessage(
-        mrzResultRef.current
-          ? 'MRZ and barcode detected. Finalizing...'
-          : 'Barcode detected. Keep scanning MRZ at the bottom area.',
-      )
+      setScanPhase('mrz')
+      setStatusMessage('Barcode detected. Keep scanning MRZ at the bottom area.')
       completeIfReady()
     },
-    [completeIfReady],
+    [completeIfReady, scanPhase],
   )
 
   const codeScanner = useCodeScannerHook({
@@ -402,6 +401,8 @@ export function PassportMrzBarcodeScanScreen({
   })
 
   const isActive = appState === 'active' && !isFinalizing
+  const activeCodeScanner = scanPhase === 'barcode' ? codeScanner : undefined
+  const activeFrameProcessor = scanPhase === 'mrz' ? frameProcessor : undefined
 
   if (!hasPermission) {
     return (
@@ -422,7 +423,7 @@ export function PassportMrzBarcodeScanScreen({
   return (
     <View style={[styles.screen, style]}>
       <Text style={styles.title}>Scan Passport MRZ + Barcode</Text>
-      <Text style={styles.subtitle}>Live scan requires both MRZ and barcode before continue.</Text>
+      <Text style={styles.subtitle}>Live scan requires both barcode and MRZ before continue.</Text>
 
       <View style={styles.cameraFrame}>
         <CameraComponent
@@ -433,8 +434,8 @@ export function PassportMrzBarcodeScanScreen({
           video={false}
           audio={false}
           mode='recognize'
-          codeScanner={codeScanner}
-          frameProcessor={frameProcessor}
+          codeScanner={activeCodeScanner}
+          frameProcessor={activeFrameProcessor}
         />
         <View pointerEvents='none' style={styles.overlay}>
           <View

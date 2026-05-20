@@ -67,10 +67,18 @@ const mapErrorCode = (rawCode: unknown) => {
     case 'USER_CANCELED':
       return 'NFC_SESSION_CANCELED' as const
     case 'BAC_FAILED':
+    case 'INVALID_CREDENTIALS':
       return 'BAC_AUTH_FAILED' as const
     case 'PACE_FAILED':
     case 'PACE_UNSUPPORTED':
       return 'PACE_FAILED' as const
+    case 'APDU_RESPONSE_ERROR':
+    case 'PASSPORT_READ_FAILED':
+    case 'FILE_NOT_FOUND':
+    case 'SECURITY_STATUS_NOT_SATISFIED':
+      return 'DG_READ_FAILED' as const
+    case 'NFC_SESSION_INVALIDATED':
+      return 'NFC_TIMEOUT' as const
     case 'NO_DATA_READ':
       return 'NO_DATA_READ' as const
     case 'UNSUPPORTED_PLATFORM':
@@ -198,11 +206,12 @@ export async function readPassportNfc(input: PassportNfcReadInput): Promise<Pass
   const backend = selectBackend(input)
   const platform = getNativePlatform()
 
-  if (backend === 'native-ios') {
-    if (platform !== 'ios') {
+  if (backend === 'native-ios' || backend === 'native-android') {
+    const expectedPlatform = backend === 'native-ios' ? 'ios' : 'android'
+    if (platform !== expectedPlatform) {
       throw createPassportNfcError(
         'NOT_IMPLEMENTED',
-        'native-ios backend is only available on iOS.',
+        `${backend} backend is only available on ${expectedPlatform}.`,
         backend,
       )
     }
@@ -232,14 +241,6 @@ export async function readPassportNfc(input: PassportNfcReadInput): Promise<Pass
           : 'Passport NFC read failed.'
       throw createPassportNfcError(mappedCode, message, backend, error)
     }
-  }
-
-  if (backend === 'native-android') {
-    throw createPassportNfcError(
-      'NOT_IMPLEMENTED',
-      'native-android backend is not implemented in this slice.',
-      backend,
-    )
   }
 
   if (backend === 'jomhoor-js') {
