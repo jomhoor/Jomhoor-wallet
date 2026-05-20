@@ -40,34 +40,29 @@ function getImageSize(uri: string): Promise<{ width: number; height: number }> {
 
 async function preprocessFaceToTensor(uri: string): Promise<tf.Tensor4D> {
   const { width, height } = await getImageSize(uri)
-  const cropSize = Math.min(width, height)
-  const originX = Math.max(Math.round((width - cropSize) / 2), 0)
-  const originY = Math.max(Math.round((height - cropSize) / 2), 0)
-
-  const result = await ImageManipulator.manipulateAsync(
-    uri,
-    [
-      {
-        crop: {
-          originX,
-          originY,
-          width: cropSize,
-          height: cropSize,
+  const needsResize = width !== 112 || height !== 112
+  const result = needsResize
+    ? await ImageManipulator.manipulateAsync(
+        uri,
+        [
+          {
+            resize: {
+              width: 112,
+              height: 112,
+            },
+          },
+        ],
+        {
+          compress: 1,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
         },
-      },
-      {
-        resize: {
-          width: 112,
-          height: 112,
-        },
-      },
-    ],
-    {
-      compress: 1,
-      format: ImageManipulator.SaveFormat.JPEG,
-      base64: true,
-    },
-  )
+      )
+    : await ImageManipulator.manipulateAsync(uri, [], {
+        compress: 1,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      })
 
   if (!result.base64) {
     throw new Error('FACE_IMAGE_PREPROCESS_FAILED')

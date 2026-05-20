@@ -5,7 +5,7 @@ import {
   evaluateGazeSample,
   type GazeDetectorFace,
   generateGazeWaypoints,
-} from '@iland/passport-verification'
+} from '@iland/passport-verification/face'
 
 describe('gaze challenge logic', () => {
   it('generates waypoint count within frame bounds', () => {

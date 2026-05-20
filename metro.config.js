@@ -34,6 +34,7 @@ const withCircomFilesAndPolyfills = (config) => {
     ...resolver,
     assetExts: [
       ...resolver.assetExts,
+      'bin',
       'wasm',
       'zkey',
       'dat',

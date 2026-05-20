@@ -75,6 +75,21 @@ function log(...msg: unknown[]) {
   }
 }
 
+function isNfcDebugEnabled(): boolean {
+  return (
+    __DEV__ &&
+    (process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
+      process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true' ||
+      process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled')
+  )
+}
+
+function logNfcMetadata(event: string, metadata: Record<string, unknown>) {
+  if (!isNfcDebugEnabled()) return
+  // eslint-disable-next-line no-console
+  console.log('[PASSPORT-NFC][META]', event, metadata)
+}
+
 // ---------------------------------------------------------------------------
 // Hex helpers
 // ---------------------------------------------------------------------------
@@ -802,8 +817,44 @@ async function readPassportWithPackageBackendOutput(
     backend,
   })
 
+  logNfcMetadata('native-request', {
+    backend,
+    requestedDataGroups: input.requestedDataGroups ?? [],
+    includeImageBase64: input.includeImageBase64 === true,
+    persistDg2ImageFile: input.persistDg2ImageFile === true,
+  })
+
   const result = await readPassportNfc(input)
+  const dg2Entry = result.files.DG2
+  const dg2Data =
+    dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
+      ? (dg2Entry.data as Record<string, unknown>)
+      : undefined
+  const dg2Parsed =
+    dg2Data && dg2Data.parsed && typeof dg2Data.parsed === 'object'
+      ? (dg2Data.parsed as Record<string, unknown>)
+      : undefined
+
+  logNfcMetadata('native-response', {
+    backend: result.backend,
+    finalStatus: result.finalStatus,
+    returnedFileKeys: Object.keys(result.files),
+    dg2Status: dg2Entry?.status ?? 'missing',
+    dg2ByteLength:
+      typeof dg2Parsed?.imageByteLength === 'number' ? dg2Parsed.imageByteLength : undefined,
+    hasDg2ImageBase64Field: typeof dg2Data?.imageBase64 === 'string',
+    hasDg2FilePathField: typeof dg2Data?.filePath === 'string',
+    hasResultPortraitBase64: typeof result.portrait?.base64 === 'string',
+    hasResultPortraitFilePath: typeof result.portrait?.filePath === 'string',
+    normalizedKeys: result.normalized ? Object.keys(result.normalized) : [],
+  })
+
   const displayDetails = extractPackageNfcDisplayDetails(result)
+  logNfcMetadata('native-display-details', {
+    hasPortraitBase64: typeof displayDetails.portrait?.base64 === 'string',
+    hasPortraitFilePath: typeof displayDetails.portrait?.filePath === 'string',
+    normalizedKeys: Object.keys(displayDetails).filter(key => key !== 'portrait'),
+  })
 
   return {
     ePassport: packageNfcResultToEPassport(result),
@@ -865,6 +916,7 @@ export async function readPassport(
   opts?: PassportReadOptions,
 ): Promise<EPassport> {
   const selectedBackend = resolvePassportNfcBackend()
+  logNfcMetadata('backend-selection', { selectedBackend })
   if (selectedBackend === 'native-ios' || selectedBackend === 'native-android') {
     return readPassportWithPackageBackend(
       documentNumber,
@@ -970,6 +1022,13 @@ export async function readPassport(
       sodBytes: sod,
       dg1Bytes: dg1,
       dg15Bytes: dg15,
+    })
+
+    logNfcMetadata('js-backend-response', {
+      backend: 'js',
+      returnedFileKeys: ['DG1', ...(dg15 ? ['DG15'] : []), 'SOD'],
+      hasPortraitBase64: false,
+      hasPortraitFilePath: false,
     })
 
     log('EPassport created successfully')

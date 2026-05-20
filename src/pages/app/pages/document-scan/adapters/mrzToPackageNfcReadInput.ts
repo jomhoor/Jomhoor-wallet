@@ -2,7 +2,7 @@ import {
   createPassportCredentials,
   type PassportNfcBackend,
   type PassportNfcReadInput,
-} from '@iland/passport-verification'
+} from '@iland/passport-verification/passport'
 
 type MrzToNfcInputParams = {
   documentNumber: string
@@ -29,6 +29,8 @@ export function createPackageNfcReadInput({
     expiryDateYYMMDD: normalizeDate(expiryDate),
   })
 
+  const isNativeBackend = backend === 'native-ios' || backend === 'native-android'
+
   return {
     documentNumber: credentials.documentNumber,
     dateOfBirthYYMMDD: credentials.dateOfBirthYYMMDD,
@@ -36,5 +38,11 @@ export function createPackageNfcReadInput({
     mrzKey: credentials.mrzKey,
     ...(backend ? { backend } : {}),
     requestedDataGroups: ['COM', 'SOD', 'DG1', 'DG2', 'DG11', 'DG12', 'DG13', 'DG15', 'CardAccess'],
+    ...(isNativeBackend
+      ? {
+          includeImageBase64: true,
+          persistDg2ImageFile: true,
+        }
+      : {}),
   }
 }

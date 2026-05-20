@@ -112,6 +112,12 @@ export function toNativeReadPayload(input: PassportNfcReadInput): Record<string,
       dateOfExpiry: expiryDateYYMMDD,
     },
     dataGroups: input.requestedDataGroups,
+    ...(typeof input.includeImageBase64 === 'boolean'
+      ? { includeImageBase64: input.includeImageBase64 }
+      : {}),
+    ...(typeof input.persistDg2ImageFile === 'boolean'
+      ? { persistDg2ImageFile: input.persistDg2ImageFile }
+      : {}),
   }
 }
 

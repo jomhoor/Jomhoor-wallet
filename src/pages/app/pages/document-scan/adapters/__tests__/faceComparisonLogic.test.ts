@@ -2,7 +2,7 @@ import {
   DEFAULT_FACE_COMPARISON_THRESHOLD,
   resolveFaceImageUri,
   toFaceComparisonResult,
-} from '@iland/passport-verification'
+} from '@iland/passport-verification/face'
 
 describe('face comparison helpers', () => {
   it('builds a passed result when similarity is above threshold', () => {

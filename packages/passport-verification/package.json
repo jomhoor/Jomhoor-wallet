@@ -5,6 +5,20 @@
   "main": "dist/index.js",
   "react-native": "src/index.ts",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "ios",
+    "android",
+    "passport.js",
+    "passport.d.ts",
+    "face.js",
+    "face.d.ts",
+    "identity-flow.js",
+    "identity-flow.d.ts",
+    "shared.js",
+    "shared.d.ts",
+    "README.md"
+  ],
   "typesVersions": {
     "*": {
       "passport": [

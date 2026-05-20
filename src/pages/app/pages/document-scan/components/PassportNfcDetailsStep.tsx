@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/core'
 import { Image } from 'expo-image'
+import { useEffect } from 'react'
 import { Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -52,6 +53,30 @@ export default function PassportNfcDetailsStep(): JSX.Element {
   const { passportNfcDetails, setCurrentStep } = useDocumentScanContext()
 
   const portraitUri = buildPortraitUri(passportNfcDetails)
+
+  useEffect(() => {
+    const debugEnabled =
+      __DEV__ &&
+      (process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
+        process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true' ||
+        process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled')
+
+    if (!debugEnabled) return
+
+    const portraitSourceType =
+      typeof passportNfcDetails?.portrait?.base64 === 'string'
+        ? 'base64'
+        : typeof passportNfcDetails?.portrait?.filePath === 'string'
+          ? 'filePath'
+          : 'none'
+
+    // eslint-disable-next-line no-console
+    console.log('[PASSPORT-NFC][META]', 'ui-portrait-source', {
+      step: 'PassportNfcDetailsStep',
+      portraitSourceType,
+      hasPortraitUri: typeof portraitUri === 'string',
+    })
+  }, [passportNfcDetails?.portrait?.base64, passportNfcDetails?.portrait?.filePath, portraitUri])
 
   return (
     <UiScreenScrollable

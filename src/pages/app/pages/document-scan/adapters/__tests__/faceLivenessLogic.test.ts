@@ -5,7 +5,7 @@ import {
   createLivenessChallengeSequence,
   type DetectorFace,
   evaluateLivenessChallenge,
-} from '@iland/passport-verification'
+} from '@iland/passport-verification/face'
 
 describe('face liveness logic', () => {
   it('creates a non-empty challenge sequence', () => {

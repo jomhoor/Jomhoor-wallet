@@ -62,4 +62,18 @@ describe('extractPackageNfcDisplayDetails', () => {
     const details = extractPackageNfcDisplayDetails(result)
     expect(details.portrait?.filePath).toBe('/tmp/mock-face.jpg')
   })
+
+  it('extracts portrait from DG2 file-level base64 when portrait block missing', () => {
+    const result = createResult()
+    result.files.DG2 = {
+      status: 'ok',
+      base64: 'dg2-base64-image',
+      data: {
+        parsed: {},
+      },
+    }
+
+    const details = extractPackageNfcDisplayDetails(result)
+    expect(details.portrait?.base64).toBe('dg2-base64-image')
+  })
 })

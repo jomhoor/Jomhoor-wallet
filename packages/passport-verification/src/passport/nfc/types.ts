@@ -24,6 +24,8 @@ export type PassportNfcReadInput = Omit<PassportCredentials, 'mrzKey'> & {
   backend?: PassportNfcBackend
   timeoutMs?: number
   requestedDataGroups?: string[]
+  includeImageBase64?: boolean
+  persistDg2ImageFile?: boolean
 }
 
 export type PassportNfcReadResult = {
