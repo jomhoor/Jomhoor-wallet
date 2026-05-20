@@ -19,6 +19,26 @@ type NativePassportModule = {
 
 const MODULE_NAMES = ['PassportVerificationModule', 'PassportVerification']
 
+function isNativeNfcDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled'
+}
+
+function logNativeNfcJson(label: string, value: unknown): void {
+  if (!isNativeNfcDebugEnabled()) return
+
+  const payload =
+    (() => {
+      try {
+        return JSON.stringify(value, null, 2)
+      } catch {
+        return String(value)
+      }
+    })() ?? 'undefined'
+
+  // eslint-disable-next-line no-console
+  console.log(`[PASSPORT-NFC][NATIVE-BRIDGE][${label}]`, payload)
+}
+
 function fallbackStatus(
   moduleName = 'PassportVerificationModule',
 ): PassportVerificationNativeStatus {
@@ -142,7 +162,11 @@ export async function invokeNativeRead(input: PassportNfcReadInput): Promise<unk
   if (!loaded.module || typeof loaded.module.readPassport !== 'function') {
     throw new Error('NATIVE_MODULE_NOT_LINKED')
   }
-  return loaded.module.readPassport(toNativeReadPayload(input))
+  const payload = toNativeReadPayload(input)
+  logNativeNfcJson('READ_PAYLOAD', payload)
+  const response = await loaded.module.readPassport(payload)
+  logNativeNfcJson('READ_RESPONSE', response)
+  return response
 }
 
 export async function invokeNativeProbe(input: PassportNfcProbeInput): Promise<unknown> {

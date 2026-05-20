@@ -2,6 +2,8 @@ import type {
   FaceComparisonResult,
   GazeChallengeResult,
   LivenessResult,
+  ParsedMrz,
+  PassportCredentials,
   PassportNfcReadResult,
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
@@ -92,6 +94,24 @@ type DocumentScanContext = {
     packageNfcResult?: PassportNfcReadResult
   }) => void
   setPassportNfcScanOutput: (value: PassportNfcScanOutput) => void
+  passportMrzBarcode?: {
+    credentials: PassportCredentials
+    parsedMrz: ParsedMrz
+    barcode?: {
+      raw?: string
+      nidn?: string
+      fields?: Record<string, unknown>
+    }
+  }
+  setPassportMrzBarcode: (value?: {
+    credentials: PassportCredentials
+    parsedMrz: ParsedMrz
+    barcode?: {
+      raw?: string
+      nidn?: string
+      fields?: Record<string, unknown>
+    }
+  }) => void
   faceVerification: {
     enabled: boolean
     liveness?: LivenessResult
@@ -141,6 +161,10 @@ const documentScanContext = createContext<DocumentScanContext>({
   },
   setPassportNfcScanOutput: () => {
     throw new Error('setPassportNfcScanOutput not implemented')
+  },
+  passportMrzBarcode: undefined,
+  setPassportMrzBarcode: () => {
+    throw new Error('setPassportMrzBarcode not implemented')
   },
   faceVerification: {
     enabled: false,
@@ -200,6 +224,8 @@ export function ScanContextProvider({
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
   const [passportNfcDetails, setPassportNfcDetails] =
     useState<DocumentScanContext['passportNfcDetails']>()
+  const [passportMrzBarcode, setPassportMrzBarcode] =
+    useState<DocumentScanContext['passportMrzBarcode']>()
   const [faceVerification, setFaceVerification] = useState<DocumentScanContext['faceVerification']>(
     {
       enabled: faceFlowEnabled,
@@ -262,6 +288,7 @@ export function ScanContextProvider({
     (value: DocType) => {
       setSelectedDocType(value)
       setPassportNfcDetails(undefined)
+      setPassportMrzBarcode(undefined)
       setFaceVerification({
         enabled: faceFlowEnabled,
       })
@@ -321,6 +348,7 @@ export function ScanContextProvider({
             value.normalized?.lastName ||
             value.normalized?.nationality ||
             value.normalized?.nidn ||
+            passportMrzBarcode?.barcode?.nidn ||
             value.normalized?.expiryDate ||
             value.normalized?.documentNumber,
         )
@@ -331,7 +359,7 @@ export function ScanContextProvider({
             firstName: value.normalized?.firstName,
             lastName: value.normalized?.lastName,
             nationality: value.normalized?.nationality,
-            nidn: value.normalized?.nidn,
+            nidn: value.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn,
             expiryDate: value.normalized?.expiryDate,
             documentNumber: value.normalized?.documentNumber,
           },
@@ -364,7 +392,12 @@ export function ScanContextProvider({
 
       setCurrentStep(Steps.DocumentPreviewStep)
     },
-    [faceFlowEnabled, faceVerification.comparison?.passed, selectedDocType],
+    [
+      faceFlowEnabled,
+      faceVerification.comparison?.passed,
+      passportMrzBarcode?.barcode?.nidn,
+      selectedDocType,
+    ],
   )
 
   const setFaceLivenessResult = useCallback((value: LivenessResult) => {
@@ -414,6 +447,8 @@ export function ScanContextProvider({
         setTempMrz: handleSetMrz,
         setTempEDoc: handleSetEDoc,
         setPassportNfcDetails,
+        passportMrzBarcode,
+        setPassportMrzBarcode,
         setPassportNfcScanOutput: handleSetPassportNfcScanOutput,
         setFaceLivenessResult,
         setFaceGazeResult,

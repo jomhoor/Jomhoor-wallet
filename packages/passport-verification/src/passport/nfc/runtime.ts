@@ -15,6 +15,26 @@ import type {
   PassportNfcReadResult,
 } from './types'
 
+function isNativeNfcDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled'
+}
+
+function logNativeNfcJson(label: string, value: unknown): void {
+  if (!isNativeNfcDebugEnabled()) return
+
+  const payload =
+    (() => {
+      try {
+        return JSON.stringify(value, null, 2)
+      } catch {
+        return String(value)
+      }
+    })() ?? 'undefined'
+
+  // eslint-disable-next-line no-console
+  console.log(`[PASSPORT-NFC][NATIVE][${label}]`, payload)
+}
+
 const mapAuthStatus = (
   value: unknown,
 ): 'success' | 'failed' | 'not_supported' | 'not_attempted' => {
@@ -188,8 +208,12 @@ export async function readPassportNfc(input: PassportNfcReadInput): Promise<Pass
     }
 
     try {
+      logNativeNfcJson('NATIVE_READ_INPUT', input)
       const raw = await invokeNativeRead(input)
-      return normalizeReadResult(backend, raw)
+      logNativeNfcJson('NATIVE_RAW_RESPONSE', raw)
+      const mapped = normalizeReadResult(backend, raw)
+      logNativeNfcJson('NATIVE_MAPPED_RESULT', mapped)
+      return mapped
     } catch (error) {
       if (isNativeUnavailableError(error)) {
         throw createPassportNfcError(

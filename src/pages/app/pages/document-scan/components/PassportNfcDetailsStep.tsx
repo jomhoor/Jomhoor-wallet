@@ -50,9 +50,10 @@ const buildPortraitUri = (details?: {
 export default function PassportNfcDetailsStep(): JSX.Element {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { passportNfcDetails, setCurrentStep } = useDocumentScanContext()
+  const { passportNfcDetails, passportMrzBarcode, setCurrentStep } = useDocumentScanContext()
 
   const portraitUri = buildPortraitUri(passportNfcDetails)
+  const nidn = passportNfcDetails?.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn
 
   useEffect(() => {
     const debugEnabled =
@@ -128,9 +129,7 @@ export default function PassportNfcDetailsStep(): JSX.Element {
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>NIDN</Text>
-            <Text className='typography-subtitle4 text-textPrimary'>
-              {passportNfcDetails?.normalized?.nidn ?? '—'}
-            </Text>
+            <Text className='typography-subtitle4 text-textPrimary'>{nidn ?? '—'}</Text>
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Expiry Date</Text>

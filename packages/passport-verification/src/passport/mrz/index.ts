@@ -16,3 +16,9 @@ export {
   createPassportCredentials,
   createPassportCredentialsFromMrz,
 } from './parse-mrz'
+export {
+  createPassportMrzScanResult,
+  extractPassportMrzLines,
+  sanitizeOcrMrzLine,
+  type PassportMrzScanResult,
+} from './passport-mrz-scan'

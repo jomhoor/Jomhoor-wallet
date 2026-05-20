@@ -90,6 +90,26 @@ function logNfcMetadata(event: string, metadata: Record<string, unknown>) {
   console.log('[PASSPORT-NFC][META]', event, metadata)
 }
 
+function isStrictNfcDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled'
+}
+
+function logNfcJson(event: string, value: unknown) {
+  if (!isStrictNfcDebugEnabled()) return
+
+  const payload =
+    (() => {
+      try {
+        return JSON.stringify(value, null, 2)
+      } catch {
+        return String(value)
+      }
+    })() ?? 'undefined'
+
+  // eslint-disable-next-line no-console
+  console.log('[PASSPORT-NFC][JSON]', event, payload)
+}
+
 // ---------------------------------------------------------------------------
 // Hex helpers
 // ---------------------------------------------------------------------------
@@ -825,6 +845,7 @@ async function readPassportWithPackageBackendOutput(
   })
 
   const result = await readPassportNfc(input)
+  logNfcJson('native-readPassportNfc-result', result)
   const dg2Entry = result.files.DG2
   const dg2Data =
     dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
