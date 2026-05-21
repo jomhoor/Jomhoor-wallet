@@ -67,7 +67,30 @@ export async function collectAttestation(challengeHex: string): Promise<Record<s
       if (msg.includes('NOT_AVAILABLE') || msg.includes('not supported')) {
         throw new AttestationNotSupportedError('iOS', err)
       }
-      throw err
+      // The stored key ID may be stale (e.g. after app reinstall the Secure
+      // Enclave key is gone but the key ID persisted in the keychain).
+      // Clear the stale ID, generate a fresh key, and retry once.
+      console.warn('[collectAttestation] attestKey failed (possibly stale key), regenerating:', msg)
+      await setStorageItemAsync(APPATTEST_KEY_STORAGE_KEY, null)
+      try {
+        keyId = await AppAttest.generateKey()
+      } catch (genErr: unknown) {
+        const genMsg = genErr instanceof Error ? genErr.message : String(genErr)
+        if (genMsg.includes('NOT_AVAILABLE') || genMsg.includes('not supported')) {
+          throw new AttestationNotSupportedError('iOS', genErr)
+        }
+        throw genErr
+      }
+      await setStorageItemAsync(APPATTEST_KEY_STORAGE_KEY, keyId)
+      try {
+        attestation = await AppAttest.attestKey(keyId, clientDataHashB64)
+      } catch (retryErr: unknown) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        if (retryMsg.includes('NOT_AVAILABLE') || retryMsg.includes('not supported')) {
+          throw new AttestationNotSupportedError('iOS', retryErr)
+        }
+        throw retryErr
+      }
     }
 
     return { keyId, attestation }

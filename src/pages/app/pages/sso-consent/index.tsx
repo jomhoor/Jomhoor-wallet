@@ -211,6 +211,23 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
           { platform },
         )
         const regSig = await signChallenge(challengeData.challenge)
+
+        // Collect platform attestation. If this fails for any reason other than
+        // "device not supported", fall back to an empty payload — the SSO
+        // service has app_attestation.enabled=false and will accept the register
+        // call regardless. AttestationNotSupportedError must still propagate so
+        // the DeviceNotSupported screen fires for unsupported hardware.
+        let appAttestation: Record<string, string> = {}
+        try {
+          appAttestation = await collectAttestation(challengeData.challenge)
+        } catch (attErr: unknown) {
+          if (attErr instanceof AttestationNotSupportedError) throw attErr
+          console.warn(
+            '[SsoConsent] collectAttestation failed, proceeding without attestation:',
+            attErr,
+          )
+        }
+
         const regPayload = {
           walletAddress,
           publicKey: {
@@ -219,7 +236,7 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
           },
           challenge: challengeData.challenge,
           walletSignature: regSig,
-          appAttestation: await collectAttestation(challengeData.challenge),
+          appAttestation,
         }
         try {
           await apiClient.post('/v1/wallets/register', regPayload)
