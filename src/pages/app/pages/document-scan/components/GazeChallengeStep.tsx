@@ -44,7 +44,7 @@ const WAYPOINT_ANIMATION_MS = 380
 const WAYPOINT_SETTLE_MS = 220
 const MAX_PROGRESS_DELTA_MS = 250
 const DOT_RADIUS_PX = 14
-const ENABLE_DOT_GUIDE_FALLBACK = false
+const ENABLE_DOT_GUIDE_FALLBACK = true
 const DEFAULT_LIVENESS_GUIDE_MODE: LivenessGuideMode = 'headPoseOverlay'
 const GUIDING_FACE_IMAGE = require('../../../../../../assets/guiding-face.png')
 
@@ -404,7 +404,7 @@ export default function GazeChallengeStep(): JSX.Element {
     [detectFaces, onFacesDetected],
   )
 
-  const overlaySize = Math.max(170, Math.min(width * 0.56, 290))
+  const overlaySize = 500 //  Math.max(500, Math.min(width * 0.56, 600))
 
   return (
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1'>

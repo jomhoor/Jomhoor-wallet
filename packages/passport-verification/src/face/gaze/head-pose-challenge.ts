@@ -61,10 +61,10 @@ export type HeadPoseWaypointProgressState = {
 
 const DEFAULT_HEAD_POSE_CHALLENGE_CONFIG: HeadPoseChallengeConfig = {
   waypointCount: 4,
-  maxYawDeg: 18,
-  maxPitchDeg: 10,
-  yawToleranceDeg: 11,
-  pitchToleranceDeg: 9,
+  maxYawDeg: 45,
+  maxPitchDeg: 45,
+  yawToleranceDeg: 15,
+  pitchToleranceDeg: 15,
   minHoldMs: 700,
   maxWaypointMs: 4500,
   minYawForMirrorValidationDeg: 6,
