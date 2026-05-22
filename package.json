@@ -7,7 +7,7 @@
     "url": "https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote.git"
   },
   "main": "src/main.ts",
-  "version": "0.0.9",
+  "version": "0.5.12",
   "scripts": {
     "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install",
     "start": "npx expo start --clear",
