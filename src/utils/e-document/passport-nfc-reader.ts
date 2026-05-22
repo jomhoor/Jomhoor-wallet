@@ -108,10 +108,10 @@ function logNfcJson(event: string, value: unknown) {
 
   // eslint-disable-next-line no-console
   console.log(`[PASSPORT-NFC][JSON] result...`)
-  if (payload.length < 10) {
+  if (payload.length > 1000) {
     // dummy condition to not log payload
     // eslint-disable-next-line no-console
-    console.log('[PASSPORT-NFC][JSON]', event, payload)
+    console.log('[PASSPORT-NFC][JSON] Successful')
   }
 }
 
