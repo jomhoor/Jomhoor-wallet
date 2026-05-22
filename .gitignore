@@ -47,8 +47,12 @@ web-build/
 #.env.*
 
 .expo
-/android
-/ios
+android/.gradle
+android/build
+android/gradle
+ios/build
+ios/Pods
+
 modules/**/*/build
 !modules/**/*/plugin/build
 modules/**/*/.cxx
