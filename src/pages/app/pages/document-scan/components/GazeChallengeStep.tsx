@@ -1,14 +1,22 @@
 import {
-  buildGazeChallengeResult,
-  evaluateGazeSample,
+  createHeadPoseMirrorValidationState,
+  createHeadPoseWaypoints,
+  createInitialHeadPoseWaypointProgress,
+  evaluateHeadPoseSample,
   type GazeDetectorFace,
   type GazeSample,
-  type GazeWaypoint,
-  generateGazeWaypoints,
+  getDefaultHeadPoseChallengeConfig,
+  type HeadPose,
+  type HeadPoseMirrorMode,
+  type HeadPoseMirrorValidationState,
+  type HeadPoseWaypoint,
+  resolveHeadPoseMirrorModeFromValidation,
+  updateHeadPoseMirrorValidationState,
+  updateHeadPoseWaypointProgress,
 } from '@iland/passport-verification'
 import { useIsFocused, useNavigation } from '@react-navigation/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -29,16 +37,58 @@ import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/S
 import { UiButton, UiIcon } from '@/ui'
 
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
+type LivenessGuideMode = 'headPoseOverlay' | 'dot'
 
-const WAYPOINT_DWELL_MS = 1500
-const WAYPOINT_ANIMATION_MS = 500
 const CAMERA_STARTUP_DELAY_MS = 250
-const USER_FRIENDLY_GAZE_CONFIG = {
-  waypointCount: 4,
-  yawRange: 18,
-  pitchRange: 10,
-  errorThreshold: 16,
-  passRatioThreshold: 0.4,
+const WAYPOINT_ANIMATION_MS = 380
+const WAYPOINT_SETTLE_MS = 220
+const MAX_PROGRESS_DELTA_MS = 250
+const DOT_RADIUS_PX = 14
+const ENABLE_DOT_GUIDE_FALLBACK = false
+const DEFAULT_LIVENESS_GUIDE_MODE: LivenessGuideMode = 'headPoseOverlay'
+const GUIDING_FACE_IMAGE = require('../../../../../../assets/guiding-face.png')
+
+function toHeadPose(face: GazeDetectorFace): HeadPose {
+  const raw = face as GazeDetectorFace & {
+    headEulerAngleX?: number
+    headEulerAngleY?: number
+    headEulerAngleZ?: number
+    rollAngle?: number
+  }
+
+  const yawDegCandidate = raw.yawAngle ?? raw.headEulerAngleY ?? 0
+  const pitchDegCandidate = raw.pitchAngle ?? raw.headEulerAngleX ?? 0
+  const rollDegCandidate = raw.rollAngle ?? raw.headEulerAngleZ
+
+  const yawDeg = Number.isFinite(yawDegCandidate) ? yawDegCandidate : 0
+  const pitchDeg = Number.isFinite(pitchDegCandidate) ? pitchDegCandidate : 0
+
+  return {
+    yawDeg,
+    pitchDeg,
+    ...(typeof rollDegCandidate === 'number' ? { rollDeg: rollDegCandidate } : {}),
+  }
+}
+
+function getPromptForWaypoint(waypoint: HeadPoseWaypoint | undefined): string {
+  if (!waypoint) return 'Match the face pose.'
+
+  const absYaw = Math.abs(waypoint.targetYawDeg)
+  const absPitch = Math.abs(waypoint.targetPitchDeg)
+
+  if (absYaw < 6 && absPitch < 6) return 'Hold your head centered.'
+
+  if (absYaw >= absPitch) {
+    return waypoint.targetYawDeg >= 0 ? 'Turn slightly right.' : 'Turn slightly left.'
+  }
+
+  return waypoint.targetPitchDeg >= 0 ? 'Look up slightly.' : 'Look down slightly.'
+}
+
+function normalizeMirrorModeLabel(mode: HeadPoseMirrorMode): string {
+  if (mode === 'mirrored') return 'Mirrored'
+  if (mode === 'normal') return 'Normal'
+  return 'Calibrating'
 }
 
 export default function GazeChallengeStep(): JSX.Element {
@@ -48,21 +98,35 @@ export default function GazeChallengeStep(): JSX.Element {
   const { width, height } = useWindowDimensions()
   const { setCurrentStep, setFaceGazeResult } = useDocumentScanContext()
 
+  const challengeConfig = useMemo(() => getDefaultHeadPoseChallengeConfig(), [])
+  const guideMode: LivenessGuideMode = ENABLE_DOT_GUIDE_FALLBACK
+    ? 'dot'
+    : DEFAULT_LIVENESS_GUIDE_MODE
+
   const { hasPermission, requestPermission } = useCameraPermission()
   const device = useCameraDevice('front')
 
   const [gazeState, setGazeState] = useState<GazeState>('idle')
   const [faceDetected, setFaceDetected] = useState(false)
+  const [multipleFaces, setMultipleFaces] = useState(false)
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0)
   const [latestScorePercent, setLatestScorePercent] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
+  const [mirrorModeLabel, setMirrorModeLabel] = useState<HeadPoseMirrorMode>('unknown')
 
   const runningRef = useRef(false)
   const finishedRef = useRef(false)
   const startedAtRef = useRef(0)
-  const waypointsRef = useRef<GazeWaypoint[]>([])
+  const waypointsRef = useRef<HeadPoseWaypoint[]>([])
   const samplesRef = useRef<GazeSample[]>([])
-  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const currentWaypointProgressRef = useRef(createInitialHeadPoseWaypointProgress())
+  const mirrorValidationRef = useRef<HeadPoseMirrorValidationState>(
+    createHeadPoseMirrorValidationState(),
+  )
+  const mirrorModeRef = useRef<HeadPoseMirrorMode>('unknown')
+  const lastProgressTickAtRef = useRef(0)
+  const waypointValidationUnlockedAtRef = useRef(0)
+
   const faceDetectionOptions = useRef<FrameFaceDetectionOptions>({
     performanceMode: 'fast',
     classificationMode: 'all',
@@ -75,6 +139,8 @@ export default function GazeChallengeStep(): JSX.Element {
 
   const dotX = useSharedValue(width / 2)
   const dotY = useSharedValue(height / 2)
+  const guideYaw = useSharedValue(0)
+  const guidePitch = useSharedValue(0)
 
   useEffect(() => {
     if (!hasPermission) {
@@ -103,57 +169,87 @@ export default function GazeChallengeStep(): JSX.Element {
     return () => {
       runningRef.current = false
       finishedRef.current = false
-      if (dwellTimerRef.current) {
-        clearTimeout(dwellTimerRef.current)
-        dwellTimerRef.current = null
-      }
     }
   }, [])
 
   const totalTargets = waypointsRef.current.length
+  const activeWaypoint = waypointsRef.current[currentWaypointIndex]
   const isCameraActive = Boolean(isFocused && hasPermission && device && cameraReady)
 
   const statusText = useMemo(() => {
     if (!hasPermission) return 'Camera permission is required for gaze challenge.'
     if (!device) return 'Front camera is not available on this device.'
-    if (gazeState === 'running') return 'Follow the white dot with your eyes.'
-    if (gazeState === 'success') return 'Gaze challenge completed.'
-    if (gazeState === 'failed') {
-      return 'Gaze challenge did not pass. Retry with your face centered and stable lighting.'
+    if (gazeState === 'running') {
+      if (multipleFaces) return 'Only one face should be visible in the camera.'
+      if (!faceDetected) return 'Keep your face centered in the frame.'
+      return 'Match the guide face pose.'
     }
+    if (gazeState === 'success') return 'Gaze challenge completed.'
+    if (gazeState === 'failed') return 'Gaze challenge did not pass. Please retry.'
     return faceDetected ? 'Face detected. Start when ready.' : 'Position your face in view.'
-  }, [device, faceDetected, gazeState, hasPermission])
+  }, [device, faceDetected, gazeState, hasPermission, multipleFaces])
+
+  const promptText = useMemo(() => {
+    if (gazeState !== 'running') return 'You will follow face pose prompts.'
+    return getPromptForWaypoint(activeWaypoint)
+  }, [activeWaypoint, gazeState])
 
   const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: dotX.value - 14 }, { translateY: dotY.value - 14 }],
+    transform: [
+      { translateX: dotX.value - DOT_RADIUS_PX },
+      { translateY: dotY.value - DOT_RADIUS_PX },
+    ],
   }))
 
-  const completeChallenge = () => {
+  const guideFaceStyle = useAnimatedStyle(() => {
+    const maxYaw = Math.max(challengeConfig.maxYawDeg, 1)
+    const maxPitch = Math.max(challengeConfig.maxPitchDeg, 1)
+
+    return {
+      transform: [
+        { translateX: (guideYaw.value / maxYaw) * 18 },
+        { translateY: (-guidePitch.value / maxPitch) * 14 },
+        { perspective: 800 },
+        { rotateY: `${guideYaw.value}deg` },
+        { rotateX: `${-guidePitch.value}deg` },
+      ],
+    }
+  })
+
+  const finalizeChallenge = (passed: boolean, failureReason?: string) => {
     if (finishedRef.current) return
 
     finishedRef.current = true
     runningRef.current = false
-    if (dwellTimerRef.current) {
-      clearTimeout(dwellTimerRef.current)
-      dwellTimerRef.current = null
-    }
 
     const completedAt = Date.now()
-    const result = buildGazeChallengeResult({
-      samples: samplesRef.current,
-      targetsCompleted: waypointsRef.current.length,
-      targetsTotal: waypointsRef.current.length,
-      startedAt: startedAtRef.current,
-      completedAt,
-      passRatioThreshold: USER_FRIENDLY_GAZE_CONFIG.passRatioThreshold,
-    })
+    const sampleCount = samplesRef.current.length
+    const passedSampleCount = samplesRef.current.filter(sample => sample.passed).length
+    const score = sampleCount > 0 ? Number((passedSampleCount / sampleCount).toFixed(3)) : 0
 
-    const score = typeof result.score === 'number' ? result.score : 0
     setLatestScorePercent(Math.round(score * 100))
 
-    if (result.passed) {
+    setFaceGazeResult({
+      passed,
+      score,
+      targetsCompleted: Math.min(
+        currentWaypointIndex + (passed ? 1 : 0),
+        waypointsRef.current.length,
+      ),
+      targetsTotal: waypointsRef.current.length,
+      durationMs: Math.max(completedAt - startedAtRef.current, 0),
+      debug: {
+        sampleCount,
+        passedSampleCount,
+        mirrorMode: mirrorModeRef.current,
+        mirrorValidationSamples: mirrorValidationRef.current.sampleCount,
+        failureReason,
+        platform: Platform.OS,
+      },
+    })
+
+    if (passed) {
       setGazeState('success')
-      setFaceGazeResult(result)
       setCurrentStep(Steps.FaceComparisonStep)
       return
     }
@@ -161,28 +257,36 @@ export default function GazeChallengeStep(): JSX.Element {
     setGazeState('failed')
   }
 
+  const moveGuideToWaypoint = (waypoint: HeadPoseWaypoint) => {
+    guideYaw.value = withTiming(waypoint.targetYawDeg, { duration: WAYPOINT_ANIMATION_MS })
+    guidePitch.value = withTiming(waypoint.targetPitchDeg, { duration: WAYPOINT_ANIMATION_MS })
+
+    dotX.value = withTiming(waypoint.x * width, { duration: WAYPOINT_ANIMATION_MS })
+    dotY.value = withTiming(waypoint.y * height, { duration: WAYPOINT_ANIMATION_MS })
+  }
+
   const moveToWaypoint = (index: number) => {
     const waypoint = waypointsRef.current[index]
     if (!waypoint) {
-      completeChallenge()
+      finalizeChallenge(true)
       return
     }
 
     setCurrentWaypointIndex(index)
-    dotX.value = withTiming(waypoint.x, { duration: WAYPOINT_ANIMATION_MS })
-    dotY.value = withTiming(waypoint.y, { duration: WAYPOINT_ANIMATION_MS })
+    currentWaypointProgressRef.current = createInitialHeadPoseWaypointProgress()
+    lastProgressTickAtRef.current = Date.now()
+    waypointValidationUnlockedAtRef.current = Date.now() + WAYPOINT_SETTLE_MS
 
-    if (dwellTimerRef.current) {
-      clearTimeout(dwellTimerRef.current)
-    }
-
-    dwellTimerRef.current = setTimeout(() => {
-      moveToWaypoint(index + 1)
-    }, WAYPOINT_DWELL_MS)
+    moveGuideToWaypoint(waypoint)
   }
 
   const startGazeChallenge = () => {
-    const waypoints = generateGazeWaypoints({ width, height }, USER_FRIENDLY_GAZE_CONFIG)
+    const waypoints = createHeadPoseWaypoints(
+      { width, height },
+      {
+        waypointCount: challengeConfig.waypointCount,
+      },
+    )
 
     waypointsRef.current = waypoints
     samplesRef.current = []
@@ -191,32 +295,97 @@ export default function GazeChallengeStep(): JSX.Element {
     startedAtRef.current = Date.now()
     setLatestScorePercent(0)
     setCurrentWaypointIndex(0)
+    setMirrorModeLabel('unknown')
+
+    mirrorValidationRef.current = createHeadPoseMirrorValidationState()
+    mirrorModeRef.current = 'unknown'
+    currentWaypointProgressRef.current = createInitialHeadPoseWaypointProgress()
+
     setGazeState('running')
 
     moveToWaypoint(0)
   }
 
-  const handleFacesDetected = (faces: GazeDetectorFace[]) => {
-    const hasFace = faces.length > 0
-    setFaceDetected(hasFace)
-
-    if (!runningRef.current || finishedRef.current || !hasFace) return
-
-    const activeFace = faces[0]
-    const activeWaypoint = waypointsRef.current[currentWaypointIndex]
-    if (!activeFace || !activeWaypoint) return
-
-    const evaluation = evaluateGazeSample(
-      activeFace,
-      activeWaypoint,
-      { width, height },
-      USER_FRIENDLY_GAZE_CONFIG,
+  const pushProgress = (matched: boolean, now: number) => {
+    const deltaMs = Math.min(
+      Math.max(now - lastProgressTickAtRef.current, 0),
+      MAX_PROGRESS_DELTA_MS,
     )
-    samplesRef.current.push({
-      ...evaluation,
-      waypointIndex: currentWaypointIndex,
-      timestamp: Date.now(),
+    lastProgressTickAtRef.current = now
+
+    const next = updateHeadPoseWaypointProgress(currentWaypointProgressRef.current, {
+      deltaMs,
+      matched,
+      config: challengeConfig,
     })
+
+    currentWaypointProgressRef.current = next
+
+    if (next.timedOut) {
+      finalizeChallenge(false, 'waypoint_timeout')
+      return
+    }
+
+    if (next.completed) {
+      moveToWaypoint(currentWaypointIndex + 1)
+    }
+  }
+
+  const handleFacesDetected = (faces: GazeDetectorFace[]) => {
+    const hasSingleFace = faces.length === 1
+    setFaceDetected(hasSingleFace)
+    setMultipleFaces(faces.length > 1)
+
+    if (!runningRef.current || finishedRef.current) return
+
+    const active = waypointsRef.current[currentWaypointIndex]
+    if (!active) return
+
+    const now = Date.now()
+    if (now < waypointValidationUnlockedAtRef.current) {
+      lastProgressTickAtRef.current = now
+      return
+    }
+
+    if (!hasSingleFace) {
+      pushProgress(false, now)
+      return
+    }
+
+    const headPose = toHeadPose(faces[0])
+
+    mirrorValidationRef.current = updateHeadPoseMirrorValidationState(mirrorValidationRef.current, {
+      detectedYawDeg: headPose.yawDeg,
+      targetYawDeg: active.targetYawDeg,
+      config: challengeConfig,
+    })
+
+    const resolvedMirrorMode = resolveHeadPoseMirrorModeFromValidation(mirrorValidationRef.current)
+    if (resolvedMirrorMode !== mirrorModeRef.current) {
+      mirrorModeRef.current = resolvedMirrorMode
+      setMirrorModeLabel(resolvedMirrorMode)
+    }
+
+    const evaluation = evaluateHeadPoseSample(
+      headPose,
+      active,
+      mirrorModeRef.current,
+      challengeConfig,
+    )
+
+    samplesRef.current.push({
+      passed: evaluation.passed,
+      yawError: evaluation.yawErrorDeg,
+      pitchError: evaluation.pitchErrorDeg,
+      expectedYaw: active.targetYawDeg,
+      expectedPitch: active.targetPitchDeg,
+      actualYaw: headPose.yawDeg,
+      actualPitch: headPose.pitchDeg,
+      waypointIndex: currentWaypointIndex,
+      timestamp: now,
+    })
+
+    pushProgress(evaluation.passed, now)
   }
 
   const onFacesDetected = Worklets.createRunOnJS((faces: GazeDetectorFace[]) => {
@@ -235,6 +404,8 @@ export default function GazeChallengeStep(): JSX.Element {
     [detectFaces, onFacesDetected],
   )
 
+  const overlaySize = Math.max(170, Math.min(width * 0.56, 290))
+
   return (
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1'>
       {isCameraActive && device ? (
@@ -251,7 +422,17 @@ export default function GazeChallengeStep(): JSX.Element {
         </View>
       )}
 
-      {gazeState === 'running' ? (
+      {gazeState === 'running' && guideMode === 'headPoseOverlay' ? (
+        <View className='absolute inset-0 items-center justify-center' pointerEvents='none'>
+          <Animated.Image
+            source={GUIDING_FACE_IMAGE}
+            resizeMode='contain'
+            style={[guideFaceStyle, { width: overlaySize, height: overlaySize, opacity: 0.82 }]}
+          />
+        </View>
+      ) : null}
+
+      {gazeState === 'running' && guideMode === 'dot' ? (
         <Animated.View
           style={dotStyle}
           className='absolute h-7 w-7 rounded-full border border-white/70 bg-white shadow-2xl'
@@ -272,9 +453,15 @@ export default function GazeChallengeStep(): JSX.Element {
 
         <View className='mt-6 rounded-xl bg-black/40 p-4'>
           <Text className='typography-body3 text-white'>{statusText}</Text>
+          <Text className='typography-body4 mt-2 text-white/80'>{promptText}</Text>
           {gazeState === 'running' ? (
             <Text className='typography-body4 mt-2 text-white/80'>
               Target {Math.min(currentWaypointIndex + 1, totalTargets)} of {totalTargets}
+            </Text>
+          ) : null}
+          {gazeState === 'running' ? (
+            <Text className='typography-body4 mt-2 text-white/70'>
+              Mirror mode: {normalizeMirrorModeLabel(mirrorModeLabel)}
             </Text>
           ) : null}
           {gazeState === 'failed' ? (
@@ -289,7 +476,7 @@ export default function GazeChallengeStep(): JSX.Element {
             title={gazeState === 'failed' ? 'Retry Gaze Challenge' : 'Start Gaze Challenge'}
             onPress={startGazeChallenge}
             className='w-full'
-            disabled={!faceDetected || !hasPermission || !device}
+            disabled={!hasPermission || !device || multipleFaces}
           />
           <UiButton
             title='Back to Liveness'

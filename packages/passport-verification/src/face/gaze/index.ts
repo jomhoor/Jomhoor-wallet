@@ -10,3 +10,23 @@ export {
   type GazeSampleEvaluation,
   type GazeWaypoint,
 } from './gaze-challenge'
+
+export {
+  createHeadPoseMirrorValidationState,
+  createHeadPoseWaypoints,
+  createInitialHeadPoseWaypointProgress,
+  evaluateHeadPoseSample,
+  getDefaultHeadPoseChallengeConfig,
+  mapWaypointToTargetPose,
+  resolveHeadPoseMirrorModeFromValidation,
+  updateHeadPoseMirrorValidationState,
+  updateHeadPoseWaypointProgress,
+  type HeadPose,
+  type HeadPoseChallengeConfig,
+  type HeadPoseFrameSize,
+  type HeadPoseMirrorMode,
+  type HeadPoseMirrorValidationState,
+  type HeadPoseSampleEvaluation,
+  type HeadPoseWaypoint,
+  type HeadPoseWaypointProgressState,
+} from './head-pose-challenge'
