@@ -29,6 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
+      "NSLocationWhenInUseUsageDescription": "Location access may be used by identity verification features when required.",
       // Allow self-signed HTTPS (for local Quasar dev server with basicSsl).
       // WebCrypto (crypto.subtle) requires a secure context; without HTTPS the
       // Agora UCAN auth flow fails in the WebView.  Production uses valid certs

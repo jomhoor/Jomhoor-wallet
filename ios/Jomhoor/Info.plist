@@ -48,6 +48,8 @@
     <true/>
     <key>NFCReaderUsageDescription</key>
     <string>Interact with nearby NFC devices</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Location access may be used by identity verification features when required.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>

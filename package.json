@@ -9,7 +9,7 @@
   "main": "src/main.ts",
   "version": "0.0.9",
   "scripts": {
-    "prebuild": "npx expo prebuild --clean && npx pod-install",
+    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install",
     "start": "npx expo start --clear",
     "android": "npx expo run:android --device",
     "ios": "npx expo run:ios --device",
