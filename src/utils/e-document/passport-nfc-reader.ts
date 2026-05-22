@@ -49,71 +49,11 @@ export type PassportNfcScanOutput = {
 // ---------------------------------------------------------------------------
 // Logging
 // ---------------------------------------------------------------------------
-function log(...msg: unknown[]) {
-  const debugEnabled =
-    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
-    process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
+function log(..._msg: unknown[]) {}
 
-  if (!(__DEV__ && debugEnabled)) return
+function logNfcMetadata(_event: string, _metadata: Record<string, unknown>) {}
 
-  const first = typeof msg[0] === 'string' ? msg[0] : ''
-  const allowedPrefixes = [
-    'Starting passport NFC read',
-    'NfcManager started',
-    'Cancelled previous technology request',
-    'Requesting IsoDep technology',
-    'IsoDep technology granted',
-    'SELECT failed',
-    'All DGs read. Building EPassport',
-    'EPassport created successfully',
-    'SELF-TEST:',
-  ]
-  const isSafeEvent = allowedPrefixes.some(prefix => first.startsWith(prefix))
-  if (isSafeEvent) {
-    // eslint-disable-next-line no-console
-    console.log('[PASSPORT-NFC]', first)
-  }
-}
-
-function isNfcDebugEnabled(): boolean {
-  return (
-    __DEV__ &&
-    (process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
-      process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true' ||
-      process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled')
-  )
-}
-
-function logNfcMetadata(event: string, metadata: Record<string, unknown>) {
-  if (!isNfcDebugEnabled()) return
-  // eslint-disable-next-line no-console
-  console.log('[PASSPORT-NFC][META]', event, metadata)
-}
-
-function isStrictNfcDebugEnabled(): boolean {
-  return __DEV__ && process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'enabled'
-}
-
-function logNfcJson(event: string, value: unknown) {
-  if (!isStrictNfcDebugEnabled()) return
-
-  const payload =
-    (() => {
-      try {
-        return JSON.stringify(value, null, 2)
-      } catch {
-        return String(value)
-      }
-    })() ?? 'undefined'
-
-  // eslint-disable-next-line no-console
-  console.log(`[PASSPORT-NFC][JSON] result...`)
-  if (payload.length > 1000) {
-    // dummy condition to not log payload
-    // eslint-disable-next-line no-console
-    console.log('[PASSPORT-NFC][JSON] Successful')
-  }
-}
+function logNfcJson(_event: string, _value: unknown) {}
 
 // ---------------------------------------------------------------------------
 // Hex helpers

@@ -1304,15 +1304,8 @@ final class PassportVerificationSessionManager {
     }
 
     private func logSession(event: String, details: [String: Any]? = nil) {
-        let id = currentAttemptId ?? "unknown"
-        var message = "[PassportVerification][Session \(id)] \(event)"
-        if let details = details, !details.isEmpty {
-            let detailStr = details
-                .map { key, value in "\(key)=\(value)" }
-                .joined(separator: " ")
-            message += " {\(detailStr)}"
-        }
-        NSLog("%@", message)
+        _ = event
+        _ = details
     }
 }
 

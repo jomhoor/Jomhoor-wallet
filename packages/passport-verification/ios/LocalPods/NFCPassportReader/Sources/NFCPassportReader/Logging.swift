@@ -7,26 +7,20 @@
 //
 
 import Foundation
-import OSLog
 
+struct Logger {
+    struct Sink {
+        func debug(_ message: String) { _ = message }
+        func info(_ message: String) { _ = message }
+        func warning(_ message: String) { _ = message }
+        func error(_ message: String) { _ = message }
+    }
 
-extension Logger {
-    /// Using your bundle identifier is a great way to ensure a unique identifier.
-    private static var subsystem = Bundle.main.bundleIdentifier!
-    
-    /// Tag Reader logs
-    static let passportReader = Logger(subsystem: subsystem, category: "passportReader")
-
-    /// Tag Reader logs
-    static let tagReader = Logger(subsystem: subsystem, category: "tagReader")
-
-    /// SecureMessaging logs
-    static let secureMessaging = Logger(subsystem: subsystem, category: "secureMessaging")
-
-    static let openSSL = Logger(subsystem: subsystem, category: "openSSL")
-
-    static let bac = Logger(subsystem: subsystem, category: "BAC")
-    static let chipAuth = Logger(subsystem: subsystem, category: "chipAuthentication")
-    static let pace = Logger(subsystem: subsystem, category: "PACE")
+    static let passportReader = Sink()
+    static let tagReader = Sink()
+    static let secureMessaging = Sink()
+    static let openSSL = Sink()
+    static let bac = Sink()
+    static let chipAuth = Sink()
+    static let pace = Sink()
 }
-

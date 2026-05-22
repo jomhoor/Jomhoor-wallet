@@ -1292,54 +1292,13 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     details: String?,
     throwable: Throwable? = null
   ) {
-    val snapshot = captureDebugSnapshot()
-    val resolvedSessionId = sessionId ?: snapshot.sessionId ?: "none"
-    val resolvedStage = (stage ?: snapshot.stage).rawValue
-    val resolvedElapsedMs = elapsedMs ?: snapshot.elapsedMs
-    val prefix = buildString {
-      append("sid=")
-      append(resolvedSessionId)
-      append(" stage=")
-      append(resolvedStage)
-      if (resolvedElapsedMs != null) {
-        append(" elapsedMs=")
-        append(resolvedElapsedMs)
-      }
-      if (!snapshot.lastSuccessfulStep.isNullOrBlank()) {
-        append(" lastStep=")
-        append(snapshot.lastSuccessfulStep)
-      }
-    }
-    val message = if (details.isNullOrBlank()) {
-      "$prefix | $event"
-    } else {
-      "$prefix | $event | $details"
-    }
-
-    when (level) {
-      LogLevel.INFO -> {
-        Log.i(LOG_TAG, message)
-        if (throwable != null) {
-          Log.i(LOG_TAG, "stacktrace for: $event", throwable)
-        }
-      }
-
-      LogLevel.WARN -> {
-        if (throwable != null) {
-          Log.w(LOG_TAG, message, throwable)
-        } else {
-          Log.w(LOG_TAG, message)
-        }
-      }
-
-      LogLevel.ERROR -> {
-        if (throwable != null) {
-          Log.e(LOG_TAG, message, throwable)
-        } else {
-          Log.e(LOG_TAG, message)
-        }
-      }
-    }
+    _ = level
+    _ = event
+    _ = sessionId
+    _ = stage
+    _ = elapsedMs
+    _ = details
+    _ = throwable
   }
 
   private fun buildReadPassportInputSummary(input: ReadableMap): String {
