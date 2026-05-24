@@ -18,7 +18,7 @@ Defaults:
 USAGE
 }
 
-ARCHIVE_PATH="/Users/shooresh/Library/Developer/Xcode/Archives/2026-05-23/Jomhoor 2026-05-23, 01.37.xcarchive"
+ARCHIVE_PATH="/Users/shooresh/Library/Developer/Xcode/Archives/2026-05-23/Jomhoor 2026-05-23, 02.25.xcarchive"
 RN_VERSION="0.76.9"
 
 while [[ $# -gt 0 ]]; do

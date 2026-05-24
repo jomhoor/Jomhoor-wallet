@@ -502,7 +502,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = org.jomhoor.app;
+				PRODUCT_BUNDLE_IDENTIFIER = org.jomhoor.app.development;
 				PRODUCT_NAME = Jomhoor;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -538,7 +538,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = org.jomhoor.app;
+				PRODUCT_BUNDLE_IDENTIFIER = org.jomhoor.app.development;
 				PRODUCT_NAME = Jomhoor;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

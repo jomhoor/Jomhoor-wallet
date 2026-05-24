@@ -1,4 +1,4 @@
-package org.jomhoor.app
+package org.jomhoor.app.development
 
 import android.app.Application
 import android.content.res.Configuration

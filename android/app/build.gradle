@@ -86,12 +86,12 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'org.jomhoor.app'
+    namespace 'org.jomhoor.app.development'
     defaultConfig {
-        applicationId 'org.jomhoor.app'
+        applicationId 'org.jomhoor.app.development'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
+        versionCode 1
         versionName "0.5.14"
     }
     signingConfigs {
@@ -175,6 +175,20 @@ dependencies {
     }
 }
 
+
+    // this configuration is added by a custom expo mod (plugin) to resolve "Duplicate class org.bouncycastle.." error
+    configurations {
+        all*.exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+        all*.exclude group: 'org.bouncycastle', module: 'bcutil-jdk15to18'
+    }
+    
+
+    // this configuration is added by a custom expo mod (plugin) to resolve "Duplicate class org.bouncycastle.." error
+    configurations {
+        all*.exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+        all*.exclude group: 'org.bouncycastle', module: 'bcutil-jdk15to18'
+    }
+    
 
     // this configuration is added by a custom expo mod (plugin) to resolve "Duplicate class org.bouncycastle.." error
     configurations {
