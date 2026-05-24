@@ -11,7 +11,6 @@ import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Camera as VisionCamera,
-  runAsync,
   useCameraDevice,
   useCameraPermission,
   useFrameProcessor,
@@ -20,7 +19,6 @@ import {
   type FrameFaceDetectionOptions,
   useFaceDetector,
 } from 'react-native-vision-camera-face-detector'
-import { Worklets } from 'react-native-worklets-core'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
@@ -61,6 +59,7 @@ export default function FaceLivenessStep(): JSX.Element {
   }).current
   const { detectFaces, stopListeners } = useFaceDetector(faceDetectionOptions)
 
+  const isCameraActive = Boolean(isFocused && hasPermission && device && cameraEnabled)
   useEffect(() => {
     if (!hasPermission) {
       void requestPermission()
@@ -76,8 +75,6 @@ export default function FaceLivenessStep(): JSX.Element {
   const totalSteps = sequenceRef.current.length
   const currentChallenge = sequenceRef.current[challengeIndex]
 
-  const isCameraActive = Boolean(isFocused && hasPermission && device && cameraEnabled)
-
   const statusText = useMemo(() => {
     if (!hasPermission) return 'Camera permission is required for liveness check.'
     if (!device) return 'Front camera is not available on this device.'
@@ -92,7 +89,17 @@ export default function FaceLivenessStep(): JSX.Element {
     const hasFace = faces.length > 0
     setFaceDetected(hasFace)
 
-    if (!runningRef.current || finishedRef.current || !hasFace) return
+    if (!runningRef.current || finishedRef.current) {
+      return
+    }
+
+    if (!hasFace) {
+      return
+    }
+
+    if (faces.length > 1) {
+      return
+    }
 
     const face = faces[0]
     if (!face) return
@@ -101,7 +108,10 @@ export default function FaceLivenessStep(): JSX.Element {
     if (!activeChallenge) return
 
     const evaluation = evaluateLivenessChallenge(activeChallenge, face)
-    if (!evaluation.passed || stepPassedRef.current) return
+
+    if (!evaluation.passed || stepPassedRef.current) {
+      return
+    }
 
     stepPassedRef.current = true
 
@@ -150,11 +160,12 @@ export default function FaceLivenessStep(): JSX.Element {
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet'
-      runAsync(frame, () => {
-        'worklet'
+      try {
         const faces = detectFaces(frame)
         onFacesDetected(faces as unknown as DetectorFace[])
-      })
+      } catch (error) {
+        onFacesDetected([])
+      }
     },
     [detectFaces, onFacesDetected],
   )

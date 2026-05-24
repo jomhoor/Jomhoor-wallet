@@ -16,7 +16,6 @@ import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-ei
 import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
 import { ErrorHandler } from '@/core'
 import { tryCatch } from '@/helpers/try-catch'
-import { resolveDocumentScanFaceFlowEnabled } from '@/pages/app/pages/document-scan/adapters'
 import { identityStore } from '@/store/modules/identity'
 import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
@@ -215,7 +214,6 @@ export function ScanContextProvider({
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
 
   const [selectedDocType, setSelectedDocType] = useState(docType)
-  const faceFlowEnabled = resolveDocumentScanFaceFlowEnabled()
 
   const [tempMRZ, setTempMRZ] = useState<FieldRecords>()
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
@@ -225,7 +223,7 @@ export function ScanContextProvider({
     useState<DocumentScanContext['passportMrzBarcode']>()
   const [faceVerification, setFaceVerification] = useState<DocumentScanContext['faceVerification']>(
     {
-      enabled: faceFlowEnabled,
+      enabled: true,
     },
   )
 
@@ -281,34 +279,28 @@ export function ScanContextProvider({
 
   // ---------------------------------------------------------------------------------------------
 
-  const handleSetSelectedDocType = useCallback(
-    (value: DocType) => {
-      setSelectedDocType(value)
-      setPassportNfcDetails(undefined)
-      setPassportMrzBarcode(undefined)
-      setFaceVerification({
-        enabled: faceFlowEnabled,
-      })
-      if (value === DocType.PASSPORT) {
-        setCurrentStep(Steps.ScanMrzStep)
-      } else {
-        setCurrentStep(Steps.ScanNfcStep)
-      }
-    },
-    [faceFlowEnabled],
-  )
+  const handleSetSelectedDocType = useCallback((value: DocType) => {
+    setSelectedDocType(value)
+    setPassportNfcDetails(undefined)
+    setPassportMrzBarcode(undefined)
+    setFaceVerification({
+      enabled: true,
+    })
+    if (value === DocType.PASSPORT) {
+      setCurrentStep(Steps.ScanMrzStep)
+    } else {
+      setCurrentStep(Steps.ScanNfcStep)
+    }
+  }, [])
 
-  const handleSetMrz = useCallback(
-    (value: FieldRecords) => {
-      setTempMRZ(value)
-      setPassportNfcDetails(undefined)
-      setFaceVerification({
-        enabled: faceFlowEnabled,
-      })
-      setCurrentStep(Steps.ScanPassportNfcStep)
-    },
-    [faceFlowEnabled],
-  )
+  const handleSetMrz = useCallback((value: FieldRecords) => {
+    setTempMRZ(value)
+    setPassportNfcDetails(undefined)
+    setFaceVerification({
+      enabled: true,
+    })
+    setCurrentStep(Steps.ScanPassportNfcStep)
+  }, [])
 
   const handleSetEDoc = useCallback(
     (value: EDocument) => {
@@ -316,7 +308,6 @@ export function ScanContextProvider({
       setPassportNfcDetails(undefined)
       const shouldRunFaceFlow =
         selectedDocType === DocType.PASSPORT &&
-        faceFlowEnabled &&
         value instanceof EPassport &&
         !faceVerification.comparison?.passed
 
@@ -327,7 +318,7 @@ export function ScanContextProvider({
 
       setCurrentStep(Steps.DocumentPreviewStep)
     },
-    [faceFlowEnabled, faceVerification.comparison?.passed, selectedDocType, setTempEDoc],
+    [faceVerification.comparison?.passed, selectedDocType, setTempEDoc],
   )
 
   const handleSetPassportNfcScanOutput = useCallback(
@@ -366,7 +357,6 @@ export function ScanContextProvider({
 
       const shouldRunFaceFlow =
         selectedDocType === DocType.PASSPORT &&
-        faceFlowEnabled &&
         value.ePassport instanceof EPassport &&
         !faceVerification.comparison?.passed
 
@@ -377,12 +367,7 @@ export function ScanContextProvider({
 
       setCurrentStep(Steps.DocumentPreviewStep)
     },
-    [
-      faceFlowEnabled,
-      faceVerification.comparison?.passed,
-      passportMrzBarcode?.barcode?.nidn,
-      selectedDocType,
-    ],
+    [faceVerification.comparison?.passed, passportMrzBarcode?.barcode?.nidn, selectedDocType],
   )
 
   const setFaceLivenessResult = useCallback((value: LivenessResult) => {
@@ -408,9 +393,9 @@ export function ScanContextProvider({
 
   const resetFaceVerification = useCallback(() => {
     setFaceVerification({
-      enabled: faceFlowEnabled,
+      enabled: true,
     })
-  }, [faceFlowEnabled])
+  }, [])
 
   return (
     <documentScanContext.Provider

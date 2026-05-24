@@ -9,14 +9,16 @@
 ## 1. MLKit & Google Pod Dependencies
 
 ### Direct Dependencies (from VisionCameraFaceDetector)
-| Pod | Version | Purpose |
-|-----|---------|---------|
-| GoogleMLKit/FaceDetection | 8.0.0 | Face detection wrapper |
-| react-native-vision-camera-face-detector | 1.10.2 | React Native bridge |
-| VisionCamera | 4.6.3 | Camera frame provider |
-| React-Core | - | React Native core |
+
+| Pod                                      | Version | Purpose                |
+| ---------------------------------------- | ------- | ---------------------- |
+| GoogleMLKit/FaceDetection                | 8.0.0   | Face detection wrapper |
+| react-native-vision-camera-face-detector | 1.10.2  | React Native bridge    |
+| VisionCamera                             | 4.6.3   | Camera frame provider  |
+| React-Core                               | -       | React Native core      |
 
 ### Full MLKit Dependency Tree
+
 ```
 GoogleMLKit/FaceDetection (8.0.0)
 └── GoogleMLKit/MLKitCore
@@ -28,29 +30,31 @@ GoogleMLKit/FaceDetection (8.0.0)
 ```
 
 ### All MLKit Pods Installed
-| Pod | Version | Type | Status |
-|-----|---------|------|--------|
-| GoogleMLKit | 8.0.0 | Integration layer | Installed |
-| MLKitCommon | 13.0.0 | Core SDK | Installed |
-| MLKitFaceDetection | 7.0.0 | Face models | Installed |
-| MLKitVision | 9.0.0 | Image processing | Installed |
-| MLKitTextRecognition | 6.0.0 | MRZ scanning | Installed |
-| MLKitTextRecognitionChinese | - | OCR | Installed |
-| MLKitTextRecognitionDevanagari | - | OCR | Installed |
-| MLKitTextRecognitionJapanese | - | OCR | Installed |
-| MLKitTextRecognitionKorean | - | OCR | Installed |
-| MLKitTranslate | 7.0.0 | Translation | Installed |
-| MLKitNaturalLanguage | 9.0.0 | NLP | Installed |
-| GoogleDataTransport | 10.1.0 | Metrics/logging | Installed |
-| GoogleUtilities | 8.1.0 | Utilities | Installed |
-| GoogleToolboxForMac | 4.2.1 | macOS utilities | Installed |
-| nanopb | 2.30909.0 | Protobuf | Installed |
+
+| Pod                            | Version   | Type              | Status    |
+| ------------------------------ | --------- | ----------------- | --------- |
+| GoogleMLKit                    | 8.0.0     | Integration layer | Installed |
+| MLKitCommon                    | 13.0.0    | Core SDK          | Installed |
+| MLKitFaceDetection             | 7.0.0     | Face models       | Installed |
+| MLKitVision                    | 9.0.0     | Image processing  | Installed |
+| MLKitTextRecognition           | 6.0.0     | MRZ scanning      | Installed |
+| MLKitTextRecognitionChinese    | -         | OCR               | Installed |
+| MLKitTextRecognitionDevanagari | -         | OCR               | Installed |
+| MLKitTextRecognitionJapanese   | -         | OCR               | Installed |
+| MLKitTextRecognitionKorean     | -         | OCR               | Installed |
+| MLKitTranslate                 | 7.0.0     | Translation       | Installed |
+| MLKitNaturalLanguage           | 9.0.0     | NLP               | Installed |
+| GoogleDataTransport            | 10.1.0    | Metrics/logging   | Installed |
+| GoogleUtilities                | 8.1.0     | Utilities         | Installed |
+| GoogleToolboxForMac            | 4.2.1     | macOS utilities   | Installed |
+| nanopb                         | 2.30909.0 | Protobuf          | Installed |
 
 ---
 
 ## 2. MLKit Frameworks & Resource Bundles in ios/Pods
 
 ### Frameworks Found in Pods
+
 ```
 ios/Pods/MLKitCommon/Frameworks/MLKitCommon.framework
 ios/Pods/MLKitFaceDetection/Frameworks/MLKitFaceDetection.framework ← Face detection
@@ -66,25 +70,27 @@ ios/Pods/MLKitNaturalLanguage/Frameworks/MLKitNaturalLanguage.framework
 ```
 
 ### Critical Resource Bundles in Pods
-| Bundle | Location | Contents | Purpose |
-|--------|----------|----------|---------|
-| **GoogleMVFaceDetectorResources.bundle** | `ios/Pods/MLKitFaceDetection/Frameworks/MLKitFaceDetection.framework/` | blazeface.tfl | Face detection ML model |
-| LatinOCRResources.bundle | `ios/Pods/MLKitTextRecognition/` | OCR models | MRZ/text recognition |
-| ChineseOCRResources.bundle | `ios/Pods/MLKitTextRecognitionChinese/` | OCR models | Chinese text recognition |
-| DevanagariOCRResources.bundle | `ios/Pods/MLKitTextRecognitionDevanagari/` | OCR models | Devanagari text recognition |
-| JapaneseOCRResources.bundle | `ios/Pods/MLKitTextRecognitionJapanese/` | OCR models | Japanese text recognition |
-| KoreanOCRResources.bundle | `ios/Pods/MLKitTextRecognitionKorean/` | OCR models | Korean text recognition |
-| MLKitTranslate_resource.bundle | `ios/Pods/MLKitTranslate/` | Translation models | Translation |
-| GoogleDataTransport_Privacy.bundle | `ios/Pods/GoogleDataTransport/` | Metadata | Service registry |
-| GoogleUtilities_Privacy.bundle | `ios/Pods/GoogleUtilities/` | Metadata | Utility services |
-| GoogleToolboxForMac_Privacy.bundle | `ios/Pods/GoogleToolboxForMac/` | Metadata | Utility services |
-| GoogleToolboxForMac_Logger_Privacy.bundle | `ios/Pods/GoogleToolboxForMac/` | Metadata | Logging services |
+
+| Bundle                                    | Location                                                               | Contents           | Purpose                     |
+| ----------------------------------------- | ---------------------------------------------------------------------- | ------------------ | --------------------------- |
+| **GoogleMVFaceDetectorResources.bundle**  | `ios/Pods/MLKitFaceDetection/Frameworks/MLKitFaceDetection.framework/` | blazeface.tfl      | Face detection ML model     |
+| LatinOCRResources.bundle                  | `ios/Pods/MLKitTextRecognition/`                                       | OCR models         | MRZ/text recognition        |
+| ChineseOCRResources.bundle                | `ios/Pods/MLKitTextRecognitionChinese/`                                | OCR models         | Chinese text recognition    |
+| DevanagariOCRResources.bundle             | `ios/Pods/MLKitTextRecognitionDevanagari/`                             | OCR models         | Devanagari text recognition |
+| JapaneseOCRResources.bundle               | `ios/Pods/MLKitTextRecognitionJapanese/`                               | OCR models         | Japanese text recognition   |
+| KoreanOCRResources.bundle                 | `ios/Pods/MLKitTextRecognitionKorean/`                                 | OCR models         | Korean text recognition     |
+| MLKitTranslate_resource.bundle            | `ios/Pods/MLKitTranslate/`                                             | Translation models | Translation                 |
+| GoogleDataTransport_Privacy.bundle        | `ios/Pods/GoogleDataTransport/`                                        | Metadata           | Service registry            |
+| GoogleUtilities_Privacy.bundle            | `ios/Pods/GoogleUtilities/`                                            | Metadata           | Utility services            |
+| GoogleToolboxForMac_Privacy.bundle        | `ios/Pods/GoogleToolboxForMac/`                                        | Metadata           | Utility services            |
+| GoogleToolboxForMac_Logger_Privacy.bundle | `ios/Pods/GoogleToolboxForMac/`                                        | Metadata           | Logging services            |
 
 ---
 
 ## 3. What's Actually in the TestFlight Archive
 
 ### ✅ Present: Resource Bundles
+
 ```
 Jomhoor.app/
 ├── GoogleMVFaceDetectorResources.bundle/
@@ -102,37 +108,40 @@ Jomhoor.app/
 ```
 
 ### ⚠️ Frameworks: Only Hermes in Frameworks/
+
 ```
 Jomhoor.app/Frameworks/
 └── hermes.framework/ ← Only this
 ```
 
 **Why no MLKit frameworks?**
+
 - MLKit frameworks are **statically linked** into the main app binary
 - NOT embedded as separate dynamic frameworks
 - This is correct and expected behavior
 
 ### ✅ Confirmed in Binary
+
 - MLKit code is **statically compiled** into `Jomhoor` app binary
 - Strings show: FaceDetectorCommon, MLKFaceDetector, OnDeviceFaceDetect, etc.
-- Symbols show: _MLKITx_* functions (_MLKITx_SRLRegistry*, etc.)
+- Symbols show: _MLKITx__ functions (\_MLKITx_SRLRegistry_, etc.)
 - The **entire MLKit SDK is in the binary**, not in separate frameworks
 
 ---
 
 ## 4. Detailed Comparison: Pods vs Archive
 
-| Asset | In Pods | In Archive | Status |
-|-------|---------|-----------|--------|
-| MLKitFaceDetection.framework | ✅ | ⚠️ Linked into binary | ✅ Present (statically) |
-| MLKitVision.framework | ✅ | ⚠️ Linked into binary | ✅ Present (statically) |
-| MLKitCommon.framework | ✅ | ⚠️ Linked into binary | ✅ Present (statically) |
-| GoogleMLKit/*.h headers | ✅ | ⚠️ Not needed at runtime | ✅ N/A |
-| blazeface.tfl model | ✅ | ✅ GoogleMVFaceDetectorResources.bundle | ✅ PRESENT |
-| GoogleDataTransport_Privacy.bundle | ✅ | ✅ | ✅ PRESENT |
-| GoogleUtilities_Privacy.bundle | ✅ | ✅ | ✅ PRESENT |
-| nanopb libs | ✅ | ⚠️ Linked into binary | ✅ Present (statically) |
-| All frameworks | ✅ | ⚠️ Statically linked | ✅ All bundled |
+| Asset                              | In Pods | In Archive                              | Status                  |
+| ---------------------------------- | ------- | --------------------------------------- | ----------------------- |
+| MLKitFaceDetection.framework       | ✅      | ⚠️ Linked into binary                   | ✅ Present (statically) |
+| MLKitVision.framework              | ✅      | ⚠️ Linked into binary                   | ✅ Present (statically) |
+| MLKitCommon.framework              | ✅      | ⚠️ Linked into binary                   | ✅ Present (statically) |
+| GoogleMLKit/\*.h headers           | ✅      | ⚠️ Not needed at runtime                | ✅ N/A                  |
+| blazeface.tfl model                | ✅      | ✅ GoogleMVFaceDetectorResources.bundle | ✅ PRESENT              |
+| GoogleDataTransport_Privacy.bundle | ✅      | ✅                                      | ✅ PRESENT              |
+| GoogleUtilities_Privacy.bundle     | ✅      | ✅                                      | ✅ PRESENT              |
+| nanopb libs                        | ✅      | ⚠️ Linked into binary                   | ✅ Present (statically) |
+| All frameworks                     | ✅      | ⚠️ Statically linked                    | ✅ All bundled          |
 
 **Conclusion**: Everything needed for face detection is present. Nothing is missing.
 
@@ -141,6 +150,7 @@ Jomhoor.app/Frameworks/
 ## 5. CCTPolicyVending_API Error Deep Dive
 
 ### Error Details
+
 ```
 MLKITx_SRLRegistry ... No binding was found for required, single-bound service: CCTPolicyVending_API
 ```
@@ -153,6 +163,7 @@ This is an **internal Google service** in MLKit's service registry (SRL = Servic
 ### Root Cause Analysis
 
 #### This Error Does NOT Mean:
+
 - ❌ Missing bundle/framework
 - ❌ Missing model file
 - ❌ Missing library
@@ -160,17 +171,20 @@ This is an **internal Google service** in MLKit's service registry (SRL = Servic
 - ❌ Wrong architecture
 
 #### This Error Means:
+
 - ⚠️ MLKit is trying to load an **optional advanced feature** (CCTPolicyVending)
 - ⚠️ That service is **not available** in the current environment
 - ⚠️ This is **NOT critical** for basic face detection
 
 #### Why It's Harmless
+
 1. **CCTPolicyVending is optional** - Face detection works without it
 2. **It's in TestFlight sandbox** - Restricted environment may not support all Google services
 3. **Google services are advisory** - Used for analytics, crash reporting, advanced security
 4. **Face detection is core** - The blazeface.tfl model is what detects faces, not CCTPolicyVending
 
 #### Similar to:
+
 ```
 // Analogy:
 Analytics service unavailable → Still get core functionality
@@ -179,6 +193,7 @@ Policy service unavailable → Face detection still works
 ```
 
 ### Why You See This Warning
+
 ```
 MLKit tries: "Give me CCTPolicyVending service"
 Service registry replies: "Not available in this environment"
@@ -193,6 +208,7 @@ This is a **graceful degradation**, not a critical failure.
 ## 6. All Deliverables
 
 ### 6.1 MLKit/Google Pods & Versions
+
 ```
 GoogleMLKit/FaceDetection = 8.0.0
 MLKitFaceDetection = 7.0.0
@@ -206,6 +222,7 @@ nanopb = 2.30909.0
 ```
 
 ### 6.2 MLKit/Google Frameworks & Bundles in Pods
+
 ```
 Frameworks (all statically linked into binary):
   - MLKitFaceDetection.framework
@@ -222,25 +239,28 @@ Resource Bundles:
 ```
 
 ### 6.3 Present/Missing in Archive
-| Component | Status | Evidence |
-|-----------|--------|----------|
-| blazeface.tfl model | ✅ PRESENT | Found in GoogleMVFaceDetectorResources.bundle |
-| MLKit code | ✅ PRESENT | Strings and symbols in Jomhoor binary |
-| GoogleDataTransport bundle | ✅ PRESENT | Bundled in app |
-| GoogleUtilities bundle | ✅ PRESENT | Bundled in app |
-| Face detection classes | ✅ PRESENT | MLKFaceDetector, FaceDetectorCommon in binary |
-| MLKit frameworks | ⚠️ N/A | Statically linked; not separate frameworks (this is correct) |
+
+| Component                  | Status     | Evidence                                                     |
+| -------------------------- | ---------- | ------------------------------------------------------------ |
+| blazeface.tfl model        | ✅ PRESENT | Found in GoogleMVFaceDetectorResources.bundle                |
+| MLKit code                 | ✅ PRESENT | Strings and symbols in Jomhoor binary                        |
+| GoogleDataTransport bundle | ✅ PRESENT | Bundled in app                                               |
+| GoogleUtilities bundle     | ✅ PRESENT | Bundled in app                                               |
+| Face detection classes     | ✅ PRESENT | MLKFaceDetector, FaceDetectorCommon in binary                |
+| MLKit frameworks           | ⚠️ N/A     | Statically linked; not separate frameworks (this is correct) |
 
 ### 6.4 CCTPolicyVending_API Fault Assessment
 
 **Is it caused by missing bundle/dependency?** ❌ NO
 
 **Likely causes:**
+
 1. **OptionalModule pattern** - MLKit uses optional modules that may not be available
 2. **Sandbox restriction** - TestFlight/App Store sand boxing prevents some Google services
 3. **Build-time feature flag** - Service may not be compiled in when linking MLKit statically
 
 **Is it harmless?** ✅ **YES**
+
 - Face detection model is present
 - Core MLKit code is present
 - Advanced optional services are not available, but not required
@@ -276,6 +296,7 @@ Resource Bundles:
 ## Appendix: How MLKit Static Linking Works
 
 ### Why frameworks aren't separate
+
 1. CocoaPods can build MLKit frameworks as either:
    - **Dynamic frameworks** (separate .framework in Frameworks/)
    - **Static frameworks** (linked into main binary)
@@ -288,15 +309,16 @@ Resource Bundles:
 3. This project uses **static linking**:
    - Pod configurations link MLKit directly into Jomhoor binary
    - Result: `Jomhoor` app executable contains all MLKit code
-   - No separate MLKit*.framework folders needed
+   - No separate MLKit\*.framework folders needed
 
 ### Verification
+
 ```bash
 # Confirm static linking
 strings /path/to/app/Jomhoor | grep -i "mlkit"
 # Output: Shows MLKit symbols → statically linked ✅
 
-nm -gU /path/to/app/Jomhoor | grep -i "mlkit" 
+nm -gU /path/to/app/Jomhoor | grep -i "mlkit"
 # Output: Shows _MLKITx_* symbols → in binary ✅
 ```
 
