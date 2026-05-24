@@ -1,4 +1,4 @@
-package org.jomhoor.app.development
+package org.jomhoor.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

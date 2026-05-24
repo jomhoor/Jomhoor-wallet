@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>jomhoor</string>
-          <string>org.jomhoor.app.development</string>
+          <string>org.jomhoor.app</string>
         </array>
       </dict>
       <dict>
@@ -51,7 +51,7 @@
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>
-      <true/>
+      <false/>
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>

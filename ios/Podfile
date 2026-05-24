@@ -15,7 +15,7 @@ prepare_react_native_project!
 
 target 'Jomhoor' do
   use_expo_modules!
-  # Local pods required by @iland/passport-verification native iOS module.
+  # Local pods required by @iland verification native iOS module.
   pod 'OpenSSLLocal', :path => '../node_modules/@iland/passport-verification/ios/LocalPods/OpenSSLLocal'
   pod 'NFCPassportReader', :path => '../node_modules/@iland/passport-verification/ios/LocalPods/NFCPassportReader'
 

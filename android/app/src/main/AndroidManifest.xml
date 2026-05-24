@@ -35,7 +35,6 @@
         <data android:scheme="jomhoor"/>
         <data android:scheme="org.jomhoor.app"/>
         <data android:scheme="exp+jomhoor"/>
-        <data android:scheme="org.jomhoor.app.development"/>
       </intent-filter>
     </activity>
   </application>
