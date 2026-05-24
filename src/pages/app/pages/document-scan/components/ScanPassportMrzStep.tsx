@@ -4,10 +4,7 @@ import type { FieldRecords } from 'mrz'
 import { useCallback } from 'react'
 import { View } from 'react-native'
 
-import { resolveDocumentScanFaceFlowEnabled } from '@/pages/app/pages/document-scan/adapters'
 import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
-
-import LegacyScanMrzStep from './ScanMrzStep'
 
 function mapResultToFieldRecords(result: PassportMrzBarcodeResult): FieldRecords {
   const firstName = Array.isArray(result.parsedMrz.givenNames)
@@ -25,7 +22,6 @@ function mapResultToFieldRecords(result: PassportMrzBarcodeResult): FieldRecords
 }
 
 export default function ScanPassportMrzStep() {
-  const faceFlowEnabled = resolveDocumentScanFaceFlowEnabled()
   const { setTempMrz, setPassportMrzBarcode } = useDocumentScanContext()
 
   const handleDetected = useCallback(
@@ -39,10 +35,6 @@ export default function ScanPassportMrzStep() {
     },
     [setPassportMrzBarcode, setTempMrz],
   )
-
-  if (!faceFlowEnabled) {
-    return <LegacyScanMrzStep />
-  }
 
   return (
     <View className='flex-1 bg-backgroundPrimary'>

@@ -3,12 +3,14 @@
 import { resolvePassportNfcBackendFromEnv } from '../resolvePassportNfcBackend'
 
 describe('resolvePassportNfcBackendFromEnv', () => {
-  it('defaults to js when env is missing', () => {
-    expect(resolvePassportNfcBackendFromEnv(undefined, 'ios')).toBe('js')
+  it('defaults to platform-native when env is missing', () => {
+    expect(resolvePassportNfcBackendFromEnv(undefined, 'ios')).toBe('native-ios')
+    expect(resolvePassportNfcBackendFromEnv(undefined, 'android')).toBe('native-android')
   })
 
-  it('defaults to js on unknown env value', () => {
-    expect(resolvePassportNfcBackendFromEnv('unknown', 'ios')).toBe('js')
+  it('defaults to platform-native on unknown env value', () => {
+    expect(resolvePassportNfcBackendFromEnv('unknown', 'ios')).toBe('native-ios')
+    expect(resolvePassportNfcBackendFromEnv('unknown', 'android')).toBe('native-android')
   })
 
   it('maps native to platform backend', () => {

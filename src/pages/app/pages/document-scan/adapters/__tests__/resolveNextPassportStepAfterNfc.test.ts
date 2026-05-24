@@ -12,7 +12,7 @@ describe('resolveNextPassportStepAfterNfc', () => {
     expect(resolveNextPassportStepAfterNfc(true, true)).toBe('nfc-details')
   })
 
-  it('routes to face-liveness when face flow enabled and no enriched details exist', () => {
-    expect(resolveNextPassportStepAfterNfc(true, false)).toBe('face-liveness')
+  it('routes to nfc-details when face flow enabled and no enriched details exist', () => {
+    expect(resolveNextPassportStepAfterNfc(true, false)).toBe('nfc-details')
   })
 })

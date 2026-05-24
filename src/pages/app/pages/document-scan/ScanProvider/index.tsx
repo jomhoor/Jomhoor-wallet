@@ -16,10 +16,7 @@ import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-ei
 import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
 import { ErrorHandler } from '@/core'
 import { tryCatch } from '@/helpers/try-catch'
-import {
-  resolveDocumentScanFaceFlowEnabled,
-  resolveNextPassportStepAfterNfc,
-} from '@/pages/app/pages/document-scan/adapters'
+import { resolveDocumentScanFaceFlowEnabled } from '@/pages/app/pages/document-scan/adapters'
 import { identityStore } from '@/store/modules/identity'
 import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
@@ -324,10 +321,7 @@ export function ScanContextProvider({
         !faceVerification.comparison?.passed
 
       if (shouldRunFaceFlow) {
-        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled, false)
-        setCurrentStep(
-          nextStep === 'face-liveness' ? Steps.FaceLivenessStep : Steps.DocumentPreviewStep,
-        )
+        setCurrentStep(Steps.PassportNfcDetailsStep)
         return
       }
 
@@ -377,16 +371,7 @@ export function ScanContextProvider({
         !faceVerification.comparison?.passed
 
       if (shouldRunFaceFlow) {
-        const nextStep = resolveNextPassportStepAfterNfc(faceFlowEnabled, hasDetails)
-
-        if (nextStep === 'nfc-details') {
-          setCurrentStep(Steps.PassportNfcDetailsStep)
-          return
-        }
-
-        setCurrentStep(
-          nextStep === 'face-liveness' ? Steps.FaceLivenessStep : Steps.DocumentPreviewStep,
-        )
+        setCurrentStep(Steps.PassportNfcDetailsStep)
         return
       }
 

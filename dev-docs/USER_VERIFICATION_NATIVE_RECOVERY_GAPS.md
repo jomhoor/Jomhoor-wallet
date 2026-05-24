@@ -5,6 +5,7 @@
 Goal requested: identify everything needed to integrate `@iland` verification package into regenerated native folders (`ios/`, `android/`) after `npx expo prebuild`, and list what is still missing in `scripts/recover-natives.sh`.
 
 Important current-state finding:
+
 - Requested package path `packages/user-verification/` does **not** exist in this repo.
 - Existing package is `packages/passport-verification/` and dependency is `@iland/passport-verification` in root `package.json`.
 
@@ -67,6 +68,7 @@ This report therefore maps requirements against `@iland/passport-verification` a
 ## What `recover-natives.sh` Already Covers
 
 Current script handles:
+
 1. `runtimeVersion` fallback from policy form to string form.
 2. Adds `NSLocationWhenInUseUsageDescription` to `app.config.ts` if missing.
 3. Ensures prebuild command uses `--skip-dependency-update react`.
@@ -82,6 +84,7 @@ Current script handles:
 ## Priority 0 (must add)
 
 1. **Resolve package path dynamically (remove hardcoded `passport-verification`)**
+
 - Problem: script hardcodes `../node_modules/@iland/passport-verification/...` paths.
 - Risk: breaks immediately if package is renamed to `@iland/user-verification` / `packages/user-verification`.
 - Add:
@@ -90,6 +93,7 @@ Current script handles:
   - Generate Podfile local pod paths from resolved package directory.
 
 2. **Preflight validation for native artifacts before prebuild/pods**
+
 - Problem: script patches files but does not verify package native assets exist.
 - Add checks for:
   - `<pkg>/PassportVerification.podspec`
@@ -100,6 +104,7 @@ Current script handles:
   - `<pkg>/android/build.gradle`
 
 3. **Deduplicate repeated BouncyCastle exclusion blocks in `android/app/build.gradle`**
+
 - Current state observed: `bcprov/bcutil` exclusion block appears **3 times**.
 - Cause: plugin appends block repeatedly across prebuild runs.
 - Add:
@@ -107,6 +112,7 @@ Current script handles:
   - fail if malformed/partial blocks remain.
 
 4. **Ensure plugin entries are present in `app.config.ts`**
+
 - Problem: script currently assumes plugin list remains intact.
 - Add checks/patches to guarantee presence of:
   - `./plugins/withNfc.plugin/build/index.js`
@@ -114,6 +120,7 @@ Current script handles:
   - `expo-build-properties` entry (compile/min/target sdk section)
 
 5. **Ensure dependencies are installed before native recovery**
+
 - Problem: if `node_modules` is stale/missing, Podfile paths fail.
 - Add:
   - `yarn install` (or configurable `--skip-install`) before prebuild.
@@ -122,12 +129,14 @@ Current script handles:
 ## Priority 1 (strongly recommended)
 
 6. **Validate Android package-native dependencies after recovery**
+
 - Add assertions in `<pkg>/android/build.gradle` for:
   - `org.jmrtd:jmrtd:0.7.42`
   - `net.sf.scuba:scuba-sc-android:0.0.26`
 - Reason: these are core for native Android passport flow and can regress silently.
 
 7. **Validate iOS pod resolution result after `pod install`**
+
 - Parse `ios/Podfile.lock` and ensure entries exist for:
   - `PassportVerification`
   - `OpenSSLLocal`
@@ -135,6 +144,7 @@ Current script handles:
 - Reason: confirms local pod wiring actually resolved.
 
 8. **Validate `android/build.gradle` flatDir block for local AAR/JAR modules**
+
 - Ensure one canonical `flatDir` block exists for:
   - `project(':rapidsnark-wrp')`
   - `project(':noir')`
@@ -142,6 +152,7 @@ Current script handles:
 - Reason: `withLocalAar` integration is required native setup and should be guarded.
 
 9. **Add environment-explicit mode and checks for APP_ENV correctness**
+
 - Script already accepts `--app-env`, but should verify post-prebuild outputs for that env.
 - Add post-checks:
   - iOS `Info.plist` / Expo constants consistency
@@ -150,13 +161,16 @@ Current script handles:
 ## Priority 2 (quality and safety)
 
 10. **Idempotent patch markers or deterministic normalization**
+
 - Replace regex append patterns with marker-based insert/update blocks to avoid drift.
 - Especially for gradle injected sections.
 
 11. **Optional `--verify-only` mode**
+
 - Run all checks without mutating files; useful in CI and after manual recovery.
 
 12. **Optional `--package <name>` override**
+
 - Useful during migration from `passport-verification` to `user-verification`.
 
 ---
@@ -164,23 +178,29 @@ Current script handles:
 ## Dependency-Specific Coverage Gaps
 
 ### OpenSSLLocal / NFCPassportReader
+
 Current script:
+
 - Adds Podfile lines only.
-Missing:
+  Missing:
 - Artifact existence checks for OpenSSL XCFramework payloads.
 - Podfile.lock verification.
 - Dynamic package path handling.
 
 ### JMRTD / Scuba
+
 Current script:
+
 - Does not validate package Android gradle deps.
-Missing:
+  Missing:
 - Assert presence of `jmrtd` and `scuba-sc-android` dependencies.
 
 ### BouncyCastle
+
 Current script:
+
 - Relies on plugin patch; no dedupe/normalization.
-Missing:
+  Missing:
 - Cleanup of duplicate exclusion blocks.
 - Validation that one canonical exclusion block exists.
 
@@ -205,6 +225,7 @@ After script runs, print and verify:
 - `rg -n "flatDir|rapidsnark-wrp|witnesscalculator|noir" android/build.gradle`
 
 Optional build validations:
+
 - `cd ios && pod install`
 - `cd android && ./gradlew :app:assembleDebug`
 
@@ -213,6 +234,7 @@ Optional build validations:
 ## Conclusion
 
 `recover-natives.sh` covers only part of the native reintegration path. It restores some key iOS prebuild breakages, but it is currently missing critical robustness for:
+
 - package path migration (`passport-verification` -> `user-verification`),
 - Android duplication cleanup,
 - dependency/artifact validation for `OpenSSLLocal`, `NFCPassportReader`, `jmrtd`, `scuba`, and BouncyCastle policy.

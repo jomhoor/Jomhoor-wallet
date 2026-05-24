@@ -18,6 +18,8 @@ export function resolvePassportNfcBackendFromEnv(
     return 'js'
   }
 
+  if (platform === 'ios') return 'native-ios'
+  if (platform === 'android') return 'native-android'
   return 'js'
 }
 
