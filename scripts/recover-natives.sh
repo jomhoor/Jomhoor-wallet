@@ -123,6 +123,31 @@ for required in "$APP_CONFIG_TS" "$PACKAGE_JSON" "$PLUGIN_TS"; do
   [[ -f "$required" ]] || die "Required file not found: $required"
 done
 
+log "Ensuring Expo module compatibility (expo-image-manipulator)"
+VERIFY_ONLY="$VERIFY_ONLY" node <<'NODE'
+const fs = require('fs')
+const path = require('path')
+const filePath = path.resolve('package.json')
+const verifyOnly = process.env.VERIFY_ONLY === '1'
+const expectedVersion = '~13.0.6'
+
+const pkg = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+pkg.dependencies = pkg.dependencies || {}
+const current = pkg.dependencies['expo-image-manipulator']
+
+if (current !== expectedVersion) {
+  if (verifyOnly) {
+    console.error(
+      `package.json dependencies.expo-image-manipulator mismatch. Expected ${expectedVersion}, found ${current ?? '<missing>'}`,
+    )
+    process.exit(1)
+  }
+
+  pkg.dependencies['expo-image-manipulator'] = expectedVersion
+  fs.writeFileSync(filePath, JSON.stringify(pkg, null, 2) + '\n')
+}
+NODE
+
 log "Resolving verification package"
 PACKAGE_META_JSON="$(PACKAGE_OVERRIDE="$PACKAGE_OVERRIDE" node <<'NODE'
 const fs = require('fs')
@@ -186,6 +211,7 @@ NFCREADER_PODSPEC="$PACKAGE_DIR/ios/LocalPods/NFCPassportReader/NFCPassportReade
 OPENSSL_LIBCRYPTO="$PACKAGE_DIR/ios/LocalPods/OpenSSLLocal/output/libcrypto-shooresh.xcframework"
 OPENSSL_LIBSSL="$PACKAGE_DIR/ios/LocalPods/OpenSSLLocal/output/libssl-shooresh.xcframework"
 PACKAGE_ANDROID_GRADLE="$PACKAGE_DIR/android/build.gradle"
+PACKAGE_ANDROID_MODULE_KT_REL="android/src/main/java/com/iland/passportverification/PassportVerificationModule.kt"
 
 log "Preflight validation of package native artifacts"
 for required_path in \
@@ -197,6 +223,44 @@ for required_path in \
   "$PACKAGE_ANDROID_GRADLE"; do
   [[ -e "$required_path" ]] || die "Missing required native artifact: $required_path"
 done
+
+patch_passport_verification_logger_noop() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+
+  VERIFY_ONLY="$VERIFY_ONLY" node - "$file" <<'NODE'
+const fs = require('fs')
+const filePath = process.argv[2]
+const verifyOnly = process.env.VERIFY_ONLY === '1'
+let text = fs.readFileSync(filePath, 'utf8')
+
+const brokenBlock = /\n\s*_ = level\n\s*_ = event\n\s*_ = sessionId\n\s*_ = stage\n\s*_ = elapsedMs\n\s*_ = details\n\s*_ = throwable\n/g
+const replacement =
+  '\n    // Intentionally no-op in production builds.\n' +
+  '    // Keep parameters for future structured logging hooks.\n'
+
+if (verifyOnly) {
+  if (brokenBlock.test(text)) {
+    console.error(`${filePath}: invalid Kotlin placeholder assignments (_ = ...) detected`)
+    process.exit(1)
+  }
+  process.exit(0)
+}
+
+if (!brokenBlock.test(text)) {
+  process.exit(0)
+}
+
+text = text.replace(brokenBlock, replacement)
+fs.writeFileSync(filePath, text)
+NODE
+}
+
+log "Normalizing PassportVerification Kotlin no-op logger implementation"
+patch_passport_verification_logger_noop "$PACKAGE_DIR/$PACKAGE_ANDROID_MODULE_KT_REL"
+if [[ -n "$PACKAGE_WORKSPACE_DIR" ]]; then
+  patch_passport_verification_logger_noop "$PACKAGE_WORKSPACE_DIR/$PACKAGE_ANDROID_MODULE_KT_REL"
+fi
 
 log "Normalizing app.config.ts (runtime/version/location/plugins)"
 VERIFY_ONLY="$VERIFY_ONLY" node <<'NODE'
@@ -311,7 +375,7 @@ text = text.replace(/\n\s*\/\/ We start to support Android 12 from v3\.11\.1, an
 
 if (verifyOnly) {
   if (before !== text) {
-    console.error(`${filePath}: deprecated withBuildScriptExtMinimumVersion block detected`) 
+    console.error(`${filePath}: deprecated withBuildScriptExtMinimumVersion block detected`)
     process.exit(1)
   }
   process.exit(0)
@@ -410,6 +474,43 @@ fs.writeFileSync(filePath, text)
 NODE
 }
 
+ensure_java_resource_manifest_exclude() {
+  local file="$1"
+  [[ -f "$file" ]] || die "Android app Gradle file missing: $file"
+
+  VERIFY_ONLY="$VERIFY_ONLY" node - "$file" <<'NODE'
+const fs = require('fs')
+const filePath = process.argv[2]
+const verifyOnly = process.env.VERIFY_ONLY === '1'
+let text = fs.readFileSync(filePath, 'utf8')
+const needle = "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+
+if (text.includes(needle)) {
+  process.exit(0)
+}
+
+if (verifyOnly) {
+  console.error(`${filePath}: missing packagingOptions.resources exclusion for ${needle}`)
+  process.exit(1)
+}
+
+const packagingRegex = /(packagingOptions\s*\{\n)([\s\S]*?)(\n\s*\}\n\s*androidResources\s*\{)/m
+const match = text.match(packagingRegex)
+if (!match) {
+  throw new Error(`${filePath}: could not find packagingOptions block`)
+}
+
+const resourcesBlock =
+  "        resources {\n" +
+  "            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']\n" +
+  "        }\n"
+
+const updatedInner = `${match[2]}${resourcesBlock}`
+text = text.replace(packagingRegex, `${match[1]}${updatedInner}${match[3]}`)
+fs.writeFileSync(filePath, text)
+NODE
+}
+
 normalize_flatdir_block() {
   local file="$1"
   [[ -f "$file" ]] || die "Android project Gradle file missing: $file"
@@ -441,6 +542,7 @@ NODE
 
 log "Normalizing Android Gradle injected blocks"
 normalize_bouncycastle_block "$ANDROID_APP_GRADLE"
+ensure_java_resource_manifest_exclude "$ANDROID_APP_GRADLE"
 normalize_flatdir_block "$ANDROID_PROJECT_GRADLE"
 
 log "Validating Android package-native dependencies (JMRTD/Scuba)"
@@ -488,6 +590,18 @@ if [[ -f "$ROOT_DIR/ios/Jomhoor/Info.plist" ]]; then
     die "ios/Jomhoor/Info.plist missing CFBundleIdentifier key"
   fi
 fi
+
+cat <<'ANDROID_SIGNING'
+# Shooresh key
+MYAPP_UPLOAD_STORE_FILE=shooresh-upload-key.keystore
+MYAPP_UPLOAD_KEY_ALIAS=shooresh-key-alias
+MYAPP_UPLOAD_STORE_PASSWORD=******
+MYAPP_UPLOAD_KEY_PASSWORD=******
+ANDROID_SIGNING
+# Add Android signing env vars to gradle.properties
+# The actual password should be manually added to android/.gradle.properties after this script, since we don't want to store it in plaintext in version control.
+echo "$ANDROID_SIGNING" >> "$ANDROID_PROJECT_GRADLE/gradle.properties"
+
 
 log "Final validation summary"
 rg -n "runtimeVersion|NSLocationWhenInUseUsageDescription|withLocalAar.plugin|withNfc.plugin|expo-build-properties" "$APP_CONFIG_TS"

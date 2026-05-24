@@ -92,7 +92,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "0.5.14"
+        versionName "0.5.18"
     }
     signingConfigs {
         debug {
@@ -119,6 +119,9 @@ android {
     packagingOptions {
         jniLibs {
             useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
+        }
+        resources {
+            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
         }
     }
     androidResources {

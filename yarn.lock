@@ -2918,8 +2918,8 @@ __metadata:
 
 "@iland/passport-verification@file:./packages/passport-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=501736&locator=jomhoor%40workspace%3A."
-  checksum: 10/878ed22a8a07c64441423b0b94f904c397f679407533c93fe62b5fb96aadb3795fc044f58ec06699f1932110fc224d58095bd48681301113c9b430258575c6f8
+  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=0dd210&locator=jomhoor%40workspace%3A."
+  checksum: 10/a2458a8150afd00d64818d7aaf5a9199de9aeb76ae2f04c78f47641007ac8215b0f2fda8c190cfdae7fc89db8c813baf1e3865e371d1f631ce893a1cb2f182b2
   languageName: node
   linkType: hard
 
@@ -10781,15 +10781,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"expo-image-loader@npm:~4.6.0":
-  version: 4.6.0
-  resolution: "expo-image-loader@npm:4.6.0"
-  peerDependencies:
-    expo: "*"
-  checksum: 10/02981667f03dc429cd9db37e0acc302e4a0c4bb5875dc087b1c26388ef64563481e52dddc1d42dd32794eb7051d1acf5bc0c078413469c29025a02d4d4af1154
-  languageName: node
-  linkType: hard
-
 "expo-image-loader@npm:~5.0.0":
   version: 5.0.0
   resolution: "expo-image-loader@npm:5.0.0"
@@ -10799,14 +10790,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"expo-image-manipulator@npm:~11.8.0":
-  version: 11.8.0
-  resolution: "expo-image-manipulator@npm:11.8.0"
+"expo-image-manipulator@npm:~13.0.6":
+  version: 13.0.6
+  resolution: "expo-image-manipulator@npm:13.0.6"
   dependencies:
-    expo-image-loader: "npm:~4.6.0"
+    expo-image-loader: "npm:~5.0.0"
   peerDependencies:
     expo: "*"
-  checksum: 10/d771e524e77974ecc0a9f7f2e20e7c5938f4e2802be6623b5485322b5645814ac03f054ea38b020fe1b2f933374977e7ac688dba47688c1f7069544fa9ed74de
+  checksum: 10/8c358557f9476617745149538c5eff9fdcfa17dfdefe64cfd399e4d4dead8954cf5926ef1b70f743a851afda12469262ead52daee1ac1d91062cf7e900c29bb6
   languageName: node
   linkType: hard
 
@@ -14276,7 +14267,7 @@ __metadata:
     expo-gl: "npm:~15.0.5"
     expo-haptics: "npm:~14.0.0"
     expo-image: "npm:2.0.7"
-    expo-image-manipulator: "npm:~11.8.0"
+    expo-image-manipulator: "npm:~13.0.6"
     expo-image-picker: "npm:~16.0.6"
     expo-linear-gradient: "npm:~14.0.2"
     expo-linking: "npm:~7.0.3"

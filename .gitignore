@@ -74,3 +74,11 @@ modules/**/*/.cxx
 modules/**/.gradle/
 docs/VOTING_WITHOUT_ZKP.md
 credentials.json
+
+# Secrets
+*.keystore
+*.jks
+*.pem
+*.p8
+*.p12
+*.key

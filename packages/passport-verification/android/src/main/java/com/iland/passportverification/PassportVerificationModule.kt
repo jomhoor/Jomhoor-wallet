@@ -1292,13 +1292,8 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     details: String?,
     throwable: Throwable? = null
   ) {
-    _ = level
-    _ = event
-    _ = sessionId
-    _ = stage
-    _ = elapsedMs
-    _ = details
-    _ = throwable
+    // Intentionally no-op in production builds.
+    // Keep parameters for future structured logging hooks.
   }
 
   private fun buildReadPassportInputSummary(input: ReadableMap): String {

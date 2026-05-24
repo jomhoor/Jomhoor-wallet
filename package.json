@@ -7,14 +7,15 @@
     "url": "https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote.git"
   },
   "main": "src/main.ts",
-  "version": "0.5.14",
+  "version": "0.5.18",
   "scripts": {
-    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install",
+    "prebuild:clean:DANGEROUS": "npx expo prebuild --clean && npx pod-install",
     "start": "npx expo start --clear",
     "android": "npx expo run:android --device",
     "ios": "npx expo run:ios --device",
     "build:development:ios": "cross-env APP_ENV=development eas build --profile development --platform ios",
     "build:development:android": "cross-env APP_ENV=development eas build --profile development --platform android",
+    "build:iland": "npx tsc -p packages/passport-verification/tsconfig.json && yarn install && npx pod-install && (cd android && ./gradlew :app:assembleDebug)",
     "build:iland:ios": "npx tsc -p packages/passport-verification/tsconfig.json ; yarn install",
     "prebuild:staging": "cross-env APP_ENV=staging yarn prebuild",
     "start:staging": "cross-env APP_ENV=staging yarn start",
@@ -41,7 +42,8 @@
     "generate:ethers-types": "typechain --target=ethers-v6 'abis/**/*.json' --out-dir src/types/contracts",
     "xcode": "xed -b ios",
     "doctor": "npx expo-doctor@latest",
-    "eas-build-pre-install": "./scripts/git-lfs-pre-install.sh"
+    "eas-build-pre-install": "./scripts/git-lfs-pre-install.sh",
+    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install"
   },
   "release-it": {
     "git": {
@@ -128,7 +130,7 @@
     "expo-gl": "~15.0.5",
     "expo-haptics": "~14.0.0",
     "expo-image": "2.0.7",
-    "expo-image-manipulator": "~11.8.0",
+    "expo-image-manipulator": "~13.0.6",
     "expo-image-picker": "~16.0.6",
     "expo-linear-gradient": "~14.0.2",
     "expo-linking": "~7.0.3",
