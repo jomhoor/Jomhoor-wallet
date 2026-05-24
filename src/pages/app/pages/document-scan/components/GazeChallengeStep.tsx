@@ -22,7 +22,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Camera as VisionCamera,
-  runAsync,
   useCameraDevice,
   useCameraPermission,
   useFrameProcessor,
@@ -395,11 +394,12 @@ export default function GazeChallengeStep(): JSX.Element {
   const frameProcessor = useFrameProcessor(
     frame => {
       'worklet'
-      runAsync(frame, () => {
-        'worklet'
+      try {
         const faces = detectFaces(frame)
         onFacesDetected(faces as unknown as GazeDetectorFace[])
-      })
+      } catch (error) {
+        onFacesDetected([])
+      }
     },
     [detectFaces, onFacesDetected],
   )
