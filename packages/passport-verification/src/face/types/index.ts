@@ -23,7 +23,7 @@ export type LivenessResult = {
 
 export type GazeChallengeResult = {
   passed: boolean
-  score?: number
+  score: number
   targetsCompleted?: number
   targetsTotal?: number
   durationMs?: number

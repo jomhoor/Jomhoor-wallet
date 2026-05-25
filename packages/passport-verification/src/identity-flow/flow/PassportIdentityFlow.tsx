@@ -60,7 +60,7 @@ const createMockResult = (
   },
   face: {
     liveness: { passed: true, challenges: [] },
-    gaze: { passed: true },
+    gaze: { passed: true, score: 1 },
     comparison: {
       passed: true,
       similarity: 0.99,
