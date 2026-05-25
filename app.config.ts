@@ -54,6 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ['expo-asset'],
+    ['./plugins/withFaceModelAssets.plugin.js'],
     [
       'expo-font',
       {

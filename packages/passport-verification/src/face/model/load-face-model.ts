@@ -1,7 +1,10 @@
 import * as tf from '@tensorflow/tfjs'
 import '@tensorflow/tfjs-backend-cpu'
 import { bundleResourceIO, decodeJpeg } from '@tensorflow/tfjs-react-native'
+import { Asset } from 'expo-asset'
+import * as FileSystem from 'expo-file-system'
 import * as ImageManipulator from 'expo-image-manipulator'
+import { Platform } from 'react-native'
 import { Image as NativeImage } from 'react-native'
 
 type GraphModelLike = {
@@ -11,8 +14,126 @@ type GraphModelLike = {
 const modelJson = require('../../../assets/mobilefacenet/model.json')
 const modelWeights = require('../../../assets/mobilefacenet/model.bin')
 
+type ModelJsonLike = {
+  modelTopology?: unknown
+  weightsManifest?: Array<{ weights?: unknown[] }>
+  format?: string
+  generatedBy?: string
+  convertedBy?: string
+}
+
 let tfReadyPromise: Promise<void> | null = null
 let modelPromise: Promise<GraphModelLike> | null = null
+
+function resolveWeightSpecs(json: ModelJsonLike): unknown[] {
+  const specs = json.weightsManifest?.[0]?.weights
+  if (!Array.isArray(specs) || specs.length === 0) {
+    throw new Error('FACE_MODEL_WEIGHT_SPECS_MISSING')
+  }
+
+  return specs
+}
+
+async function loadGraphModelFromExpoAssetFallback(): Promise<GraphModelLike> {
+  const [loadedAsset] = await Asset.loadAsync(modelWeights)
+  const moduleAsset = Asset.fromModule(modelWeights)
+  await moduleAsset.downloadAsync()
+
+  const candidateUris = [
+    loadedAsset?.localUri,
+    loadedAsset?.uri,
+    moduleAsset.localUri,
+    moduleAsset.uri,
+    Platform.OS === 'ios' && FileSystem.bundleDirectory
+      ? `${FileSystem.bundleDirectory}assets/node_modules/@iland/passport-verification/assets/mobilefacenet/model.bin`
+      : null,
+    Platform.OS === 'ios' && FileSystem.bundleDirectory
+      ? `${FileSystem.bundleDirectory}assets/face-models/model.bin`
+      : null,
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0)
+
+  // eslint-disable-next-line no-console
+  console.log(
+    '[JOMHOOR_FACE_MODEL_DEBUG]',
+    JSON.stringify({
+      event: 'face_model_asset_candidates',
+      loadedAssetUri: loadedAsset?.uri ?? null,
+      loadedAssetLocalUri: loadedAsset?.localUri ?? null,
+      moduleAssetUri: moduleAsset.uri ?? null,
+      moduleAssetLocalUri: moduleAsset.localUri ?? null,
+      candidateCount: candidateUris.length,
+      candidateUris,
+    }),
+  )
+
+  if (candidateUris.length === 0) {
+    throw new Error('FACE_MODEL_WEIGHT_URI_MISSING')
+  }
+
+  let weightsBase64: string | null = null
+  let resolvedWeightsUri: string | null = null
+
+  for (const candidateUri of candidateUris) {
+    try {
+      const info = await FileSystem.getInfoAsync(candidateUri)
+      if (info.exists) {
+        weightsBase64 = await FileSystem.readAsStringAsync(candidateUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        })
+        resolvedWeightsUri = candidateUri
+        break
+      }
+    } catch {
+      // Keep trying next candidate.
+    }
+
+    try {
+      const cacheUri = `${FileSystem.cacheDirectory ?? ''}mobilefacenet-model.bin`
+      await FileSystem.copyAsync({
+        from: candidateUri,
+        to: cacheUri,
+      })
+      const copiedInfo = await FileSystem.getInfoAsync(cacheUri)
+      if (copiedInfo.exists) {
+        weightsBase64 = await FileSystem.readAsStringAsync(cacheUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        })
+        resolvedWeightsUri = cacheUri
+        break
+      }
+    } catch {
+      // Keep trying next candidate.
+    }
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(
+    '[JOMHOOR_FACE_MODEL_DEBUG]',
+    JSON.stringify({
+      event: 'face_model_asset_resolved',
+      resolvedWeightsUri,
+      hadBase64: Boolean(weightsBase64),
+    }),
+  )
+
+  if (!weightsBase64 || !resolvedWeightsUri) {
+    throw new Error('FACE_MODEL_WEIGHT_READ_FAILED')
+  }
+
+  const weightData = tf.util.encodeString(weightsBase64, 'base64').buffer
+
+  const parsed = modelJson as ModelJsonLike
+  const ioHandler = tf.io.fromMemory({
+    modelTopology: parsed.modelTopology,
+    weightSpecs: resolveWeightSpecs(parsed),
+    weightData,
+    format: parsed.format,
+    generatedBy: parsed.generatedBy,
+    convertedBy: parsed.convertedBy,
+  } as tf.io.ModelArtifacts)
+
+  return (await tf.loadGraphModel(ioHandler)) as unknown as GraphModelLike
+}
 
 function ensureTfReady(): Promise<void> {
   if (!tfReadyPromise) {
@@ -81,8 +202,28 @@ export async function loadFaceModel(): Promise<GraphModelLike> {
 
   if (!modelPromise) {
     modelPromise = (async () => {
-      const loadedModel = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights))
-      return loadedModel as unknown as GraphModelLike
+      try {
+        const loadedModel = await tf.loadGraphModel(bundleResourceIO(modelJson, modelWeights))
+        // eslint-disable-next-line no-console
+        console.log(
+          '[JOMHOOR_FACE_MODEL_DEBUG]',
+          JSON.stringify({
+            event: 'face_model_loaded_bundle_resource_io',
+          }),
+        )
+        return loadedModel as unknown as GraphModelLike
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        // eslint-disable-next-line no-console
+        console.log(
+          '[JOMHOOR_FACE_MODEL_DEBUG]',
+          JSON.stringify({
+            event: 'face_model_bundle_resource_io_failed',
+            message,
+          }),
+        )
+        return loadGraphModelFromExpoAssetFallback()
+      }
     })()
   }
 

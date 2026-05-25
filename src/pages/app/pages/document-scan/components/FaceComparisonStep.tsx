@@ -101,11 +101,16 @@ export default function FaceComparisonStep(): JSX.Element {
           hasDevice: Boolean(device),
           hasPermission,
         })
-      } catch {
+      } catch (error) {
         if (!mounted) return
         setComparisonState('failed')
-        setErrorMessage('Face model is unavailable on this build. Please retry.')
-        logFaceDebug('prepare-failed', {})
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        setErrorMessage(
+          `Face model is unavailable on this build. Error: ${errorMessage}. Please retry.`,
+        )
+        // eslint-disable-next-line no-console
+        console.log('[FaceComparisonStep] Model preload failed:', error)
+        logFaceDebug('prepare-failed', { error: errorMessage })
       }
     }
 
