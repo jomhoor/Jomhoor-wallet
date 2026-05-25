@@ -3,7 +3,7 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated'
 
 import type { GazeChallengeComponentProps } from './types'
 
-const GUIDING_FACE_IMAGE = require('../../../../../../assets/guiding-face.png')
+const GUIDING_FACE_IMAGE = require('@assets/guiding-face.png')
 
 type GazeChallengeComponentFaceProps = GazeChallengeComponentProps & {
   guideYaw: Animated.SharedValue<number>

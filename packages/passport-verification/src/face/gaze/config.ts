@@ -10,9 +10,10 @@
  *
  * - `"dot"`: User follows a moving dot with their gaze (eyes only)
  * - `"face"`: User matches a rotating guiding face avatar (gaze + head pose)
+ * - `"smart-face"`: Sophisticated wireframe face with sphere-projection math and iris gaze tracking
  * - `"pose"`: User performs head rotation movements (head pose only, explicit instructions)
  */
-export type GazeChallengeMode = 'dot' | 'face' | 'pose'
+export type GazeChallengeMode = 'dot' | 'face' | 'smart-face' | 'pose'
 
 /**
  * Currently active gaze challenge mode.
@@ -28,4 +29,4 @@ export type GazeChallengeMode = 'dot' | 'face' | 'pose'
  * Change this constant to switch modes. All modes produce identical GazeChallengeResult
  * format for backward compatibility.
  */
-export const GAZE_CHALLENGE_MODE: GazeChallengeMode = 'dot'
+export const GAZE_CHALLENGE_MODE: GazeChallengeMode = 'smart-face'

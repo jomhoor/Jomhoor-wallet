@@ -38,9 +38,10 @@ import { UiButton, UiIcon } from '@/ui'
 
 import { GazeChallengeComponentDot } from './gaze-challenge-dot'
 import { GazeChallengeComponentFace } from './gaze-challenge-face'
+import { GazeChallengeComponentSmartFace } from './gaze-challenge-smart-face'
 
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
-type LivenessGuideMode = 'headPoseOverlay' | 'dot'
+type LivenessGuideMode = 'headPoseOverlay' | 'dot' | 'smartFace'
 
 const CAMERA_STARTUP_DELAY_MS = 250
 const WAYPOINT_ANIMATION_MS = 380
@@ -94,6 +95,7 @@ function normalizeMirrorModeLabel(mode: HeadPoseMirrorMode): string {
 
 function getGuideModeForConfiguration(): LivenessGuideMode {
   if (GAZE_CHALLENGE_MODE === 'face') return 'headPoseOverlay'
+  if (GAZE_CHALLENGE_MODE === 'smart-face') return 'smartFace'
   return 'dot'
 }
 
@@ -443,6 +445,28 @@ export default function GazeChallengeContainer(): JSX.Element {
 
       {guideMode === 'headPoseOverlay' && (
         <GazeChallengeComponentFace
+          isRunning={gazeState === 'running'}
+          waypointIndex={currentWaypointIndex}
+          waypoints={waypointsRef.current}
+          latestScorePercent={latestScorePercent}
+          totalTargets={totalTargets}
+          faceDetected={faceDetected}
+          multipleFaces={multipleFaces}
+          mirrorMode={mirrorModeRef.current === 'unknown' ? undefined : mirrorModeRef.current}
+          screenWidth={width}
+          screenHeight={height}
+          onStart={startGazeChallenge}
+          onRetry={startGazeChallenge}
+          onExit={() => setCurrentStep(Steps.FaceLivenessStep)}
+          guideYaw={guideYaw}
+          guidePitch={guidePitch}
+          challengeMaxYawDeg={challengeConfig.maxYawDeg}
+          challengeMaxPitchDeg={challengeConfig.maxPitchDeg}
+        />
+      )}
+
+      {guideMode === 'smartFace' && (
+        <GazeChallengeComponentSmartFace
           isRunning={gazeState === 'running'}
           waypointIndex={currentWaypointIndex}
           waypoints={waypointsRef.current}
