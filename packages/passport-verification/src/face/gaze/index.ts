@@ -1,3 +1,7 @@
+// ============================================================================
+// LEGACY EXPORTS (kept for backward compatibility)
+// ============================================================================
+
 export {
   buildGazeChallengeResult,
   evaluateGazeSample,
@@ -30,3 +34,23 @@ export {
   type HeadPoseWaypoint,
   type HeadPoseWaypointProgressState,
 } from './head-pose-challenge'
+
+// ============================================================================
+// UNIFIED EXPORTS (new, preferred for multi-mode architecture)
+// ============================================================================
+
+export {
+  buildUnifiedGazeChallengeResult,
+  evaluateUnifiedGazeSample,
+  generateUnifiedGazeWaypoints,
+  getDefaultUnifiedChallengeConfig,
+  type ChallengeSample,
+  type FrameSize,
+  type SampleEvaluation,
+  type UnifiedChallengeConfig,
+  type Waypoint,
+  type WaypointProgressState,
+  updateUnifiedWaypointProgress,
+} from './gaze-challenge'
+
+export { GAZE_CHALLENGE_MODE, type GazeChallengeMode } from './config'
