@@ -8,7 +8,6 @@ import { useIsFocused, useNavigation } from '@react-navigation/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
-import { runOnJS } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Camera as VisionCamera,
@@ -20,6 +19,7 @@ import {
   type FrameFaceDetectionOptions,
   useFaceDetector,
 } from 'react-native-vision-camera-face-detector'
+import { Worklets } from 'react-native-worklets-core'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
@@ -154,7 +154,9 @@ export default function FaceLivenessStep(): JSX.Element {
     }, STEP_DEBOUNCE_MS)
   }
 
-  const onFacesDetected = runOnJS(handleFacesDetected)
+  const onFacesDetected = Worklets.createRunOnJS((faces: DetectorFace[]) => {
+    handleFacesDetected(faces)
+  })
 
   const frameProcessor = useFrameProcessor(
     frame => {
