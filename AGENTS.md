@@ -15,14 +15,16 @@ const onFacesDetected = Worklets.createRunOnJS((faces: DetectorFace[]) => {
   handleFacesDetected(faces)
 })
 
-const frameProcessor = useFrameProcessor(frame => {
-  'worklet'
-  try {
-    const faces = detectFaces(frame)
-    onFacesDetected(faces as unknown as DetectorFace[])
-  } catch {
-    onFacesDetected([])
-  }
-}, [detectFaces, onFacesDetected])
+const frameProcessor = useFrameProcessor(
+  frame => {
+    'worklet'
+    try {
+      const faces = detectFaces(frame)
+      onFacesDetected(faces as unknown as DetectorFace[])
+    } catch {
+      onFacesDetected([])
+    }
+  },
+  [detectFaces, onFacesDetected],
+)
 ```
-

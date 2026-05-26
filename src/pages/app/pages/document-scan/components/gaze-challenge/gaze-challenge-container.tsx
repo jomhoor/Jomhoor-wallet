@@ -43,6 +43,8 @@ import { GazeChallengeComponentSmartFace } from './gaze-challenge-smart-face'
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
 type LivenessGuideMode = 'headPoseOverlay' | 'dot' | 'smartFace'
 
+const ENABLE_GAZE_DIAGNOSTICS = false
+const GAZE_LOG_THROTTLE_MS = 200
 const CAMERA_STARTUP_DELAY_MS = 250
 const WAYPOINT_ANIMATION_MS = 380
 const WAYPOINT_SETTLE_MS = 220
@@ -62,7 +64,9 @@ function toHeadPose(face: GazeDetectorFace): HeadPose {
   const pitchDegCandidate = face.pitchAngle ?? face.headEulerAngleX ?? 0
   const rollDegCandidate = face.rollAngle ?? face.headEulerAngleZ
 
-  const yawDeg = Number.isFinite(yawDegCandidate) ? yawDegCandidate : 0
+  // Front camera preview/detection can be mirrored on many devices.
+  // Apply deterministic correction for this flow: always flip yaw sign.
+  const yawDeg = Number.isFinite(yawDegCandidate) ? -yawDegCandidate : 0
   const pitchDeg = Number.isFinite(pitchDegCandidate) ? pitchDegCandidate : 0
 
   return {
@@ -97,6 +101,36 @@ function getGuideModeForConfiguration(): LivenessGuideMode {
   if (GAZE_CHALLENGE_MODE === 'face') return 'headPoseOverlay'
   if (GAZE_CHALLENGE_MODE === 'smart-face') return 'smartFace'
   return 'dot'
+}
+
+function formatNowTimestamp(value: number): string {
+  const date = new Date(value)
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+  const ms = String(date.getMilliseconds()).padStart(3, '0')
+  return `${hh}:${mm}:${ss}.${ms}`
+}
+
+function toPositiveDegrees(value: number): number {
+  const normalized = value % 360
+  return normalized < 0 ? normalized + 360 : normalized
+}
+
+function toWaypointLabel(yaw: number, pitch: number): string {
+  const yawLabel = yaw > 3 ? 'RIGHT' : yaw < -3 ? 'LEFT' : 'CENTER'
+  const pitchLabel = pitch > 3 ? 'UP' : pitch < -3 ? 'DOWN' : 'CENTER'
+  if (yawLabel === 'CENTER' && pitchLabel === 'CENTER') return 'CENTER'
+  if (yawLabel === 'CENTER') return pitchLabel
+  if (pitchLabel === 'CENTER') return yawLabel
+  return `${pitchLabel}-${yawLabel}`
+}
+
+function logGazeDiagnostics(tag: string, payload: string) {
+  if (!ENABLE_GAZE_DIAGNOSTICS) return
+  const timestamp = formatNowTimestamp(Date.now())
+  // eslint-disable-next-line no-console
+  console.log(`[${tag.padEnd(8, ' ')} ${timestamp}] ${payload}`)
 }
 
 export default function GazeChallengeContainer(): JSX.Element {
@@ -137,6 +171,8 @@ export default function GazeChallengeContainer(): JSX.Element {
   const mirrorModeRef = useRef<HeadPoseMirrorMode>('unknown')
   const lastProgressTickAtRef = useRef(0)
   const waypointValidationUnlockedAtRef = useRef(0)
+  const lastGazeLogAtRef = useRef(0)
+  const lastFaceCountRef = useRef<number | null>(null)
 
   const faceDetectionOptions = useRef<FrameFaceDetectionOptions>({
     performanceMode: 'fast',
@@ -272,6 +308,16 @@ export default function GazeChallengeContainer(): JSX.Element {
     lastProgressTickAtRef.current = Date.now()
     waypointValidationUnlockedAtRef.current = Date.now() + WAYPOINT_SETTLE_MS
 
+    const normalizedYaw = waypoint.targetYawDeg / challengeConfig.maxYawDeg
+    const normalizedPitch = waypoint.targetPitchDeg / challengeConfig.maxPitchDeg
+    const rawAngle = Math.atan2(normalizedPitch, normalizedYaw)
+    const angleDeg = toPositiveDegrees((rawAngle * 180) / Math.PI)
+    const label = toWaypointLabel(waypoint.targetYawDeg, waypoint.targetPitchDeg)
+    logGazeDiagnostics(
+      'WAYPOINT',
+      `→ label:"${label}" angle:${rawAngle.toFixed(2)}rad (deg:${Math.round(angleDeg)}°) target:(yaw:${normalizedYaw.toFixed(2)}, pitch:${normalizedPitch.toFixed(2)}) targetDeg:(yaw:${waypoint.targetYawDeg.toFixed(1)}, pitch:${waypoint.targetPitchDeg.toFixed(1)}) screen:(${waypoint.screenX.toFixed(3)}, ${waypoint.screenY.toFixed(3)}) holdMs:${waypoint.holdMs}`,
+    )
+
     moveGuideToWaypoint(waypoint)
   }
 
@@ -284,6 +330,22 @@ export default function GazeChallengeContainer(): JSX.Element {
     )
 
     waypointsRef.current = waypoints
+    const waypointLogPayload = waypoints
+      .map(waypoint => {
+        const normalizedYaw = waypoint.targetYawDeg / challengeConfig.maxYawDeg
+        const normalizedPitch = waypoint.targetPitchDeg / challengeConfig.maxPitchDeg
+        const rawAngle = Math.atan2(normalizedPitch, normalizedYaw)
+        const angleDeg = toPositiveDegrees((rawAngle * 180) / Math.PI)
+        const label = toWaypointLabel(waypoint.targetYawDeg, waypoint.targetPitchDeg)
+        return `#${waypoint.index + 1} ${label} angle:${rawAngle.toFixed(2)}rad (${Math.round(angleDeg)}°) target:(${normalizedYaw.toFixed(2)},${normalizedPitch.toFixed(2)}) targetDeg:(${waypoint.targetYawDeg.toFixed(1)},${waypoint.targetPitchDeg.toFixed(1)}) screen:(${waypoint.screenX.toFixed(3)},${waypoint.screenY.toFixed(3)}) hold:${waypoint.holdMs}`
+      })
+      .join(' | ')
+    logGazeDiagnostics('WAYPOINTS', waypointLogPayload)
+    logGazeDiagnostics(
+      'CONFIG',
+      `mode:${guideMode} waypointCount:${challengeConfig.waypointCount} maxYawDeg:${challengeConfig.maxYawDeg} maxPitchDeg:${challengeConfig.maxPitchDeg} yawToleranceDeg:${challengeConfig.yawToleranceDeg} pitchToleranceDeg:${challengeConfig.pitchToleranceDeg} minHoldMs:${challengeConfig.minHoldMs} maxWaypointMs:${challengeConfig.maxWaypointMs}`,
+    )
+
     samplesRef.current = []
     runningRef.current = true
     finishedRef.current = false
@@ -294,6 +356,8 @@ export default function GazeChallengeContainer(): JSX.Element {
 
     mirrorValidationRef.current = createHeadPoseMirrorValidationState()
     mirrorModeRef.current = 'unknown'
+    lastFaceCountRef.current = null
+    lastGazeLogAtRef.current = 0
     currentWaypointProgressRef.current = {
       stableMs: 0,
       elapsedMs: 0,
@@ -332,6 +396,11 @@ export default function GazeChallengeContainer(): JSX.Element {
   }
 
   const handleFacesDetected = (faces: GazeDetectorFace[]) => {
+    if (lastFaceCountRef.current !== faces.length) {
+      lastFaceCountRef.current = faces.length
+      logGazeDiagnostics('FACE', `count:${faces.length}`)
+    }
+
     const hasSingleFace = faces.length === 1
     setFaceDetected(hasSingleFace)
     setMultipleFaces(faces.length > 1)
@@ -364,6 +433,10 @@ export default function GazeChallengeContainer(): JSX.Element {
     if (resolvedMirrorMode !== mirrorModeRef.current) {
       mirrorModeRef.current = resolvedMirrorMode
       setMirrorModeLabel(resolvedMirrorMode)
+      logGazeDiagnostics(
+        'MIRROR',
+        `mode:${resolvedMirrorMode} sampleCount:${mirrorValidationRef.current.sampleCount}`,
+      )
     }
 
     const evaluation = evaluateUnifiedGazeSample(
@@ -373,6 +446,21 @@ export default function GazeChallengeContainer(): JSX.Element {
       active.targetPitchDeg,
       challengeConfig,
     )
+
+    if (now - lastGazeLogAtRef.current >= GAZE_LOG_THROTTLE_MS) {
+      lastGazeLogAtRef.current = now
+      const normalizedYaw = headPose.yawDeg / challengeConfig.maxYawDeg
+      const normalizedPitch = headPose.pitchDeg / challengeConfig.maxPitchDeg
+      const rawAngle = Math.atan2(normalizedPitch, normalizedYaw)
+      const angleDeg = toPositiveDegrees((rawAngle * 180) / Math.PI)
+      const gazeRadius = Math.sqrt(
+        normalizedYaw * normalizedYaw + normalizedPitch * normalizedPitch,
+      )
+      logGazeDiagnostics(
+        'GAZE',
+        `raw_angle:${rawAngle.toFixed(2)}rad deg:${Math.round(angleDeg)}° gazeRadius:${gazeRadius.toFixed(2)} mapped:(yaw:${normalizedYaw.toFixed(2)}, pitch:${normalizedPitch.toFixed(2)}) actualDeg:(yaw:${headPose.yawDeg.toFixed(1)}, pitch:${headPose.pitchDeg.toFixed(1)}) expectedDeg:(yaw:${active.targetYawDeg.toFixed(1)}, pitch:${active.targetPitchDeg.toFixed(1)}) errDeg:(yaw:${evaluation.yawErrorDeg.toFixed(1)}, pitch:${evaluation.pitchErrorDeg.toFixed(1)}) pass:${evaluation.passed} mirror:${mirrorModeRef.current}`,
+      )
+    }
 
     samplesRef.current.push({
       passed: evaluation.passed,
