@@ -12,7 +12,7 @@ type GraphModelLike = {
 }
 
 const modelJson = require('../../../assets/mobilefacenet/model.json')
-const modelWeights = require('../../../assets/mobilefacenet/model.bin')
+const modelWeights = require('../../../assets/mobilefacenet/weights.bin')
 
 type ModelJsonLike = {
   modelTopology?: unknown
@@ -45,10 +45,10 @@ async function loadGraphModelFromExpoAssetFallback(): Promise<GraphModelLike> {
     moduleAsset.localUri,
     moduleAsset.uri,
     Platform.OS === 'ios' && FileSystem.bundleDirectory
-      ? `${FileSystem.bundleDirectory}assets/node_modules/@iland/passport-verification/assets/mobilefacenet/model.bin`
+      ? `${FileSystem.bundleDirectory}assets/node_modules/@iland/passport-verification/assets/mobilefacenet/weights.bin`
       : null,
     Platform.OS === 'ios' && FileSystem.bundleDirectory
-      ? `${FileSystem.bundleDirectory}assets/face-models/model.bin`
+      ? `${FileSystem.bundleDirectory}assets/face-models/weights.bin`
       : null,
   ].filter((value): value is string => typeof value === 'string' && value.length > 0)
 
@@ -88,7 +88,7 @@ async function loadGraphModelFromExpoAssetFallback(): Promise<GraphModelLike> {
     }
 
     try {
-      const cacheUri = `${FileSystem.cacheDirectory ?? ''}mobilefacenet-model.bin`
+      const cacheUri = `${FileSystem.cacheDirectory ?? ''}mobilefacenet-weights.bin`
       await FileSystem.copyAsync({
         from: candidateUri,
         to: cacheUri,

@@ -4,6 +4,21 @@ apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
+/* Signing configuration for release builds. You need to create a `signing.properties` file in the `android/` directory with the following content:
+ * MYAPP_UPLOAD_STORE_FILE=<path-to-your-keystore>
+ * MYAPP_UPLOAD_KEY_ALIAS=<your-key-alias>
+ * MYAPP_UPLOAD_STORE_PASSWORD=<your-store-password>
+ * MYAPP_UPLOAD_KEY_PASSWORD=<your-key-password>
+ */
+
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file("signing.properties")
+
+if (signingPropertiesFile.exists()) {
+    signingProperties.load(new FileInputStream(signingPropertiesFile))
+}
+
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -101,6 +116,14 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (signingPropertiesFile.exists()) {
+                storeFile file(signingProperties['MYAPP_UPLOAD_STORE_FILE'])
+                storePassword signingProperties['MYAPP_UPLOAD_STORE_PASSWORD']
+                keyAlias signingProperties['MYAPP_UPLOAD_KEY_ALIAS']
+                keyPassword signingProperties['MYAPP_UPLOAD_KEY_PASSWORD']
+            }
+        }
     }
     buildTypes {
         debug {
@@ -109,9 +132,9 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
-            minifyEnabled enableProguardInReleaseBuilds
+            signingConfig signingConfigs.release
+            shrinkResources false
+            minifyEnabled false
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             crunchPngs (findProperty('android.enablePngCrunchInReleaseBuilds')?.toBoolean() ?: true)
         }

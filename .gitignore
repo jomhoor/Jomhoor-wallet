@@ -82,3 +82,6 @@ credentials.json
 *.p8
 *.p12
 *.key
+# Android signing secrets
+android/signing.properties
+android/app/signing.properties
