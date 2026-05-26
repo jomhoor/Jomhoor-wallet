@@ -50,9 +50,10 @@ const path = require('path')
 module.exports = (() => {
   let config = getDefaultConfig(__dirname)
 
-  // Add packages directory to Metro's watchFolders to ensure assets from
-  // monorepo packages (like @iland/passport-verification) are included in bundle
-  config.watchFolders = [...(config.watchFolders || []), path.resolve(__dirname, 'packages')]
+  // Note: Removed packages from watchFolders to prevent duplicate asset bundling
+  // from both workspace packages/ and node_modules/@iland/passport-verification.
+  // The file: dependency in package.json resolves @iland/passport-verification
+  // to the installed node_modules version during Metro bundling.
 
   return mergeConfig(
     withSvgTransformer(config),
