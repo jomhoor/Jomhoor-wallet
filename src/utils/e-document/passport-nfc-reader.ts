@@ -10,23 +10,50 @@
  *   4. Return an EPassport object ready for ZK registration
  */
 
+import type { PassportNfcReadResult } from '@iland/passport-verification'
+import { cancelPassportNfcSession, readPassportNfc } from '@iland/passport-verification'
 import NfcManager, { NfcTech } from 'react-native-nfc-manager'
 
 // Pure JS crypto — works in Hermes (require('crypto') does not)
 const createHash = require('create-hash')
 const DES = require('des.js')
 
-import { EPassport, PersonDetails } from './e-document'
+import {
+  createPackageNfcReadInput,
+  extractPackageNfcDisplayDetails,
+  packageNfcResultToEPassport,
+  resolvePassportNfcBackend,
+} from '@/pages/app/pages/document-scan/adapters'
+
+import { EPassport, type PersonDetails } from './e-document'
+
+export type PassportNfcScanOutput = {
+  ePassport: EPassport
+  packageNfcResult?: PassportNfcReadResult
+  normalized?: {
+    documentNumber?: string
+    firstName?: string
+    lastName?: string
+    birthDate?: string
+    expiryDate?: string
+    nationality?: string
+    sex?: string
+    nidn?: string
+  }
+  portrait?: {
+    base64?: string
+    filePath?: string
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Logging
 // ---------------------------------------------------------------------------
-function log(...msg: unknown[]) {
-  if (__DEV__) {
-    // eslint-disable-next-line no-console
-    console.log('[PASSPORT-NFC]', ...msg)
-  }
-}
+function log(..._msg: unknown[]) {}
+
+function logNfcMetadata(_event: string, _metadata: Record<string, unknown>) {}
+
+function logNfcJson(_event: string, _value: unknown) {}
 
 // ---------------------------------------------------------------------------
 // Hex helpers
@@ -91,7 +118,6 @@ function deriveBacSeed(
   const expiryCheck = mrzCheckDigit(expiry)
 
   const mrzKey = `${docNum}${docCheck}${dob}${dobCheck}${expiry}${expiryCheck}`
-  log('MRZ key string:', mrzKey)
 
   const mrzBytes = new TextEncoder().encode(mrzKey)
   const hash = sha1Sync(mrzBytes)
@@ -739,6 +765,98 @@ function selfTestCrypto() {
 
 let selfTestDone = false
 
+async function readPassportWithPackageBackendOutput(
+  documentNumber: string,
+  dateOfBirth: string,
+  expiryDate: string,
+  backend: 'native-ios' | 'native-android',
+  opts?: PassportReadOptions,
+): Promise<PassportNfcScanOutput> {
+  opts?.onConnected?.()
+  opts?.onReading?.()
+
+  const input = createPackageNfcReadInput({
+    documentNumber,
+    dateOfBirth,
+    expiryDate,
+    backend,
+  })
+
+  logNfcMetadata('native-request', {
+    backend,
+    requestedDataGroups: input.requestedDataGroups ?? [],
+    includeImageBase64: input.includeImageBase64 === true,
+    persistDg2ImageFile: input.persistDg2ImageFile === true,
+  })
+
+  const result = await readPassportNfc(input)
+  // only in debug mode
+  logNfcJson('native-readPassportNfc-result', result)
+  const dg2Entry = result.files.DG2
+  const dg2Data =
+    dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
+      ? (dg2Entry.data as Record<string, unknown>)
+      : undefined
+  const dg2Parsed =
+    dg2Data && dg2Data.parsed && typeof dg2Data.parsed === 'object'
+      ? (dg2Data.parsed as Record<string, unknown>)
+      : undefined
+
+  logNfcMetadata('native-response', {
+    backend: result.backend,
+    finalStatus: result.finalStatus,
+    returnedFileKeys: Object.keys(result.files),
+    dg2Status: dg2Entry?.status ?? 'missing',
+    dg2ByteLength:
+      typeof dg2Parsed?.imageByteLength === 'number' ? dg2Parsed.imageByteLength : undefined,
+    hasDg2ImageBase64Field: typeof dg2Data?.imageBase64 === 'string',
+    hasDg2FilePathField: typeof dg2Data?.filePath === 'string',
+    hasResultPortraitBase64: typeof result.portrait?.base64 === 'string',
+    hasResultPortraitFilePath: typeof result.portrait?.filePath === 'string',
+    normalizedKeys: result.normalized ? Object.keys(result.normalized) : [],
+  })
+
+  const displayDetails = extractPackageNfcDisplayDetails(result)
+  logNfcMetadata('native-display-details', {
+    hasPortraitBase64: typeof displayDetails.portrait?.base64 === 'string',
+    hasPortraitFilePath: typeof displayDetails.portrait?.filePath === 'string',
+    normalizedKeys: Object.keys(displayDetails).filter(key => key !== 'portrait'),
+  })
+
+  return {
+    ePassport: packageNfcResultToEPassport(result),
+    packageNfcResult: result,
+    normalized: {
+      firstName: result.normalized?.firstName ?? displayDetails.firstName,
+      lastName: result.normalized?.lastName ?? displayDetails.lastName,
+      nationality: result.normalized?.nationality ?? displayDetails.nationality,
+      expiryDate: result.normalized?.expiryDate ?? displayDetails.expiryDate,
+      documentNumber: result.normalized?.documentNumber ?? displayDetails.documentNumber,
+      birthDate: result.normalized?.birthDate,
+      sex: result.normalized?.sex,
+      ...(displayDetails.nidn ? { nidn: displayDetails.nidn } : {}),
+    },
+    portrait: displayDetails.portrait,
+  }
+}
+
+async function readPassportWithPackageBackend(
+  documentNumber: string,
+  dateOfBirth: string,
+  expiryDate: string,
+  backend: 'native-ios' | 'native-android',
+  opts?: PassportReadOptions,
+): Promise<EPassport> {
+  const output = await readPassportWithPackageBackendOutput(
+    documentNumber,
+    dateOfBirth,
+    expiryDate,
+    backend,
+    opts,
+  )
+  return output.ePassport
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -764,6 +882,18 @@ export async function readPassport(
   expiryDate: string,
   opts?: PassportReadOptions,
 ): Promise<EPassport> {
+  const selectedBackend = resolvePassportNfcBackend()
+  logNfcMetadata('backend-selection', { selectedBackend })
+  if (selectedBackend === 'native-ios' || selectedBackend === 'native-android') {
+    return readPassportWithPackageBackend(
+      documentNumber,
+      dateOfBirth,
+      expiryDate,
+      selectedBackend,
+      opts,
+    )
+  }
+
   // Run crypto self-test once (Buffer polyfill must be available)
   if (!selfTestDone) {
     selfTestDone = true
@@ -771,7 +901,6 @@ export async function readPassport(
   }
 
   log('Starting passport NFC read...')
-  log('MRZ input:', { documentNumber, dateOfBirth, expiryDate })
 
   // Ensure NFC is initialized
   try {
@@ -815,11 +944,8 @@ export async function readPassport(
 
     // Derive BAC keys from MRZ data
     const seed = deriveBacSeed(documentNumber, dateOfBirth, expiryDate)
-    log('BAC seed:', toHex(seed))
     const kenc = deriveKey(seed, 1)
-    log('BAC Kenc:', toHex(kenc))
     const kmac = deriveKey(seed, 2)
-    log('BAC Kmac:', toHex(kmac))
 
     // Generate random IFD nonce and key
     const rndIfd = new Uint8Array(8)
@@ -865,13 +991,44 @@ export async function readPassport(
       dg15Bytes: dg15,
     })
 
-    log('EPassport created successfully:', personDetails)
+    logNfcMetadata('js-backend-response', {
+      backend: 'js',
+      returnedFileKeys: ['DG1', ...(dg15 ? ['DG15'] : []), 'SOD'],
+      hasPortraitBase64: false,
+      hasPortraitFilePath: false,
+    })
+
+    log('EPassport created successfully')
     return passport
   } finally {
     await NfcManager.cancelTechnologyRequest()
   }
 }
 
+export async function readPassportScanOutput(
+  documentNumber: string,
+  dateOfBirth: string,
+  expiryDate: string,
+  opts?: PassportReadOptions,
+): Promise<PassportNfcScanOutput> {
+  const selectedBackend = resolvePassportNfcBackend()
+  if (selectedBackend === 'native-ios' || selectedBackend === 'native-android') {
+    return readPassportWithPackageBackendOutput(
+      documentNumber,
+      dateOfBirth,
+      expiryDate,
+      selectedBackend,
+      opts,
+    )
+  }
+
+  const ePassport = await readPassport(documentNumber, dateOfBirth, expiryDate, opts)
+  return { ePassport }
+}
+
 export function stopPassportNfc() {
-  return NfcManager.cancelTechnologyRequest().catch(() => {})
+  return Promise.allSettled([
+    NfcManager.cancelTechnologyRequest(),
+    cancelPassportNfcSession(),
+  ]).then(() => {})
 }

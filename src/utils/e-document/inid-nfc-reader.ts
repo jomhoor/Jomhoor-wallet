@@ -19,11 +19,7 @@ import NfcManager, { NfcTech } from 'react-native-nfc-manager'
 // ————————————————————————————————————————————————————————————————
 
 function log(...msg: unknown[]) {
-  // gate behind __DEV__ so it is stripped in release builds
-  if (__DEV__) {
-    // eslint-disable-next-line no-console
-    console.log('[INID-NFC]', ...msg)
-  }
+  void msg
 }
 
 // ————————————————————————————————————————————————————————————————

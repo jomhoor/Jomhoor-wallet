@@ -1,3 +1,11 @@
+import type {
+  FaceComparisonResult,
+  GazeChallengeResult,
+  LivenessResult,
+  ParsedMrz,
+  PassportCredentials,
+  PassportNfcReadResult,
+} from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { PropsWithChildren } from 'react'
 import { useCallback } from 'react'
@@ -13,11 +21,16 @@ import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/e
 import { IdentityItem } from '@/store/modules/identity/Identity'
 import { walletStore } from '@/store/modules/wallet'
 import { DocType, EDocument, EPassport } from '@/utils/e-document/e-document'
+import type { PassportNfcScanOutput } from '@/utils/e-document/passport-nfc-reader'
 
 export enum Steps {
   SelectDocTypeStep,
   ScanMrzStep,
   ScanPassportNfcStep,
+  PassportNfcDetailsStep,
+  FaceLivenessStep,
+  FaceGazeStep,
+  FaceComparisonStep,
   ScanNfcStep,
   DocumentPreviewStep,
   GenerateProofStep,
@@ -46,6 +59,65 @@ type DocumentScanContext = {
   setTempMrz: (value: FieldRecords) => void
   tempEDoc?: EDocument
   setTempEDoc: (value: EDocument) => void
+  passportNfcDetails?: {
+    normalized?: {
+      firstName?: string
+      lastName?: string
+      nationality?: string
+      nidn?: string
+      expiryDate?: string
+      documentNumber?: string
+    }
+    portrait?: {
+      base64?: string
+      filePath?: string
+    }
+    packageNfcResult?: PassportNfcReadResult
+  }
+  setPassportNfcDetails: (value?: {
+    normalized?: {
+      firstName?: string
+      lastName?: string
+      nationality?: string
+      nidn?: string
+      expiryDate?: string
+      documentNumber?: string
+    }
+    portrait?: {
+      base64?: string
+      filePath?: string
+    }
+    packageNfcResult?: PassportNfcReadResult
+  }) => void
+  setPassportNfcScanOutput: (value: PassportNfcScanOutput) => void
+  passportMrzBarcode?: {
+    credentials: PassportCredentials
+    parsedMrz: ParsedMrz
+    barcode?: {
+      raw?: string
+      nidn?: string
+      fields?: Record<string, unknown>
+    }
+  }
+  setPassportMrzBarcode: (value?: {
+    credentials: PassportCredentials
+    parsedMrz: ParsedMrz
+    barcode?: {
+      raw?: string
+      nidn?: string
+      fields?: Record<string, unknown>
+    }
+  }) => void
+  faceVerification: {
+    enabled: boolean
+    liveness?: LivenessResult
+    gaze?: GazeChallengeResult
+    comparison?: FaceComparisonResult
+  }
+  setFaceLivenessResult: (value: LivenessResult) => void
+  setFaceGazeResult: (value: GazeChallengeResult) => void
+  setFaceComparisonResult: (value: FaceComparisonResult) => void
+  resetFaceVerification: () => void
 
   createIdentity: () => Promise<void>
   revokeIdentity: () => Promise<void>
@@ -78,6 +150,32 @@ const documentScanContext = createContext<DocumentScanContext>({
   tempEDoc: undefined,
   setTempEDoc: () => {
     throw new Error('setEDoc not implemented')
+  },
+  passportNfcDetails: undefined,
+  setPassportNfcDetails: () => {
+    throw new Error('setPassportNfcDetails not implemented')
+  },
+  setPassportNfcScanOutput: () => {
+    throw new Error('setPassportNfcScanOutput not implemented')
+  },
+  passportMrzBarcode: undefined,
+  setPassportMrzBarcode: () => {
+    throw new Error('setPassportMrzBarcode not implemented')
+  },
+  faceVerification: {
+    enabled: false,
+  },
+  setFaceLivenessResult: () => {
+    throw new Error('setFaceLivenessResult not implemented')
+  },
+  setFaceGazeResult: () => {
+    throw new Error('setFaceGazeResult not implemented')
+  },
+  setFaceComparisonResult: () => {
+    throw new Error('setFaceComparisonResult not implemented')
+  },
+  resetFaceVerification: () => {
+    throw new Error('resetFaceVerification not implemented')
   },
 
   createIdentity: async () => {
@@ -119,6 +217,15 @@ export function ScanContextProvider({
 
   const [tempMRZ, setTempMRZ] = useState<FieldRecords>()
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
+  const [passportNfcDetails, setPassportNfcDetails] =
+    useState<DocumentScanContext['passportNfcDetails']>()
+  const [passportMrzBarcode, setPassportMrzBarcode] =
+    useState<DocumentScanContext['passportMrzBarcode']>()
+  const [faceVerification, setFaceVerification] = useState<DocumentScanContext['faceVerification']>(
+    {
+      enabled: true,
+    },
+  )
 
   const [identity, setIdentity] = useState<IdentityItem>()
 
@@ -174,6 +281,11 @@ export function ScanContextProvider({
 
   const handleSetSelectedDocType = useCallback((value: DocType) => {
     setSelectedDocType(value)
+    setPassportNfcDetails(undefined)
+    setPassportMrzBarcode(undefined)
+    setFaceVerification({
+      enabled: true,
+    })
     if (value === DocType.PASSPORT) {
       setCurrentStep(Steps.ScanMrzStep)
     } else {
@@ -183,16 +295,107 @@ export function ScanContextProvider({
 
   const handleSetMrz = useCallback((value: FieldRecords) => {
     setTempMRZ(value)
+    setPassportNfcDetails(undefined)
+    setFaceVerification({
+      enabled: true,
+    })
     setCurrentStep(Steps.ScanPassportNfcStep)
   }, [])
 
   const handleSetEDoc = useCallback(
     (value: EDocument) => {
       setTempEDoc(value)
+      setPassportNfcDetails(undefined)
+      const shouldRunFaceFlow =
+        selectedDocType === DocType.PASSPORT &&
+        value instanceof EPassport &&
+        !faceVerification.comparison?.passed
+
+      if (shouldRunFaceFlow) {
+        setCurrentStep(Steps.PassportNfcDetailsStep)
+        return
+      }
+
       setCurrentStep(Steps.DocumentPreviewStep)
     },
-    [setTempEDoc],
+    [faceVerification.comparison?.passed, selectedDocType, setTempEDoc],
   )
+
+  const handleSetPassportNfcScanOutput = useCallback(
+    (value: PassportNfcScanOutput) => {
+      setTempEDoc(value.ePassport)
+
+      const hasDetails =
+        Boolean(value.packageNfcResult) ||
+        Boolean(value.portrait?.base64 || value.portrait?.filePath) ||
+        Boolean(
+          value.normalized?.firstName ||
+            value.normalized?.lastName ||
+            value.normalized?.nationality ||
+            value.normalized?.nidn ||
+            passportMrzBarcode?.barcode?.nidn ||
+            value.normalized?.expiryDate ||
+            value.normalized?.documentNumber,
+        )
+
+      if (hasDetails) {
+        setPassportNfcDetails({
+          normalized: {
+            firstName: value.normalized?.firstName,
+            lastName: value.normalized?.lastName,
+            nationality: value.normalized?.nationality,
+            nidn: value.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn,
+            expiryDate: value.normalized?.expiryDate,
+            documentNumber: value.normalized?.documentNumber,
+          },
+          portrait: value.portrait,
+          packageNfcResult: value.packageNfcResult,
+        })
+      } else {
+        setPassportNfcDetails(undefined)
+      }
+
+      const shouldRunFaceFlow =
+        selectedDocType === DocType.PASSPORT &&
+        value.ePassport instanceof EPassport &&
+        !faceVerification.comparison?.passed
+
+      if (shouldRunFaceFlow) {
+        setCurrentStep(Steps.PassportNfcDetailsStep)
+        return
+      }
+
+      setCurrentStep(Steps.DocumentPreviewStep)
+    },
+    [faceVerification.comparison?.passed, passportMrzBarcode?.barcode?.nidn, selectedDocType],
+  )
+
+  const setFaceLivenessResult = useCallback((value: LivenessResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      liveness: value,
+    }))
+  }, [])
+
+  const setFaceGazeResult = useCallback((value: GazeChallengeResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      gaze: value,
+    }))
+  }, [])
+
+  const setFaceComparisonResult = useCallback((value: FaceComparisonResult) => {
+    setFaceVerification(previous => ({
+      ...previous,
+      comparison: value,
+    }))
+  }, [])
+
+  const resetFaceVerification = useCallback(() => {
+    setFaceVerification({
+      enabled: true,
+    })
+  }, [])
 
   return (
     <documentScanContext.Provider
@@ -209,8 +412,18 @@ export function ScanContextProvider({
 
         tempMRZ,
         tempEDoc,
+        passportNfcDetails,
+        faceVerification,
         setTempMrz: handleSetMrz,
         setTempEDoc: handleSetEDoc,
+        setPassportNfcDetails,
+        passportMrzBarcode,
+        setPassportMrzBarcode,
+        setPassportNfcScanOutput: handleSetPassportNfcScanOutput,
+        setFaceLivenessResult,
+        setFaceGazeResult,
+        setFaceComparisonResult,
+        resetFaceVerification,
 
         createIdentity,
         revokeIdentity: revokeIdentity,

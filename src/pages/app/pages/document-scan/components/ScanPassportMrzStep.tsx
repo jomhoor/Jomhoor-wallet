@@ -1,0 +1,44 @@
+import type { PassportMrzBarcodeResult } from '@iland/passport-verification'
+import { PassportMrzBarcodeScanScreen } from '@iland/passport-verification'
+import type { FieldRecords } from 'mrz'
+import { useCallback } from 'react'
+import { View } from 'react-native'
+
+import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+
+function mapResultToFieldRecords(result: PassportMrzBarcodeResult): FieldRecords {
+  const firstName = Array.isArray(result.parsedMrz.givenNames)
+    ? result.parsedMrz.givenNames.join(' ')
+    : ''
+
+  return {
+    birthDate: result.credentials.dateOfBirthYYMMDD,
+    documentNumber: result.credentials.documentNumber,
+    expirationDate: result.credentials.expiryDateYYMMDD,
+    firstName,
+    lastName: result.parsedMrz.surname ?? '',
+    nationality: result.parsedMrz.nationality ?? '',
+  } as unknown as FieldRecords
+}
+
+export default function ScanPassportMrzStep() {
+  const { setTempMrz, setPassportMrzBarcode } = useDocumentScanContext()
+
+  const handleDetected = useCallback(
+    (result: PassportMrzBarcodeResult) => {
+      setPassportMrzBarcode({
+        credentials: result.credentials,
+        parsedMrz: result.parsedMrz,
+        barcode: result.barcode,
+      })
+      setTempMrz(mapResultToFieldRecords(result))
+    },
+    [setPassportMrzBarcode, setTempMrz],
+  )
+
+  return (
+    <View className='flex-1 bg-backgroundPrimary'>
+      <PassportMrzBarcodeScanScreen onDetected={handleDetected} />
+    </View>
+  )
+}

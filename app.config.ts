@@ -18,9 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     fallbackToCacheTimeout: 0,
     url: `https://u.expo.dev/${Env.EAS_PROJECT_ID}`
   },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: Env.VERSION.toString(),
   ios: {
     bundleIdentifier: Env.BUNDLE_ID,
     // Universal Links: the app intercepts https://sso.jomhoor.org/auth/sso* URLs.
@@ -40,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
+      "NSLocationWhenInUseUsageDescription": "Location access may be used by identity verification features when required.",
       // Allow self-signed HTTPS (for local Quasar dev server with basicSsl).
       // WebCrypto (crypto.subtle) requires a secure context; without HTTPS the
       // Agora UCAN auth flow fails in the WebView.  Production uses valid certs
@@ -84,6 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ['expo-asset'],
+    ['./plugins/withFaceModelAssets.plugin.js'],
     [
       'expo-font',
       {
@@ -193,11 +193,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID."
       }
     ],
+    // FIX for Face Detection Issue (Hermes + Worklets Incompatibility)
+    // https://github.com/mrousavy/react-native-vision-camera/issues
+    // Issue: Frame processors with worklets don't run in release builds with Hermes.
+    // Root cause: Vision camera plugin must be applied after custom plugins to ensure
+    // babel worklet plugins (react-native-worklets-core/plugin, react-native-reanimated/plugin)
+    // are properly registered before vision-camera initializes.
+    // Plugin execution order: last defined = first to execute (reversed).
+    // So vision-camera must come BEFORE custom plugins to run AFTER them.
+    ['./plugins/withLocalAar.plugin.js'],
+    ['./plugins/withNfc.plugin/build/index.js'],
     ["react-native-vision-camera", {
       "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera.",
-    }],
-    ['./plugins/withNfc.plugin/build/index.js'],
-    ['./plugins/withLocalAar.plugin.js']
+    }]
   ],
   extra: {
     ...ClientEnv,

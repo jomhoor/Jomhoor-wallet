@@ -335,12 +335,7 @@ export const withNfc: ConfigPlugin<
   // })
   // config = withNFCPassportReader(config, props)
 
-  // We start to support Android 12 from v3.11.1, and you will need to update compileSdkVersion to 31,
-  // otherwise the build will fail:
-  config = AndroidConfig.Version.withBuildScriptExtMinimumVersion(config, {
-    name: 'compileSdkVersion',
-    minVersion: 31,
-  })
+  // compileSdkVersion is managed by expo-build-properties in app.config.ts.
 
   if (nfcPermission !== false) {
     config = withIosPermission(config, props)

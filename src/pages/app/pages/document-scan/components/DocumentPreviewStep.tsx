@@ -10,7 +10,8 @@ import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } fro
 import { EID, EPassport } from '@/utils/e-document'
 
 export default function DocumentPreviewStep() {
-  const { tempEDoc, createIdentity } = useDocumentScanContext()
+  const { tempEDoc, createIdentity, passportNfcDetails, passportMrzBarcode } =
+    useDocumentScanContext()
 
   const insets = useSafeAreaInsets()
 
@@ -18,6 +19,7 @@ export default function DocumentPreviewStep() {
     if (!tempEDoc?.personDetails) return null
 
     const { firstName, lastName, passportImageRaw, ...restDetails } = tempEDoc.personDetails
+    const reviewNidn = passportNfcDetails?.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn
 
     return (
       <UiScreenScrollable
@@ -47,6 +49,14 @@ export default function DocumentPreviewStep() {
           </UiCard>
 
           <View className='mt-6 flex flex-col gap-4'>
+            {reviewNidn ? (
+              <View className='flex flex-row items-center justify-between gap-2'>
+                <Text className='typography-body3 capitalize text-textSecondary'>
+                  National ID Number
+                </Text>
+                <Text className='typography-subtitle4 text-textPrimary'>{reviewNidn}</Text>
+              </View>
+            ) : null}
             {restDetails &&
               Object.keys(restDetails).map(key => {
                 return (

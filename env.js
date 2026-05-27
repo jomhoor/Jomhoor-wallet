@@ -106,6 +106,9 @@ const client = z.object({
   // The wallet pins this as the circuit `event_id` input when generating a
   // query proof for /v1/assertions/zk so sso-svc accepts the proof.
   SSO_ZKP_EVENT_ID: z.string().min(1),
+
+  // Debug flags (optional, default empty string)
+  LIVENESS_DEBUG: z.string(),
 })
 
 const buildTime = z.object({
@@ -142,6 +145,9 @@ const _clientEnv = {
   AGORA_ORIGIN: process.env.EXPO_PUBLIC_AGORA_ORIGIN,
   SSO_API_URL: process.env.EXPO_PUBLIC_SSO_API_URL,
   SSO_ZKP_EVENT_ID: process.env.EXPO_PUBLIC_SSO_ZKP_EVENT_ID,
+
+  // Debug flags
+  LIVENESS_DEBUG: process.env.EXPO_PUBLIC_LIVENESS_DEBUG ?? '',
 }
 
 /**
