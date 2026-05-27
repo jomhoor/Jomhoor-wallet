@@ -57,6 +57,9 @@ export type AppStackParamsList = {
     clientId: string
     state: string
     desktopSessionId?: string // present when scanning a desktop QR code
+    // 'sso' = sso-svc-rendered QR (Phase 1.9) → callback to SSO_API_URL
+    // undefined / other = legacy Taraaz-rendered QR → callback to AGORA_ORIGIN
+    desktopOrigin?: 'sso' | string
   }
 }
 

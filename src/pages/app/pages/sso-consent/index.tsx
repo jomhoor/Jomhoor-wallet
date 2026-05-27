@@ -43,7 +43,7 @@ import { UiButton } from '@/ui'
 import { generateAndSubmitSsoZkAssertion } from '@/utils/circuits/sso-zk-proof'
 
 export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoConsent'>) {
-  const { challenge, clientId, state: _state, desktopSessionId } = route.params
+  const { challenge, clientId, state: _state, desktopSessionId, desktopOrigin } = route.params
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -261,39 +261,58 @@ export default function SsoConsentScreen({ route }: AppStackScreenProps<'SsoCons
 
       if (desktopSessionId) {
         // Desktop QR flow: extract the OAuth code from the redirect URL and send it
-        // to the Taraaz backend so the desktop session can be completed.
-        // SECURITY: We use build-time Config.AGORA_ORIGIN, never a URL from the deep link.
+        // to the desktop rendezvous backend so the polling browser can complete.
         const redirectUrl = new URL(data.redirect_url)
         const code = redirectUrl.searchParams.get('code')
         if (!code) {
           throw new Error('[SsoConsent] redirect_url missing code param')
         }
-        const agoraOrigin = Config.AGORA_ORIGIN
-        const resp = await fetch(`${agoraOrigin}/api/v1/auth/sso/desktop/mobile-complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: desktopSessionId, code }),
-        })
-        if (!resp.ok) {
-          const body = await resp.text()
-          console.error('[SsoConsent] mobile-complete failed:', resp.status, body)
-          throw new Error('Desktop session completion failed')
+
+        if (desktopOrigin === 'sso') {
+          // Phase 1.9: QR rendered by sso-svc itself. Post the code back to
+          // sso-svc's rendezvous endpoint via the build-time-locked ssoClient
+          // (origin = Config.SSO_API_URL). 200 = bound, 409 = already bound,
+          // 410 = expired/consumed, 400 = bad request.
+          try {
+            await apiClient.post('/v1/authorize/qr/complete', {
+              session_id: desktopSessionId,
+              code,
+            })
+          } catch (err) {
+            console.error('[SsoConsent] sso-svc qr/complete failed:', err)
+            throw new Error('Desktop session completion failed')
+          }
+        } else {
+          // Legacy Taraaz/Agora QR flow: post the code back to AGORA_ORIGIN.
+          // SECURITY: We use build-time Config.AGORA_ORIGIN, never a URL from the deep link.
+          const agoraOrigin = Config.AGORA_ORIGIN
+          const resp = await fetch(`${agoraOrigin}/api/v1/auth/sso/desktop/mobile-complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: desktopSessionId, code }),
+          })
+          if (!resp.ok) {
+            const body = await resp.text()
+            console.error('[SsoConsent] mobile-complete failed:', resp.status, body)
+            throw new Error('Desktop session completion failed')
+          }
+          // The endpoint can return HTTP 200 with `{ success: false, reason: ... }`
+          // (e.g. invalid_session if the desktop is on a different backend host).
+          // Don't show "Sign-in complete" in that case.
+          let body: { success?: boolean; reason?: string } = {}
+          try {
+            body = (await resp.json()) as { success?: boolean; reason?: string }
+          } catch {
+            // Non-JSON body — treat as failure.
+          }
+          if (body.success !== true) {
+            console.error('[SsoConsent] mobile-complete returned failure:', body)
+            throw new Error(
+              `Desktop session completion failed${body.reason ? `: ${body.reason}` : ''}`,
+            )
+          }
         }
-        // The endpoint can return HTTP 200 with `{ success: false, reason: ... }`
-        // (e.g. invalid_session if the desktop is on a different backend host).
-        // Don't show "Sign-in complete" in that case.
-        let body: { success?: boolean; reason?: string } = {}
-        try {
-          body = (await resp.json()) as { success?: boolean; reason?: string }
-        } catch {
-          // Non-JSON body — treat as failure.
-        }
-        if (body.success !== true) {
-          console.error('[SsoConsent] mobile-complete returned failure:', body)
-          throw new Error(
-            `Desktop session completion failed${body.reason ? `: ${body.reason}` : ''}`,
-          )
-        }
+
         Alert.alert(
           'Sign-in complete',
           'Your desktop browser has been signed in. You can return to it now.',

@@ -62,6 +62,11 @@ export function useSsoDeepLink() {
       // SECURITY: this is just an opaque session ID — the wallet uses build-time
       // Config.AGORA_ORIGIN for the POST target, not any URL from the deep link.
       const desktopSessionId = params['desktop_session_id'] as string | undefined
+      // desktop_origin discriminates between sso-svc-rendered QR (Phase 1.9)
+      // and legacy Taraaz-rendered QR. Only 'sso' is recognized; anything
+      // else (or missing) falls through to the legacy AGORA_ORIGIN POST.
+      const desktopOriginRaw = params['desktop_origin'] as string | undefined
+      const desktopOrigin = desktopOriginRaw === 'sso' ? 'sso' : undefined
 
       if (!challenge || !clientId || !state) {
         console.warn('[SsoDeepLink] Missing required params in SSO deep link:', url)
@@ -69,7 +74,13 @@ export function useSsoDeepLink() {
       }
 
       console.warn('[SsoDeepLink] Navigating to SsoConsent, client_id:', clientId)
-      navigation.navigate('SsoConsent', { challenge, clientId, state, desktopSessionId })
+      navigation.navigate('SsoConsent', {
+        challenge,
+        clientId,
+        state,
+        desktopSessionId,
+        desktopOrigin,
+      })
     }
 
     // Cold-start: URL that opened the app

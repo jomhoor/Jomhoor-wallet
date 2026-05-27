@@ -55,13 +55,21 @@ export default function HubScreen(_props: AppTabScreenProps<'Hub'>) {
       const clientId = parsed.searchParams.get('client_id')
       const state = parsed.searchParams.get('state')
       const desktopSessionId = parsed.searchParams.get('desktop_session_id') ?? msg.sessionId
+      const desktopOriginRaw = parsed.searchParams.get('desktop_origin') ?? undefined
+      const desktopOrigin = desktopOriginRaw === 'sso' ? ('sso' as const) : undefined
 
       if (!challenge || !clientId || !state) {
         console.warn('[HubScreen] SSO deep link missing required params')
         return
       }
 
-      navigation.navigate('SsoConsent', { challenge, clientId, state, desktopSessionId })
+      navigation.navigate('SsoConsent', {
+        challenge,
+        clientId,
+        state,
+        desktopSessionId,
+        desktopOrigin,
+      })
     },
     [navigation],
   )
