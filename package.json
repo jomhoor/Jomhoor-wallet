@@ -43,7 +43,7 @@
     "xcode": "xed -b ios",
     "doctor": "npx expo-doctor@latest",
     "eas-build-pre-install": "./scripts/git-lfs-pre-install.sh",
-    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install"
+    "prebuild": "echo 'ARE YOU SURE YOU WANT TO RUN PREBUILD? npx expo prebuild --skip-dependency-update react && npx pod-install'"
   },
   "release-it": {
     "git": {
