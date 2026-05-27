@@ -1,3 +1,4 @@
+import type { NidProofInputAdapterData, NidVerificationResult } from '@iland/nid-verification'
 import type {
   FaceComparisonResult,
   GazeChallengeResult,
@@ -56,6 +57,11 @@ type DocumentScanContext = {
   setCurrentStep: (step: Steps) => void
 
   creatingIdentityStep: GenProofSteps
+  nidVerificationResult?: NidVerificationResult
+  setNidVerificationResult: (value?: NidVerificationResult) => void
+  nidProofInputAdapter?: NidProofInputAdapterData
+  setNidProofInputAdapter: (value?: NidProofInputAdapterData) => void
+  runMockNidProofGeneration: (value: NidProofInputAdapterData) => Promise<void>
 
   docType?: DocType
   setDocType: (docType: DocType) => void
@@ -142,6 +148,17 @@ const documentScanContext = createContext<DocumentScanContext>({
   },
 
   creatingIdentityStep: GenProofSteps.DownloadCircuit,
+  nidVerificationResult: undefined,
+  setNidVerificationResult: () => {
+    throw new Error('setNidVerificationResult not implemented')
+  },
+  nidProofInputAdapter: undefined,
+  setNidProofInputAdapter: () => {
+    throw new Error('setNidProofInputAdapter not implemented')
+  },
+  runMockNidProofGeneration: async () => {
+    throw new Error('runMockNidProofGeneration not implemented')
+  },
 
   docType: undefined,
   setDocType: () => {
@@ -197,6 +214,10 @@ export function useDocumentScanContext() {
 
 const eidRegistration = new NoirEIDRegistration()
 const epassportRegistration = new NoirEPassportRegistration()
+const sleep = (ms: number) =>
+  new Promise<void>(resolve => {
+    setTimeout(resolve, ms)
+  })
 
 function getInitialStep(docType?: DocType): Steps {
   if (docType === DocType.PASSPORT) return Steps.ScanMrzStep
@@ -272,6 +293,10 @@ export function ScanContextProvider({
       enabled: true,
     },
   )
+  const [nidVerificationResult, setNidVerificationResult] =
+    useState<DocumentScanContext['nidVerificationResult']>()
+  const [nidProofInputAdapter, setNidProofInputAdapter] =
+    useState<DocumentScanContext['nidProofInputAdapter']>()
 
   const [identity, setIdentity] = useState<IdentityItem>()
 
@@ -483,6 +508,8 @@ export function ScanContextProvider({
     setSelectedDocType(value)
     setPassportNfcDetails(undefined)
     setPassportMrzBarcode(undefined)
+    setNidVerificationResult(undefined)
+    setNidProofInputAdapter(undefined)
     setFaceVerification({
       enabled: true,
     })
@@ -502,6 +529,8 @@ export function ScanContextProvider({
     })
     setTempMRZ(value)
     setPassportNfcDetails(undefined)
+    setNidVerificationResult(undefined)
+    setNidProofInputAdapter(undefined)
     setFaceVerification({
       enabled: true,
     })
@@ -515,6 +544,8 @@ export function ScanContextProvider({
       })
       setTempEDoc(value)
       setPassportNfcDetails(undefined)
+      setNidVerificationResult(undefined)
+      setNidProofInputAdapter(undefined)
       const shouldRunFaceFlow =
         selectedDocType === DocType.PASSPORT &&
         value instanceof EPassport &&
@@ -695,6 +726,24 @@ export function ScanContextProvider({
     })
   }, [])
 
+  const runMockNidProofGeneration = useCallback(
+    async (value: NidProofInputAdapterData) => {
+      setNidProofInputAdapter(value)
+      setCurrentStep(Steps.GenerateProofStep)
+      setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
+
+      await sleep(800)
+      setCreatingIdentityStep(GenProofSteps.GenerateProof)
+
+      await sleep(900)
+      setCreatingIdentityStep(GenProofSteps.CreateProfile)
+
+      await sleep(900)
+      setCreatingIdentityStep(GenProofSteps.Final)
+    },
+    [setCurrentStep],
+  )
+
   return (
     <documentScanContext.Provider
       value={{
@@ -704,6 +753,11 @@ export function ScanContextProvider({
         setCurrentStep,
 
         creatingIdentityStep,
+        nidVerificationResult,
+        setNidVerificationResult,
+        nidProofInputAdapter,
+        setNidProofInputAdapter,
+        runMockNidProofGeneration,
 
         docType: selectedDocType,
         setDocType: handleSetSelectedDocType,
