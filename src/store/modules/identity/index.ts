@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { combine, createJSONStorage, persist } from 'zustand/middleware'
 
+import { logIdentityDiagnostic } from '@/helpers/identity-proof-diagnostics'
 import { zustandStorage } from '@/store/helpers'
 
 import { IdentityItem } from './Identity'
@@ -21,11 +22,21 @@ const useIdentityStore = create(
         },
 
         addIdentity: (item: IdentityItem) => {
+          logIdentityDiagnostic('SecureStorage', 'identityStore.addIdentity', {
+            identityType: item.identityType,
+            previousCount: get().identities.length,
+            nextCount: get().identities.length + 1,
+          })
           set({
             identities: [...get().identities, item],
           })
         },
-        clearIdentities: () => set({ identities: [] }),
+        clearIdentities: () => {
+          logIdentityDiagnostic('SecureStorage', 'identityStore.clearIdentities', {
+            previousCount: get().identities.length,
+          })
+          set({ identities: [] })
+        },
       }),
     ),
     {
