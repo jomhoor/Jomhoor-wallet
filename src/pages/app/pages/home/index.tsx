@@ -9,6 +9,7 @@ import { Image, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SvgXml } from 'react-native-svg'
 
+import { useSsoDeepLink } from '@/hooks/useSsoDeepLink'
 import type { AppStackScreenProps } from '@/route-types'
 import { identityStore, walletStore } from '@/store'
 import { useAppTheme } from '@/theme'
@@ -121,6 +122,9 @@ function HomeSectionCard({
 export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
+  // Handle jomhoor://auth/sso?... deep links here so useNavigation() returns
+  // the App Stack navigator (which has SsoConsent registered).
+  useSsoDeepLink()
   const { t } = useTranslation()
   const { palette } = useAppTheme()
   const publicKeyHash = walletStore.usePublicKeyHash().toString()

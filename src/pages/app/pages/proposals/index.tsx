@@ -302,7 +302,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
           }}
           className='gap-4'
         >
-          <Text className='typography-h4 text-textPrimary'>{t('proposals.title')}</Text>
+          <Text className='typography-h4 pt-2 leading-[52px] text-textPrimary'>
+            {t('proposals.title')}
+          </Text>
           {[1, 2, 3].map(i => (
             <ProposalCardSkeleton key={i} delay={i * 100} />
           ))}
@@ -348,7 +350,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
         className='gap-4'
       >
         <View className='flex flex-row items-center justify-between'>
-          <Text className='typography-h4 text-textPrimary'>{t('proposals.title')}</Text>
+          <Text className='typography-h4 pt-2 leading-[52px] text-textPrimary'>
+            {t('proposals.title')}
+          </Text>
           {userNationality && (
             <View className='flex flex-row items-center gap-1 rounded-full bg-backgroundContainer px-2 py-1'>
               <UiIcon customIcon='earthLineIcon' className='size-3 text-textSecondary' />

@@ -12,6 +12,24 @@ The official mobile app for [Iranians.Vote](https://iranians.vote) — a digital
 - Secure on-chain voting (Rarimo L2 blockchain)
 - Privacy-preserving — passport data never leaves the device
 - Agora deliberation integration
+- "Sign in with Jomhoor" SSO (wallet-based OAuth2 + PKCE, mandatory app attestation)
+
+## Architecture
+
+Unlike Rarimo's backend-centric FreedomTool, this wallet performs identity work **directly on-device** and only uses the relayer to submit transactions:
+
+```
+┌────────────┐    ┌──────────────────┐    ┌──────────────┐
+│  Wallet    │───▶│  Relayer         │───▶│  Rarimo L2 / │
+│  (device)  │    │  (tx submission) │    │  Hardhat     │
+└────────────┘    └──────────────────┘    └──────────────┘
+      │                                          ▲
+      └────────── Direct RPC reads ──────────────┘
+```
+
+The wallet scans the document via NFC, parses the SOD, selects the dispatcher, generates the ZK proof, and builds calldata locally. The relayer is minimal: it signs and broadcasts the transaction with a funded wallet. Passport data never leaves the device.
+
+Trade-off: more decentralized and private, but the wallet must know contract addresses, dispatcher hashes, and certificate parsing rules (see [Local Hardhat Development](#local-hardhat-development)).
 
 ## Quick Start
 
@@ -172,7 +190,100 @@ Blockchain RPC endpoints are in `src/api/modules/rarimo/constants.ts`:
 - Testnet: `https://l2.testnet.rarimo.com`
 - Mainnet: `https://l2.rarimo.com`
 
-For local Hardhat development, update the `rpcEvm` field to `http://<YOUR_MAC_IP>:8545`.
+For local Hardhat development, update the `rpcEvm` field to `http://<YOUR_MAC_IP>:8545`. This is separate from `.env.local` (which only sets the relayer URL).
+
+---
+
+## Local Hardhat Development
+
+For full local development without depending on Rarimo testnet, run the platform's Hardhat node and relayers. From the `platform/` sibling repo:
+
+```bash
+# Terminal 1: Hardhat node — keep running
+cd platform/services/passport-contracts
+npx hardhat node --hostname 0.0.0.0   # 0.0.0.0 so the phone can reach it
+
+# Terminal 2: Deploy passport contracts + mock evidence registry
+npx hardhat migrate --network localhost
+node scripts/deploy-mock-evidence-registry.js   # required locally
+
+# Terminal 3: Deploy voting contracts
+cd ../passport-voting-contracts
+npx hardhat migrate --network localhost
+
+# Terminal 4: Docker services (postgres + relayers + nginx)
+cd ../../ && docker-compose up -d postgres registration-relayer proof-verification-relayer nginx
+```
+
+Then create `jomhoor-wallet/.env.local` with the deployed contract addresses + your Mac's LAN IP, update `rpcEvm` in `src/api/modules/rarimo/constants.ts`, and run:
+
+```bash
+APP_ENV=local npx expo run:ios --device
+```
+
+> **Common pitfalls:** Don't run Docker's `hardhat-node` alongside CLI Hardhat — they'll fight over port 8545 (symptom: `getProof` returns `0x`). Without `MockEvidenceRegistry`, `registerCertificate` fails with "function call to a non-contract account". If Hardhat's block.timestamp is far behind real time, voting fails with `InvalidDate` — run `node scripts/advance-time.js`.
+
+See the platform repo's copilot-instructions for the full local-dev playbook, including INID voting setup (proposal parameters, relayer funding).
+
+---
+
+## Circuit Detection
+
+The app auto-selects the ZK circuit system based on the scanned document's signing algorithm:
+
+| Document                            | Signature             | Circuit system                                                  |
+| ----------------------------------- | --------------------- | --------------------------------------------------------------- |
+| Iranian passport (modern)           | RSA 2048 SHA-256      | Circom (Groth16)                                                |
+| Iranian passport Variant A (Type 6) | RSA 2048 SHA-1 E58333 | Circom (Groth16)                                                |
+| Iranian passport Variant B          | RSA 3072 SHA-1 E33259 | Pending — needs `C_RSA_3072_33259` dispatcher (see platform M6) |
+| Iranian National ID (INID)          | RSA 2048              | Noir (`registerIdentity_inid_ca`)                               |
+| German passport / ID (TD1)          | ECDSA brainpoolP384r1 | Noir                                                            |
+| Most EU passports                   | RSA or ECDSA          | Auto-detected                                                   |
+
+Decision flow: parse SOD → extract DS certificate → read signature algorithm OID → RSA routes to Circom, ECDSA routes to Noir. Specific circuit is chosen by hash algorithm, key size / curve, and document type (TD1 vs TD3).
+
+Key files:
+
+| File                                                        | Purpose                               |
+| ----------------------------------------------------------- | ------------------------------------- |
+| `src/utils/circuits/circuit-detector.ts`                    | Detect RSA vs ECDSA, extract key info |
+| `src/api/modules/registration/strategy-factory.ts`          | Return strategy for document          |
+| `src/api/modules/registration/variants/circom-epassport.ts` | Circom/Groth16 passport               |
+| `src/api/modules/registration/variants/noir-epassport.ts`   | Noir/UltraPlonk passport              |
+| `src/api/modules/registration/variants/noir-eid.ts`         | Noir for ID cards (TD1)               |
+
+> INID registration and voting are fully working end-to-end. German passport support is WIP — see the platform repo's notes on the cross-curve certificate chain.
+
+---
+
+## Jomhoor SSO
+
+"Sign in with Jomhoor" is a wallet-based OAuth2 (auth-code + PKCE) flow. The wallet authenticates via its BabyJubjub key plus a mandatory App Attest (iOS) / Play Integrity (Android) assertion; relying parties only ever receive a pairwise `sub` — never the wallet address.
+
+Mobile-side surface:
+
+| File                                                     | Purpose                                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `src/hooks/useWalletRegistration.ts`                     | Wallet generation + `collectAttestation()` + register call                |
+| `src/hooks/useSsoDeepLink.ts`                            | Validates `sso.jomhoor.org` host, dedupes nonces                          |
+| `src/pages/auth/components/DeviceNotSupported/index.tsx` | Modal for non-attestable devices (Huawei / rooted / emulator)             |
+| `src/pages/app/pages/sso-consent/index.tsx`              | Consent screen — fetches `/v1/clients/{id}`, calls `/v1/authorize/verify` |
+| `modules/appattest/`                                     | Native module producing App Attest / Play Integrity tokens                |
+
+The SSO host is hard-coded per `APP_ENV` in `Config.SSO_API_URL` — deep-link query parameters (`api_url`, `apiBaseUrl`) are deliberately ignored. The single trust anchor host is `sso.jomhoor.org`.
+
+App Attest / Play Integrity is a **hard gate** at registration. Non-attestable devices (Huawei without GMS, rooted, emulators, integrity-failing builds) cannot create an account — the `DeviceNotSupported` modal explains why.
+
+### ZK assertions (optional escalation)
+
+For relying parties with `zk_required=true`, the wallet generates a Rarimo `queryIdentity` Groth16 proof (or `queryIdentity_inid_ca` for INID) with `event_id = sso_event_id` and POSTs it to `/v1/assertions/zk` along with a stable `circuit_id` identifying which circuit was used (e.g. `passport_rsa_2048_sha256_e65537`, `passport_rsa_2048_sha1_e58333`, `inid_rsa_2048`). The backend maintains a per-circuit verification-key registry so adding a new document class is a backend config change — the wallet just needs to emit the right `circuit_id`. The backend stores only the nullifier and an expiry; relying parties see only the boolean `zk_verified`, never the document class.
+
+> **Phase 1 — no wallet recovery.** The wallet private key lives only in SecureStore on the device. Re-installing the app or losing the phone produces a fresh BabyJubjub key and therefore a new identity; previous sessions, pairwise subjects, and assertions are not recoverable. ZK-nullifier-based recovery is Phase 2.
+
+**See also:**
+
+- Canonical SSO spec: `docs/SSO/plan.txt` in the platform monorepo
+- Backend service, endpoints, and database tables: [platform/README.md](../platform/README.md#sso-sign-in-with-jomhoor)
 
 ---
 
@@ -202,6 +313,23 @@ APP_ENV=production npx expo run:android --device
 ```
 
 Make sure `JAVA_HOME` points to Java 17 (not 21).
+
+#### Android Release Signing (after `prebuild --clean`)
+
+`expo prebuild --clean` wipes the `android/` directory and resets the signing config back to debug. To produce a signed AAB for Google Play:
+
+1. Re-create `android/keystore.properties`:
+   ```properties
+   storeFile=/absolute/path/to/credentials/upload-keystore.jks
+   storePassword=<password>
+   keyAlias=upload
+   keyPassword=<password>
+   ```
+2. Re-apply the `release` block under `signingConfigs` in `android/app/build.gradle` and point `buildTypes.release` at `signingConfigs.release` (not `signingConfigs.debug`).
+3. Bump `versionCode` (integer) for every Google Play upload; `versionName` should match `package.json`.
+4. Build: `cd android && ./gradlew bundleRelease` — output at `android/app/build/outputs/bundle/release/app-release.aab`.
+
+The upload keystore and certificate live in `credentials/upload-keystore.jks` and `credentials/upload_certificate.pem`.
 
 ### Convenience Scripts
 
@@ -431,6 +559,21 @@ APP_ENV=<env> npx expo prebuild --clean
 ```bash
 chmod +x android/gradlew
 ```
+
+### Local-dev runtime errors
+
+| Error                                              | Likely cause                                                                          | Fix                                                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `function call to a non-contract account`          | `MockEvidenceRegistry` not deployed                                                   | `node scripts/deploy-mock-evidence-registry.js` in `passport-contracts`                           |
+| `invalid icao proof`                               | StateKeeper ICAO root mismatch                                                        | Redeploy contracts; persisting? `await sk.changeICAOMasterTreeRoot('0x490355b1…')`                |
+| `getProof` returns `0x`                            | Two Hardhat nodes (Docker + CLI)                                                      | `docker stop hardhat-node` and use CLI with `--hostname 0.0.0.0`                                  |
+| Phone can't reach RPC                              | Hardhat bound to `localhost` only                                                     | Restart with `--hostname 0.0.0.0`                                                                 |
+| Phone reads stale contracts                        | `rpcEvm` in `constants.ts` points to old IP                                           | Update `src/api/modules/rarimo/constants.ts`                                                      |
+| `InvalidDate` on voting                            | Hardhat clock behind real time                                                        | `node scripts/advance-time.js`                                                                    |
+| `KeyAlreadyExists` during certificate registration | DS cert already registered by another user                                            | Expected — strategy throws `CertificateAlreadyRegisteredError` and skips to identity registration |
+| `PAIRING_FAILED` (`0xd71fd263`) on INID vote       | Public-signal mismatch (selector, ZERO_DATE bounds, or missing `INIDUserData` fields) | Verify proposal selector = `65569`, all date bounds = `52983525027888`, 4-field `INIDUserData`    |
+| `vote overflow` on INID vote                       | `acceptedOptions` too small                                                           | Use `[7]` for 3 options, not `[3]`                                                                |
+| 403 "Insufficient funds in voting account"         | Proposal not funded in relayer DB                                                     | `UPDATE voting_contract_accounts SET residual_balance = …`                                        |
 
 ### Debugging
 

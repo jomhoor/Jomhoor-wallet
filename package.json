@@ -1,13 +1,13 @@
 {
   "name": "jomhoor",
   "description": "Jomhoor - digital democracy platform",
-  "homepage": "https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote",
+  "homepage": "https://github.com/jomhoor/Jomhoor-wallet",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote.git"
+    "url": "https://github.com/jomhoor/Jomhoor-wallet.git"
   },
   "main": "src/main.ts",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "scripts": {
     "prebuild": "npx expo prebuild --clean && npx pod-install",
     "start": "npx expo start --clear",

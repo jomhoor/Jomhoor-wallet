@@ -1,13 +1,16 @@
 import { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useNavigation } from '@react-navigation/native'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native'
 
 import { useCopyToClipboard } from '@/hooks'
 import { AppTabScreenProps } from '@/route-types'
-import { authStore, walletStore } from '@/store'
+import { authStore, identityStore, walletStore } from '@/store'
+import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import { cn, useAppPaddings } from '@/theme'
 import { UiBottomSheet, UiCard, UiHorizontalDivider, UiIcon, useUiBottomSheet } from '@/ui'
+import { recoverSsoWalletWithZk } from '@/utils/circuits/sso-zk-proof'
 
 import { AppStackScrollLayout } from '../../components/app-stack-scroll-layout'
 import { ProfileListButton } from '../../components/profile-list-button'
@@ -28,10 +31,15 @@ export default function ProfileScreen({}: AppTabScreenProps<'Profile'>) {
 function AdvancedCard() {
   const { t } = useTranslation()
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
+  const walletAddress = walletStore.useWalletAddress()
+  const identities = identityStore.useIdentityStore(state => state.identities)
   const logout = authStore.useLogout()
   const { isCopied, copy } = useCopyToClipboard()
   const appPaddings = useAppPaddings()
   const bottomSheet = useUiBottomSheet()
+
+  const eidIdentity = identities.find((i): i is NoirEIDIdentity => i instanceof NoirEIDIdentity)
+
   return (
     <>
       <View className='flex w-full flex-col gap-4'>
@@ -48,7 +56,7 @@ function AdvancedCard() {
         ref={bottomSheet.ref}
         detached
         enableDynamicSizing={false}
-        snapPoints={['30%']}
+        snapPoints={['45%']}
         headerComponent={
           <>
             <UiHorizontalDivider className='mx-auto my-4 mb-0 h-3 w-14 rounded-full' />
@@ -81,6 +89,12 @@ function AdvancedCard() {
               </TouchableOpacity>
             </UiCard>
 
+            <SsoRecoveryRow
+              walletAddress={walletAddress}
+              privateKey={privateKey}
+              identity={eidIdentity}
+            />
+
             <ProfileListButton
               className='mt-auto rounded-full bg-componentPrimary p-3 px-4'
               leadingIcon={
@@ -99,6 +113,86 @@ function AdvancedCard() {
         </BottomSheetView>
       </UiBottomSheet>
     </>
+  )
+}
+
+/**
+ * M5 item 3 — SSO identity recovery entry point.
+ *
+ * Surfaces a button in Profile → Advanced that lets a user who has installed
+ * the wallet on a new device (and re-scanned their ID) re-attach their prior
+ * SSO history. The fresh INID ZK proof is the only authority: sso-svc rebinds
+ * any assertions + pairwise_subjects bound to the same nullifier_hash on a
+ * previous wallet to this new wallet, so relying parties keep seeing the same
+ * pairwise `sub` for the user.
+ *
+ * Hidden entirely when the user has no INID identity yet — recovery requires
+ * a re-scan first.
+ */
+function SsoRecoveryRow(props: {
+  walletAddress: string
+  privateKey: string
+  identity: NoirEIDIdentity | undefined
+}) {
+  const { walletAddress, privateKey, identity } = props
+  const [busy, setBusy] = useState(false)
+
+  if (!identity) return null
+
+  const run = async () => {
+    if (!walletAddress || !privateKey) {
+      Alert.alert('Recovery unavailable', 'Wallet is not ready yet.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { priorWalletExisted } = await recoverSsoWalletWithZk({
+        identity,
+        walletAddress,
+        privateKey,
+      })
+      Alert.alert(
+        priorWalletExisted ? 'Identity restored' : 'No prior identity',
+        priorWalletExisted
+          ? 'Your previous SSO history has been linked to this wallet. Relying parties will keep seeing your existing account.'
+          : 'No prior SSO identity was found for this document. This wallet starts fresh.',
+      )
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error during SSO recovery'
+      console.error('[Profile] SSO recovery failed:', err)
+      Alert.alert('Recovery failed', message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <UiCard className='bg-backgroundPrimary py-4'>
+      <TouchableOpacity
+        disabled={busy}
+        onPress={run}
+        className='flex-row items-center justify-between'
+      >
+        <View className='flex-1 pr-4'>
+          <Text className='typography-body3 font-semibold text-textPrimary'>
+            Recover SSO identity
+          </Text>
+          <Text className='typography-caption2 mt-1 text-textSecondary'>
+            Re-link this device to your prior Jomhoor SSO identity using a fresh ZK proof.
+          </Text>
+        </View>
+        {busy ? (
+          <ActivityIndicator />
+        ) : (
+          <UiIcon
+            libIcon='MaterialCommunityIcons'
+            name='restore'
+            className='text-textPrimary'
+            size={4 * 4}
+          />
+        )}
+      </TouchableOpacity>
+    </UiCard>
   )
 }
 

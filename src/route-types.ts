@@ -18,6 +18,7 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
 export type AuthStackParamsList = {
   Intro: undefined
   CreateWallet: { isImporting: boolean } | undefined
+  DeviceNotSupported: undefined
 }
 
 export type AuthStackScreenProps<T extends keyof AuthStackParamsList> = NativeStackScreenProps<
@@ -50,6 +51,12 @@ export type AppStackParamsList = {
   Poll?: { proposalId?: string }
   Scan?: {
     documentType?: DocType
+  }
+  SsoConsent: {
+    challenge: string
+    clientId: string
+    state: string
+    desktopSessionId?: string // present when scanning a desktop QR code
   }
 }
 

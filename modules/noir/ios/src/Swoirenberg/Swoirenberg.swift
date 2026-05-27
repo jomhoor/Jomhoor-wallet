@@ -3,7 +3,7 @@ import Foundation
 public class Swoirenberg: SwoirCore.SwoirBackendProtocol {
     public static func setup_srs(bytecode: Data, srs_path: String? = nil, recursive: Bool = false) throws -> UInt32 {
         #if targetEnvironment(simulator)
-        throw SwoirBackendError.errorExecuting("simulator")
+        throw SwoirCore.SwoirBackendError.errorExecuting("simulator")
         #else
 
       if bytecode.isEmpty { throw SwoirCore.SwoirBackendError.emptyBytecode }
@@ -73,7 +73,7 @@ public class Swoirenberg: SwoirCore.SwoirBackendProtocol {
 
     public static func execute(bytecode: Data, witnessMap: [String]) throws -> [String] {
         #if targetEnvironment(simulator)
-        throw SwoirBackendError.errorExecuting("simulator")
+        throw SwoirCore.SwoirBackendError.errorExecuting("simulator")
         #else
 
         if bytecode.isEmpty { throw SwoirCore.SwoirBackendError.emptyBytecode }
