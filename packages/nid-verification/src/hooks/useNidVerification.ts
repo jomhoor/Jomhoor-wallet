@@ -32,6 +32,19 @@ function normalizeNationalId(value?: string): string | undefined {
   return normalized
 }
 
+function isValidNationalId(value?: string): boolean {
+  const nationalId = normalizeNationalId(value)
+  if (!nationalId || nationalId.length !== 10) return false
+  if (/^(.)\1+$/.test(nationalId)) return false
+
+  const digits = nationalId.split('').map(Number)
+  const checkDigit = digits[9]
+  const sum = digits.slice(0, 9).reduce((acc, digit, index) => acc + digit * (10 - index), 0)
+  const remainder = sum % 11
+
+  return remainder < 2 ? checkDigit === remainder : checkDigit === 11 - remainder
+}
+
 function resolveNationalId(
   front?: NidFrontScanResult,
   back?: NidBackScanResult,
@@ -77,8 +90,20 @@ function buildBlockingErrors(params: { nationalId?: string; nfc?: NidNfcReadResu
     errors.push('missing-national-id')
   }
 
+  if (params.nationalId && !isValidNationalId(params.nationalId)) {
+    errors.push('invalid-national-id')
+  }
+
   if (!params.nfc || params.nfc.status !== 'success') {
     errors.push('nfc-read-not-successful')
+  }
+
+  if (!params.nfc?.signingCertHex) {
+    errors.push('missing-signing-certificate')
+  }
+
+  if (!params.nfc?.authCertHex) {
+    errors.push('missing-auth-certificate')
   }
 
   return errors
@@ -114,12 +139,15 @@ export function useNidVerification({
       setErrorMessage(undefined)
       setPendingResult(undefined)
       const nationalId =
-        normalizeNationalId(nationalIdInput) ??
-        normalizeNationalId(initialNationalId) ??
-        normalizeNationalId('0084575948')
+        normalizeNationalId(nationalIdInput) ?? normalizeNationalId(initialNationalId)
 
       if (!nationalId) {
         setError(new Error('National ID is required.'))
+        return
+      }
+
+      if (!isValidNationalId(nationalId)) {
+        setError(new Error('National ID is invalid.'))
         return
       }
 
@@ -142,26 +170,36 @@ export function useNidVerification({
       setPendingResult(undefined)
 
       const rawValue = String(barcodeRaw ?? '').trim()
-      const fallbackNationalId = front?.nationalId?.value ?? initialNationalId ?? '0084575948'
-      const fallbackRaw = `NID*${fallbackNationalId}*IRN`
+      const fallbackNationalId = front?.nationalId?.value ?? initialNationalId
+      const fallbackRaw = fallbackNationalId ? `NID*${fallbackNationalId}*IRN` : ''
       const resolvedRaw = rawValue || fallbackRaw
+
+      if (!resolvedRaw) {
+        setError(new Error('Barcode payload is required.'))
+        return
+      }
+
       const barcode = parseNidBarcode(resolvedRaw)
+      const parsedNationalId = normalizeNationalId(barcode?.nidn)
+
+      if (!barcode || !parsedNationalId || !isValidNationalId(parsedNationalId)) {
+        setError(new Error('Barcode unreadable. Please rescan the card back barcode.'))
+        return
+      }
 
       setBack({
         backImageUri: 'file://mock-nid-back.jpg',
         barcodeRaw: resolvedRaw,
         barcode,
-        nationalId: barcode?.nidn
-          ? {
-              value: barcode.nidn,
-              source: 'barcode',
-              confidence: 0.95,
-            }
-          : undefined,
+        nationalId: {
+          value: parsedNationalId,
+          source: 'barcode',
+          confidence: 0.95,
+        },
       })
       setCurrentStep('nfc-read')
     },
-    [front?.nationalId?.value, initialNationalId],
+    [front?.nationalId?.value, initialNationalId, setError],
   )
 
   const readNfc = useCallback(async () => {
@@ -190,6 +228,9 @@ export function useNidVerification({
         nationalId,
         nfc: result,
       })
+      if (mismatches.length > 0) {
+        blockingErrors.push('national-id-mismatch')
+      }
       const verified = mismatches.length === 0 && blockingErrors.length === 0
 
       const phaseTwoHandoffResult: NidVerificationResult = {
@@ -267,6 +308,7 @@ export function useNidVerification({
     front,
     back,
     nfc,
+    pendingResult,
     busy,
     errorMessage,
     submitFront,

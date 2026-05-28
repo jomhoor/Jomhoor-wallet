@@ -64,22 +64,24 @@ export async function readPassportNfc(input: PassportNfcReadInput): Promise<Pass
 ```
 
 **Input**:
+
 ```typescript
 type PassportNfcReadInput = Omit<PassportCredentials, 'mrzKey'> & {
-  documentNumber: string      // 9-char from MRZ
-  dateOfBirth: string         // YYMMDD
-  documentExpiryDate: string  // YYMMDD
-  mrzKey?: string            // BAC/PACE key (derived from above if not provided)
-  backend?: PassportNfcBackend  // 'native-ios' | 'native-android'
+  documentNumber: string // 9-char from MRZ
+  dateOfBirth: string // YYMMDD
+  documentExpiryDate: string // YYMMDD
+  mrzKey?: string // BAC/PACE key (derived from above if not provided)
+  backend?: PassportNfcBackend // 'native-ios' | 'native-android'
   requestedDataGroups?: string[] // which DGs to read
-  includeImageBase64?: boolean   // include portrait base64
-  persistDg2ImageFile?: boolean  // save portrait to file
+  includeImageBase64?: boolean // include portrait base64
+  persistDg2ImageFile?: boolean // save portrait to file
 }
 ```
 
 ### How It Works
 
 #### **Backend Selection**:
+
 ```typescript
 const selectBackend = (input?: PassportNfcReadInput): PassportNfcBackend => {
   if (input?.backend) return input.backend
@@ -91,11 +93,13 @@ const selectBackend = (input?: PassportNfcReadInput): PassportNfcBackend => {
 ```
 
 **Key Path**: Uses **native iOS/Android modules** to perform actual NFC reading
+
 - iOS: `NFC.framework` (Apple's native NFC)
 - Android: `android.nfc` (Android's native NFC)
 - These are invoked via bridge: `invokeNativeRead(input)`
 
 #### **Native Module Returns Raw Response**:
+
 ```typescript
 // Native module returns structured payload with ALL data groups
 {
@@ -114,18 +118,19 @@ const selectBackend = (input?: PassportNfcReadInput): PassportNfcBackend => {
 ```
 
 #### **Normalization in Package**:
+
 ```typescript
 const normalizeReadResult = (backend: PassportNfcBackend, raw: unknown): PassportNfcReadResult => {
-  const files = mapNativeFiles(payload.files)  // Extract DG data
-  
+  const files = mapNativeFiles(payload.files) // Extract DG data
+
   return {
     finalStatus,
     backend,
-    files,  // Each file has: { status, data, base64?, filePath?, error? }
+    files, // Each file has: { status, data, base64?, filePath?, error? }
     accessControl,
     portrait,
-    normalized,  // Extracted from DG1.parsed
-    raw,         // Full native response preserved
+    normalized, // Extracted from DG1.parsed
+    raw, // Full native response preserved
   }
 }
 ```
@@ -133,11 +138,12 @@ const normalizeReadResult = (backend: PassportNfcBackend, raw: unknown): Passpor
 ### Output: PassportNfcReadResult
 
 **Key Structure**:
+
 ```typescript
 type PassportNfcReadResult = {
   finalStatus: 'success' | 'partial_success' | 'error'
   backend: 'native-ios' | 'native-android'
-  
+
   files: Record<string, PassportNfcFileResult>
   // where each file has:
   // {
@@ -148,29 +154,29 @@ type PassportNfcReadResult = {
   //     imageBase64?: string    // DG2 image
   //   }
   // }
-  
+
   accessControl?: {
     method?: 'PACE' | 'BAC'
     paceStatus?: string
     bacStatus?: string
   }
-  
+
   portrait?: {
-    base64?: string    // DG2 image base64
-    filePath?: string  // Saved to disk
+    base64?: string // DG2 image base64
+    filePath?: string // Saved to disk
   }
-  
+
   normalized?: {
     documentNumber?: string
     firstName?: string
     lastName?: string
-    birthDate?: string    // YYMMDD
-    expiryDate?: string   // YYMMDD
+    birthDate?: string // YYMMDD
+    expiryDate?: string // YYMMDD
     nationality?: string
     sex?: string
   }
-  
-  raw?: unknown  // Full native response
+
+  raw?: unknown // Full native response
 }
 ```
 
@@ -183,6 +189,7 @@ type PassportNfcReadResult = {
 **File**: `src/pages/app/pages/document-scan/adapters/packageNfcResultToEPassport.ts`
 
 **Function**:
+
 ```typescript
 export function packageNfcResultToEPassport(result: PassportNfcReadResult): EPassport
 ```
@@ -190,6 +197,7 @@ export function packageNfcResultToEPassport(result: PassportNfcReadResult): EPas
 ### Conversion Logic
 
 #### **Step 1: Extract Raw Hex Bytes**
+
 ```typescript
 const readRawHex = (result: PassportNfcReadResult, key: string): string | undefined => {
   const file = readFileData(result, key)
@@ -197,13 +205,14 @@ const readRawHex = (result: PassportNfcReadResult, key: string): string | undefi
 }
 
 // Extract critical DGs
-const dg1RawHex = readRawHex(result, 'DG1')      // ← Machine Readable Zone
-const sodRawHex = readRawHex(result, 'SOD')      // ← Signed Object Digest
-const dg15RawHex = readRawHex(result, 'DG15')    // ← Public Key (optional)
-const dg11RawHex = readRawHex(result, 'DG11')    // ← Personal Details (optional)
+const dg1RawHex = readRawHex(result, 'DG1') // ← Machine Readable Zone
+const sodRawHex = readRawHex(result, 'SOD') // ← Signed Object Digest
+const dg15RawHex = readRawHex(result, 'DG15') // ← Public Key (optional)
+const dg11RawHex = readRawHex(result, 'DG11') // ← Personal Details (optional)
 ```
 
 #### **Step 2: Validate Critical Data**
+
 ```typescript
 // DG1 and SOD are REQUIRED for proof generation
 if (!dg1RawHex) {
@@ -215,6 +224,7 @@ if (!sodRawHex) {
 ```
 
 #### **Step 3: Convert Hex to Uint8Array**
+
 ```typescript
 const hexToUint8Array = (hex: string): Uint8Array => {
   const normalized = hex.trim()
@@ -227,18 +237,19 @@ const hexToUint8Array = (hex: string): Uint8Array => {
   return new Uint8Array(bytes)
 }
 
-const dg1Bytes = hexToUint8Array(dg1RawHex)       // Binary form
+const dg1Bytes = hexToUint8Array(dg1RawHex) // Binary form
 const sodBytes = hexToUint8Array(sodRawHex)
 const dg15Bytes = dg15RawHex ? hexToUint8Array(dg15RawHex) : undefined
 const dg11Bytes = dg11RawHex ? hexToUint8Array(dg11RawHex) : undefined
 ```
 
 #### **Step 4: Extract Personal Details**
+
 ```typescript
 function buildPersonDetails(result: PassportNfcReadResult): PersonDetails {
-  const normalized = result.normalized  // From normalized NFC result
-  const parsed = readParsed(result, 'DG1')  // From parsed DG1
-  const dg2 = readFileData(result, 'DG2')   // Portrait
+  const normalized = result.normalized // From normalized NFC result
+  const parsed = readParsed(result, 'DG1') // From parsed DG1
+  const dg2 = readFileData(result, 'DG2') // Portrait
 
   return {
     firstName: normalized?.firstName ?? parsed?.firstName ?? null,
@@ -255,6 +266,7 @@ function buildPersonDetails(result: PassportNfcReadResult): PersonDetails {
 ```
 
 #### **Step 5: Create EPassport**
+
 ```typescript
 return new EPassport({
   docCode: 'P',  // Passport
@@ -273,20 +285,20 @@ return new EPassport({
 
 ```typescript
 export class EPassport implements EDocument {
-  docCode: string  // 'P'
+  docCode: string // 'P'
   _personDetails: PersonDetails
-  
+
   // ← THE KEY BYTES FOR PROOF GENERATION
-  sodBytes: Uint8Array          // Signed Object Digest (contains hashes)
-  dg1Bytes: Uint8Array          // Machine Readable Zone data
-  dg15Bytes?: Uint8Array        // Public key (optional)
-  dg11Bytes?: Uint8Array        // Personal details (optional)
-  aaSignature?: Uint8Array      // Active authentication signature
-  
+  sodBytes: Uint8Array // Signed Object Digest (contains hashes)
+  dg1Bytes: Uint8Array // Machine Readable Zone data
+  dg15Bytes?: Uint8Array // Public key (optional)
+  dg11Bytes?: Uint8Array // Personal details (optional)
+  aaSignature?: Uint8Array // Active authentication signature
+
   get sod(): Sod {
-    return new Sod(this.sodBytes)  // Parses sodBytes into structure
+    return new Sod(this.sodBytes) // Parses sodBytes into structure
   }
-  
+
   get personDetails(): PersonDetails {
     return this._personDetails
   }
@@ -307,10 +319,10 @@ export class EPassport implements EDocument {
 const createIdentity = useCallback(async () => {
   // tempEDoc is set via setPassportNfcScanOutput → setTempEDoc
   if (!tempEDoc) throw new Error('EDocument is not set')
-  
+
   // Select strategy based on document type
   const strategy = selectedDocType === DocType.PASSPORT ? epassportRegistration : eidRegistration
-  
+
   // Create identity (generates proof + registers to Rarimo)
   const [identityItem, registrationError] = await tryCatch(
     strategy.createIdentity(tempEDoc as EPassport, privateKey, publicKeyHash, {
@@ -329,6 +341,7 @@ const createIdentity = useCallback(async () => {
 #### **createIdentity() flow**:
 
 1. **Validate EPassport**:
+
    ```typescript
    if (eDocument.sodBytes.length === 0 || eDocument.dg1Bytes.length === 0) {
      throw new TypeError('Passport NFC result is missing required DG/SOD bytes')
@@ -336,23 +349,27 @@ const createIdentity = useCallback(async () => {
    ```
 
 2. **Fetch CSCA (Country Signing CA) chain**:
+
    ```typescript
    const CSCACertBytes = await RegistrationStrategy.retrieveCSCAFromPem()
    ```
 
 3. **Parse SOD and get certificate**:
+
    ```typescript
    const slaveCertificate = eDocument.sod.slaveCertificate
    // sod is parsed from sodBytes
    ```
 
 4. **Get SMT proof from Rarimo** (verifies certificate is registered):
+
    ```typescript
    const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(slaveCertificate)
    // Returns: { root, siblings, existence }
    ```
 
 5. **Register certificate if needed**:
+
    ```typescript
    if (!slaveCertSmtProof.existence) {
      // If cert not yet on Rarimo, register it first
@@ -384,30 +401,30 @@ async prove(params: {
   // Download trusted setup and bytecode
   await NoirCircuitParams.downloadTrustedSetup()
   const byteCode = await this.noirCircuitParams.downloadByteCode()
-  
+
   // Prepare circuit inputs FROM EPASSPORT
   const inputs = {
     // ← From EPassport.dg1Bytes
     dg1: this.eDoc.dg1Bytes,
-    
+
     // ← From EPassport.dg15Bytes (optional)
     dg15: this.eDoc.dg15Bytes,
-    
+
     // ← From EPassport.sod (parsed sodBytes)
     ec: this.eDoc.sod.encapsulatedContent,    // Hashes of all DGs
     sa: this.eDoc.sod.signedAttributes,       // Signed attributes
-    
+
     // ← From certificate public key (extracted)
     pk: this.chunkedParams.pk_chunked,        // Public key chunks
     reduction: this.chunkedParams.reduction,  // Barret reduction
     sig: this.chunkedParams.sig_chunked,      // Signature chunks
-    
+
     // ← From parameters
     sk_identity: params.skIdentity,           // User's wallet key
     icao_root: params.icaoRoot,               // From Rarimo SMT
     inclusion_branches: params.inclusionBranches,  // From Rarimo SMT
   }
-  
+
   // Call Noir prover
   return this.noirCircuitParams.prove(JSON.stringify(inputs), byteCode)
 }
@@ -415,18 +432,18 @@ async prove(params: {
 
 ### Data Dependencies for Proof
 
-| Input | Source | Type | Why Needed |
-|-------|--------|------|-----------|
-| `dg1` | EPassport.dg1Bytes | Uint8Array | Prove passport data integrity |
-| `dg15` | EPassport.dg15Bytes | Uint8Array | Public key validation (optional) |
-| `ec` | EPassport.sod.encapsulatedContent | Uint8Array | Signed object digest hashes |
-| `sa` | EPassport.sod.signedAttributes | Uint8Array | Signature over DGs |
-| `pk` | Certificate public key | string[] (chunked) | Signature verification |
-| `reduction` | Computed from pk | string[] (chunked) | Barret reduction for RSA |
-| `sig` | Certificate signature | string[] (chunked) | Certificate signature |
-| `sk_identity` | User's wallet | bigint | Sign the proof |
-| `icao_root` | Rarimo SMT root | bigint | Certificate chain validation |
-| `inclusion_branches` | Rarimo SMT siblings | bigint[] | Certificate inclusion proof |
+| Input                | Source                            | Type               | Why Needed                       |
+| -------------------- | --------------------------------- | ------------------ | -------------------------------- |
+| `dg1`                | EPassport.dg1Bytes                | Uint8Array         | Prove passport data integrity    |
+| `dg15`               | EPassport.dg15Bytes               | Uint8Array         | Public key validation (optional) |
+| `ec`                 | EPassport.sod.encapsulatedContent | Uint8Array         | Signed object digest hashes      |
+| `sa`                 | EPassport.sod.signedAttributes    | Uint8Array         | Signature over DGs               |
+| `pk`                 | Certificate public key            | string[] (chunked) | Signature verification           |
+| `reduction`          | Computed from pk                  | string[] (chunked) | Barret reduction for RSA         |
+| `sig`                | Certificate signature             | string[] (chunked) | Certificate signature            |
+| `sk_identity`        | User's wallet                     | bigint             | Sign the proof                   |
+| `icao_root`          | Rarimo SMT root                   | bigint             | Certificate chain validation     |
+| `inclusion_branches` | Rarimo SMT siblings               | bigint[]           | Certificate inclusion proof      |
 
 ---
 
@@ -497,14 +514,14 @@ async prove(params: {
 
 ## 6. Key Files in Passport Flow
 
-| Layer | File | Key Function | Output |
-|-------|------|--------------|--------|
-| **NFC** | `packages/passport-verification/src/passport/nfc/runtime.ts` | `readPassportNfc()` | `PassportNfcReadResult` |
-| **Adapter** | `src/pages/app/pages/document-scan/adapters/packageNfcResultToEPassport.ts` | `packageNfcResultToEPassport()` | `EPassport` |
-| **Storage** | `src/utils/e-document/e-document.ts` | `class EPassport` | `.dg1Bytes`, `.dg15Bytes`, `.sodBytes` |
-| **Proof Gen** | `src/utils/circuits/registration/noir-registration-circuit.ts` | `NoirEPassportBasedRegistrationCircuit.prove()` | `NoirZKProof` |
-| **Registration** | `src/api/modules/registration/variants/noir-epassport.ts` | `NoirEPassportRegistration.createIdentity()` | Proof + Rarimo registration |
-| **Rarimo** | `src/api/modules/registration/relayer.ts` | `relayerRegister()` | Transaction hash |
+| Layer            | File                                                                        | Key Function                                    | Output                                 |
+| ---------------- | --------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------- |
+| **NFC**          | `packages/passport-verification/src/passport/nfc/runtime.ts`                | `readPassportNfc()`                             | `PassportNfcReadResult`                |
+| **Adapter**      | `src/pages/app/pages/document-scan/adapters/packageNfcResultToEPassport.ts` | `packageNfcResultToEPassport()`                 | `EPassport`                            |
+| **Storage**      | `src/utils/e-document/e-document.ts`                                        | `class EPassport`                               | `.dg1Bytes`, `.dg15Bytes`, `.sodBytes` |
+| **Proof Gen**    | `src/utils/circuits/registration/noir-registration-circuit.ts`              | `NoirEPassportBasedRegistrationCircuit.prove()` | `NoirZKProof`                          |
+| **Registration** | `src/api/modules/registration/variants/noir-epassport.ts`                   | `NoirEPassportRegistration.createIdentity()`    | Proof + Rarimo registration            |
+| **Rarimo**       | `src/api/modules/registration/relayer.ts`                                   | `relayerRegister()`                             | Transaction hash                       |
 
 ---
 
@@ -555,12 +572,12 @@ Input (PassportNfcReadResult):
 Output (EPassport):
 {
   docCode: 'P',
-  
+
   // Binary forms (Uint8Array)
   dg1Bytes: Uint8Array[20000] // Binary form of DG1 hex
   dg15Bytes: Uint8Array[1024]
   sodBytes: Uint8Array[500000]
-  
+
   personDetails: {
     firstName: "HENRIKA",
     lastName: "SZILVÁSSY",
@@ -569,7 +586,7 @@ Output (EPassport):
     documentNumber: "L898902C",
     ...
   },
-  
+
   aaSignature: undefined, // Will be filled from activeAuthentication if present
 }
 ```
@@ -593,7 +610,7 @@ class Sod {
     this.slaveCertificate = extractCertFromSignerInfo(...)  // ← auth cert
     this.signatures = [...]  // All signatures
   }
-  
+
   encapsulatedContent: Uint8Array   // Contains hash of each DG
   signedAttributes: Uint8Array      // What was signed
   slaveCertificate: ExtendedCertificate
@@ -625,20 +642,21 @@ class Sod {
 
 ## 9. Mapping: How to Replicate Passport Flow for NID
 
-| Passport Component | File | NID Equivalent | Status |
-|-------------------|------|---|--------|
-| Native iOS/Android NFC module | (built-in) | inid-nfc-reader + native module | ❌ Only reads certs |
-| `readPassportNfc()` | passport-verification pkg | `readLiveNidNfc()` | ❌ Doesn't call DG reading |
-| `PassportNfcReadResult` type | passport-verification pkg | `NidNfcReadResult` type | ❌ Missing DG fields |
-| `packageNfcResultToEPassport()` | adapters/ | `nidNfcResultToEID()` | ❌ Doesn't exist |
-| `EPassport` storage | e-document.ts | `EID` class | ⚠️ No DG byte fields |
-| Proof circuit access | noir-registration-circuit.ts | Same circuit | ❌ Receives empty/null DG data |
+| Passport Component              | File                         | NID Equivalent                  | Status                         |
+| ------------------------------- | ---------------------------- | ------------------------------- | ------------------------------ |
+| Native iOS/Android NFC module   | (built-in)                   | inid-nfc-reader + native module | ❌ Only reads certs            |
+| `readPassportNfc()`             | passport-verification pkg    | `readLiveNidNfc()`              | ❌ Doesn't call DG reading     |
+| `PassportNfcReadResult` type    | passport-verification pkg    | `NidNfcReadResult` type         | ❌ Missing DG fields           |
+| `packageNfcResultToEPassport()` | adapters/                    | `nidNfcResultToEID()`           | ❌ Doesn't exist               |
+| `EPassport` storage             | e-document.ts                | `EID` class                     | ⚠️ No DG byte fields           |
+| Proof circuit access            | noir-registration-circuit.ts | Same circuit                    | ❌ Receives empty/null DG data |
 
 ---
 
 ## 10. Step-by-Step Replication
 
 ### What Passport Does
+
 1. Native module reads and extracts DG1, DG15, SOD as hex
 2. `readPassportNfc()` normalizes and returns `PassportNfcReadResult` with all hex strings
 3. Adapter converts hex → Uint8Array and validates
@@ -646,6 +664,7 @@ class Sod {
 5. Proof circuit uses `ePassport.dg1Bytes`, `ePassport.dg15Bytes`, `ePassport.sod`
 
 ### What NID Needs to Do
+
 1. **Extend inid-nfc-reader.ts**: Add `readNidDataGroups()` to extract DG1, DG15, SOD
 2. **Extend NidNfcReadResult**: Add `dg1Bytes`, `dg15Bytes`, `sodBytes` fields
 3. **Create adapter**: `nidNfcResultToEID()` to convert hex to Uint8Array
@@ -691,4 +710,3 @@ const proof = circuit.prove({
 ```
 
 This gap is why proof generation fails for NID.
-

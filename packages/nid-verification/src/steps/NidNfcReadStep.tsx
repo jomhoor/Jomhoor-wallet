@@ -27,7 +27,9 @@ export type NidNfcReadStepProps = {
   stepIndex: number
   totalSteps: number
   busy?: boolean
+  blockingErrors?: string[]
   errorMessage?: string
+  mismatches?: string[]
   nfcResult?: NidNfcReadResult
   onContinue?: () => void
   onRead: () => void
@@ -39,7 +41,9 @@ export function NidNfcReadStep({
   stepIndex,
   totalSteps,
   busy,
+  blockingErrors,
   errorMessage,
+  mismatches,
   nfcResult,
   onContinue,
   onRead,
@@ -47,6 +51,7 @@ export function NidNfcReadStep({
   onCancel,
 }: NidNfcReadStepProps): JSX.Element {
   const hasNfcSuccess = nfcResult?.status === 'success'
+  const hasBlockingErrors = Boolean(blockingErrors && blockingErrors.length > 0)
   const nfcDebugText = nfcResult ? formatNfcDebug(nfcResult) : undefined
 
   return (
@@ -75,7 +80,21 @@ export function NidNfcReadStep({
         </View>
       ) : null}
 
-      {hasNfcSuccess && onContinue ? (
+      {mismatches && mismatches.length > 0 ? (
+        <View style={styles.warningCard}>
+          <Text style={styles.warningTitle}>Mismatches</Text>
+          <Text style={styles.warningValue}>{mismatches.join('\n')}</Text>
+        </View>
+      ) : null}
+
+      {blockingErrors && blockingErrors.length > 0 ? (
+        <View style={styles.errorCard}>
+          <Text style={styles.errorCardTitle}>Blocking Errors</Text>
+          <Text style={styles.errorCardValue}>{blockingErrors.join('\n')}</Text>
+        </View>
+      ) : null}
+
+      {hasNfcSuccess && onContinue && !hasBlockingErrors ? (
         <Pressable style={styles.primaryButton} onPress={onContinue}>
           <Text style={styles.primaryButtonText}>Continue</Text>
         </Pressable>
@@ -130,6 +149,25 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 13,
   },
+  errorCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+    padding: 12,
+  },
+  errorCardTitle: {
+    color: '#991B1B',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  errorCardValue: {
+    color: '#991B1B',
+    fontSize: 12,
+    lineHeight: 17,
+  },
   info: {
     color: '#0F766E',
     fontSize: 14,
@@ -176,5 +214,24 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 24,
     fontWeight: '700',
+  },
+  warningCard: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+    padding: 12,
+  },
+  warningTitle: {
+    color: '#92400E',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  warningValue: {
+    color: '#92400E',
+    fontSize: 12,
+    lineHeight: 17,
   },
 })

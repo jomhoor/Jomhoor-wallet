@@ -28,6 +28,7 @@ export function NidVerificationFlow({
     busy,
     errorMessage,
     nfc,
+    pendingResult,
     submitFront,
     submitBack,
     readNfc,
@@ -74,6 +75,8 @@ export function NidVerificationFlow({
               busy={busy}
               errorMessage={errorMessage}
               nfcResult={nfc}
+              mismatches={pendingResult?.mismatches}
+              blockingErrors={pendingResult?.blockingErrors}
               onContinue={completeAfterNfc}
               onRead={() => {
                 void readNfc()
