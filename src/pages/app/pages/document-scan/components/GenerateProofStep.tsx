@@ -116,9 +116,11 @@ export default function GenerateProofStep() {
           ),
         }[creatingIdentityStep]
       }
-      {nidProofInputAdapter?.mode === 'phase1-mock' ? (
+      {nidProofInputAdapter?.mode ? (
         <Text className='typography-caption mt-4 text-center text-textSecondary'>
-          Running phase 1 NID mock proof adapter path
+          {nidProofInputAdapter.mode === 'phase2-nfc-live'
+            ? 'Running phase 2 NID live NFC adapter path'
+            : 'Running phase 1 NID mock proof adapter path'}
         </Text>
       ) : null}
     </View>

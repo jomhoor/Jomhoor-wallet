@@ -1,16 +1,16 @@
 import { View } from 'react-native'
 
 import { useNidVerification } from '../hooks'
-import type { ReadMockNidNfcInput } from '../nfc'
-import { NidBackScanStep, NidFrontScanStep, NidLivenessFaceStep, NidNfcReadStep } from '../steps'
-import type { NidNfcReadResult, NidVerificationResult } from '../types'
+import type { NidNfcReader } from '../nfc'
+import { NidBackScanStep, NidFrontScanStep, NidNfcReadStep } from '../steps'
+import type { NidVerificationResult } from '../types'
 
 export type NidVerificationFlowProps = {
   initialNationalId?: string
   onComplete: (result: NidVerificationResult) => void
   onCancel?: () => void
   onError?: (error: Error) => void
-  nfcReader?: (input: ReadMockNidNfcInput) => Promise<NidNfcReadResult>
+  nfcReader?: NidNfcReader
 }
 
 export function NidVerificationFlow({
@@ -25,13 +25,13 @@ export function NidVerificationFlow({
     stepIndex,
     totalSteps,
     front,
-    nfc,
     busy,
     errorMessage,
+    nfc,
     submitFront,
     submitBack,
     readNfc,
-    completeFaceVerification,
+    completeAfterNfc,
     goBack,
     cancel,
   } = useNidVerification({
@@ -73,20 +73,11 @@ export function NidVerificationFlow({
               totalSteps={totalSteps}
               busy={busy}
               errorMessage={errorMessage}
+              nfcResult={nfc}
+              onContinue={completeAfterNfc}
               onRead={() => {
                 void readNfc()
               }}
-              onBack={goBack}
-              onCancel={cancel}
-            />
-          ),
-          'face-liveness': (
-            <NidLivenessFaceStep
-              stepIndex={stepIndex}
-              totalSteps={totalSteps}
-              nfc={nfc}
-              errorMessage={errorMessage}
-              onComplete={completeFaceVerification}
               onBack={goBack}
               onCancel={cancel}
             />

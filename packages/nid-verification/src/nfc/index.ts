@@ -1,15 +1,17 @@
 import type { NidNfcReadResult } from '../types'
 
-export type ReadMockNidNfcInput = {
+export type ReadNidNfcInput = {
   expectedNationalId?: string
 }
+
+export type NidNfcReader = (input: ReadNidNfcInput) => Promise<NidNfcReadResult>
 
 const wait = (ms: number) =>
   new Promise<void>(resolve => {
     setTimeout(resolve, ms)
   })
 
-export async function readMockNidNfc(input: ReadMockNidNfcInput = {}): Promise<NidNfcReadResult> {
+export async function readMockNidNfc(input: ReadNidNfcInput = {}): Promise<NidNfcReadResult> {
   await wait(800)
 
   const resolvedNationalId = input.expectedNationalId ?? '0084575948'

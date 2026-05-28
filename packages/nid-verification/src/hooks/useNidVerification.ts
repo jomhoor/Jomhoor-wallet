@@ -1,20 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
 
 import { parseNidBarcode } from '../barcode'
-import { buildMockNidFaceVerificationResult } from '../face'
-import { readMockNidNfc, type ReadMockNidNfcInput } from '../nfc'
+import { readMockNidNfc, type NidNfcReader } from '../nfc'
 import type {
   NidBackScanResult,
-  NidFaceVerificationResult,
   NidFrontScanResult,
   NidNfcReadResult,
   NidVerificationResult,
   NidVerificationStep,
 } from '../types'
 
-const STEP_ORDER: NidVerificationStep[] = ['front-scan', 'back-scan', 'nfc-read', 'face-liveness']
-
-type NidNfcReader = (input: ReadMockNidNfcInput) => Promise<NidNfcReadResult>
+const STEP_ORDER: NidVerificationStep[] = ['front-scan', 'back-scan', 'nfc-read']
 
 export type UseNidVerificationOptions = {
   initialNationalId?: string
@@ -74,11 +70,7 @@ function collectMismatches(
   return mismatches
 }
 
-function buildBlockingErrors(params: {
-  nationalId?: string
-  nfc?: NidNfcReadResult
-  face?: NidFaceVerificationResult
-}): string[] {
+function buildBlockingErrors(params: { nationalId?: string; nfc?: NidNfcReadResult }): string[] {
   const errors: string[] = []
 
   if (!params.nationalId) {
@@ -87,10 +79,6 @@ function buildBlockingErrors(params: {
 
   if (!params.nfc || params.nfc.status !== 'success') {
     errors.push('nfc-read-not-successful')
-  }
-
-  if (!params.face || !params.face.passed) {
-    errors.push('face-verification-not-passed')
   }
 
   return errors
@@ -107,6 +95,7 @@ export function useNidVerification({
   const [front, setFront] = useState<NidFrontScanResult>()
   const [back, setBack] = useState<NidBackScanResult>()
   const [nfc, setNfc] = useState<NidNfcReadResult>()
+  const [pendingResult, setPendingResult] = useState<NidVerificationResult>()
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>()
 
@@ -123,6 +112,7 @@ export function useNidVerification({
   const submitFront = useCallback(
     (nationalIdInput?: string) => {
       setErrorMessage(undefined)
+      setPendingResult(undefined)
       const nationalId =
         normalizeNationalId(nationalIdInput) ??
         normalizeNationalId(initialNationalId) ??
@@ -149,6 +139,7 @@ export function useNidVerification({
   const submitBack = useCallback(
     (barcodeRaw?: string) => {
       setErrorMessage(undefined)
+      setPendingResult(undefined)
 
       const rawValue = String(barcodeRaw ?? '').trim()
       const fallbackNationalId = front?.nationalId?.value ?? initialNationalId ?? '0084575948'
@@ -175,6 +166,7 @@ export function useNidVerification({
 
   const readNfc = useCallback(async () => {
     setErrorMessage(undefined)
+    setPendingResult(undefined)
     setBusy(true)
 
     try {
@@ -187,64 +179,74 @@ export function useNidVerification({
         expectedNationalId,
       })
       setNfc(result)
-      setCurrentStep('face-liveness')
+      if (result.status !== 'success') {
+        setError(new Error('NFC read failed. Please retry.'))
+        return
+      }
+
+      const nationalId = resolveNationalId(front, back, result)
+      const mismatches = collectMismatches(front, back, result)
+      const blockingErrors = buildBlockingErrors({
+        nationalId,
+        nfc: result,
+      })
+      const verified = mismatches.length === 0 && blockingErrors.length === 0
+
+      const phaseTwoHandoffResult: NidVerificationResult = {
+        verified,
+        finalDecision: verified ? 'verified' : 'failed',
+        front: front ?? {},
+        back: back ?? {},
+        nfc: result,
+        face: {
+          passed: false,
+          liveness: {
+            passed: false,
+            challenges: [],
+          },
+          gaze: {
+            passed: false,
+            score: 0,
+          },
+          comparison: {
+            passed: false,
+            similarity: 0,
+            threshold: 0.1,
+          },
+        },
+        identity: nationalId
+          ? {
+              nationalId,
+              firstName: result.firstName?.value,
+              lastName: result.lastName?.value,
+              birthDate: result.birthDate?.value,
+              cardNumber: result.cardNumber?.value,
+              expiryDate: result.expiryDate?.value,
+            }
+          : undefined,
+        mismatches,
+        blockingErrors,
+        debug: {
+          mockedNfc: result.debug?.mocked === true,
+          mockedFace: false,
+          stepsCompleted: [...STEP_ORDER],
+        },
+      }
+
+      setPendingResult(phaseTwoHandoffResult)
     } catch (error) {
       setError(error instanceof Error ? error : new Error('Failed to read NFC.'))
     } finally {
       setBusy(false)
     }
-  }, [
-    back?.nationalId?.value,
-    front?.nationalId?.value,
-    initialNationalId,
-    safeNfcReader,
-    setError,
-  ])
+  }, [back, front, initialNationalId, safeNfcReader, setError])
 
-  const completeFaceVerification = useCallback(() => {
-    setErrorMessage(undefined)
-    const face = buildMockNidFaceVerificationResult()
-
-    const nationalId = resolveNationalId(front, back, nfc)
-    const mismatches = collectMismatches(front, back, nfc)
-    const blockingErrors = buildBlockingErrors({
-      nationalId,
-      nfc,
-      face,
-    })
-
-    const verified = mismatches.length === 0 && blockingErrors.length === 0
-
-    const result: NidVerificationResult = {
-      verified,
-      finalDecision: verified ? 'verified' : 'failed',
-      front: front ?? {},
-      back: back ?? {},
-      nfc: nfc ?? {
-        status: 'failed',
-      },
-      face,
-      identity: nationalId
-        ? {
-            nationalId,
-            firstName: nfc?.firstName?.value,
-            lastName: nfc?.lastName?.value,
-            birthDate: nfc?.birthDate?.value,
-            cardNumber: nfc?.cardNumber?.value,
-            expiryDate: nfc?.expiryDate?.value,
-          }
-        : undefined,
-      mismatches,
-      blockingErrors,
-      debug: {
-        mockedNfc: true,
-        mockedFace: true,
-        stepsCompleted: [...STEP_ORDER],
-      },
+  const completeAfterNfc = useCallback(() => {
+    if (!pendingResult) {
+      return
     }
-
-    onComplete(result)
-  }, [back, front, nfc, onComplete])
+    onComplete(pendingResult)
+  }, [onComplete, pendingResult])
 
   const goBack = useCallback(() => {
     const index = STEP_ORDER.indexOf(currentStep)
@@ -270,7 +272,7 @@ export function useNidVerification({
     submitFront,
     submitBack,
     readNfc,
-    completeFaceVerification,
+    completeAfterNfc,
     goBack,
     cancel,
   }

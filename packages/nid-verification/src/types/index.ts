@@ -61,7 +61,7 @@ export type NidVerifiedIdentity = {
   expiryDate?: string
 }
 
-export type NidVerificationStep = 'front-scan' | 'back-scan' | 'nfc-read' | 'face-liveness'
+export type NidVerificationStep = 'front-scan' | 'back-scan' | 'nfc-read'
 
 export type NidFinalDecision = 'verified' | 'failed' | 'cancelled'
 
@@ -84,7 +84,7 @@ export type NidVerificationResult = {
 
 export type NidProofInputAdapterData = {
   docType: 'ID'
-  mode: 'phase1-mock'
+  mode: 'phase1-mock' | 'phase2-nfc-live'
   verified: boolean
   finalDecision: NidFinalDecision
   identityFields: {

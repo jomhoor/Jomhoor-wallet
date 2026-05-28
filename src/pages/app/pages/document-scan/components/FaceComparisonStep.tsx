@@ -1,3 +1,4 @@
+import { type NidVerificationResult, toNidProofInputAdapterData } from '@iland/nid-verification'
 import {
   compareFaces,
   DEFAULT_FACE_COMPARISON_THRESHOLD,
@@ -15,6 +16,7 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
+import { DocType } from '@/utils/e-document'
 
 type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'cropped' | 'failed' | 'success'
 
@@ -52,7 +54,16 @@ export default function FaceComparisonStep(): JSX.Element {
   const device = useCameraDevice('front')
   const cameraRef = useRef<Camera>(null)
 
-  const { passportNfcDetails, setCurrentStep, setFaceComparisonResult } = useDocumentScanContext()
+  const {
+    docType,
+    faceVerification,
+    nidVerificationResult,
+    passportNfcDetails,
+    runMockNidProofGeneration,
+    setCurrentStep,
+    setFaceComparisonResult,
+    setNidVerificationResult,
+  } = useDocumentScanContext()
 
   const [comparisonState, setComparisonState] = useState<ComparisonState>('initializing')
   const [cameraReady, setCameraReady] = useState(false)
@@ -241,6 +252,48 @@ export default function FaceComparisonStep(): JSX.Element {
       }
 
       setFaceComparisonResult(result)
+      if (docType === DocType.ID && nidVerificationResult) {
+        const mergedFaceResult: NidVerificationResult = {
+          ...nidVerificationResult,
+          verified: Boolean(
+            nidVerificationResult.verified &&
+              faceVerification.liveness?.passed &&
+              faceVerification.gaze?.passed &&
+              result.passed,
+          ),
+          finalDecision:
+            nidVerificationResult.verified &&
+            faceVerification.liveness?.passed &&
+            faceVerification.gaze?.passed &&
+            result.passed
+              ? 'verified'
+              : 'failed',
+          face: {
+            passed: Boolean(
+              faceVerification.liveness?.passed && faceVerification.gaze?.passed && result.passed,
+            ),
+            liveness: faceVerification.liveness ?? nidVerificationResult.face.liveness,
+            gaze: faceVerification.gaze ?? nidVerificationResult.face.gaze,
+            comparison: result,
+            liveFaceImageUri: nidVerificationResult.face.liveFaceImageUri,
+            referenceFaceImageUri: nidVerificationResult.face.referenceFaceImageUri,
+          },
+          debug: {
+            mockedFace: false,
+            mockedNfc: nidVerificationResult.debug?.mockedNfc ?? false,
+            stepsCompleted: nidVerificationResult.debug?.stepsCompleted ?? [
+              'front-scan',
+              'back-scan',
+              'nfc-read',
+            ],
+          },
+        }
+
+        setNidVerificationResult(mergedFaceResult)
+        setComparisonState('success')
+        await runMockNidProofGeneration(toNidProofInputAdapterData(mergedFaceResult))
+        return
+      }
       setComparisonState('success')
       successTransitionTimeoutRef.current = setTimeout(() => {
         setCurrentStep(Steps.DocumentPreviewStep)

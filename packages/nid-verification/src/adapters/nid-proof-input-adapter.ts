@@ -5,7 +5,7 @@ export function toNidProofInputAdapterData(
 ): NidProofInputAdapterData {
   return {
     docType: 'ID',
-    mode: 'phase1-mock',
+    mode: result.debug?.mockedNfc === false ? 'phase2-nfc-live' : 'phase1-mock',
     verified: result.verified,
     finalDecision: result.finalDecision,
     identityFields: {
