@@ -55,6 +55,27 @@ target 'Jomhoor' do
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
+    # Fix: fmt 11.0.x enables consteval for Apple clang >= 14, but Xcode 16's clang
+    # enforces stricter rules that cause "not a constant expression" errors in format-inl.h.
+    # Patch base.h to also disable consteval for Apple clang 16+ (Xcode 16).
+    # The -DFMT_USE_CONSTEVAL=0 flag doesn't work because base.h unconditionally #define's
+    # it, overriding any command-line define.
+    fmt_base_h = "#{installer.sandbox.root}/fmt/include/fmt/base.h"
+    if File.exist?(fmt_base_h)
+      content = File.read(fmt_base_h)
+      patched = content.gsub(
+        '#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L',
+        '#elif defined(__apple_build_version__) && (__apple_build_version__ < 14000029L || __apple_build_version__ >= 16000000L)'
+      )
+      if patched != content
+        File.chmod(0644, fmt_base_h)
+        File.write(fmt_base_h, patched)
+        puts "[fmt patch] Disabled consteval for Apple clang 16+ in #{fmt_base_h}"
+      else
+        puts "[fmt patch] Pattern not found or already patched in #{fmt_base_h}"
+      end
+    end
+
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
     installer.target_installation_results.pod_target_installation_results

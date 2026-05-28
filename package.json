@@ -43,7 +43,8 @@
     "xcode": "xed -b ios",
     "doctor": "npx expo-doctor@latest",
     "eas-build-pre-install": "./scripts/git-lfs-pre-install.sh",
-    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install"
+    "prebuild": "npx expo prebuild --skip-dependency-update react && npx pod-install",
+    "postinstall": "npx tsc -p node_modules/@iland/passport-verification/tsconfig.json || true"
   },
   "release-it": {
     "git": {
