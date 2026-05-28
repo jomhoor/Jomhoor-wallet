@@ -51,7 +51,6 @@ export function NidVerificationFlow({
             <NidFrontScanStep
               stepIndex={stepIndex}
               totalSteps={totalSteps}
-              defaultNationalId={initialNationalId}
               errorMessage={errorMessage}
               onSubmit={submitFront}
               onCancel={cancel}
@@ -61,7 +60,7 @@ export function NidVerificationFlow({
             <NidBackScanStep
               stepIndex={stepIndex}
               totalSteps={totalSteps}
-              nationalIdHint={front?.nationalId?.value}
+              nationalIdHint={front?.nationalId?.value ?? initialNationalId}
               errorMessage={errorMessage}
               onSubmit={submitBack}
               onBack={goBack}

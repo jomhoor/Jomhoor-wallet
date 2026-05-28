@@ -45,36 +45,15 @@ function isValidNationalId(value?: string): boolean {
   return remainder < 2 ? checkDigit === remainder : checkDigit === 11 - remainder
 }
 
-function resolveNationalId(
-  front?: NidFrontScanResult,
-  back?: NidBackScanResult,
-  nfc?: NidNfcReadResult,
-): string | undefined {
-  return (
-    normalizeNationalId(nfc?.nationalId?.value) ??
-    normalizeNationalId(back?.nationalId?.value) ??
-    normalizeNationalId(front?.nationalId?.value)
-  )
+function resolveNationalId(back?: NidBackScanResult, nfc?: NidNfcReadResult): string | undefined {
+  return normalizeNationalId(nfc?.nationalId?.value) ?? normalizeNationalId(back?.nationalId?.value)
 }
 
-function collectMismatches(
-  front?: NidFrontScanResult,
-  back?: NidBackScanResult,
-  nfc?: NidNfcReadResult,
-): string[] {
+function collectMismatches(back?: NidBackScanResult, nfc?: NidNfcReadResult): string[] {
   const mismatches: string[] = []
 
-  const frontId = normalizeNationalId(front?.nationalId?.value)
   const backId = normalizeNationalId(back?.nationalId?.value)
   const nfcId = normalizeNationalId(nfc?.nationalId?.value)
-
-  if (frontId && backId && frontId !== backId) {
-    mismatches.push('front-vs-back-national-id-mismatch')
-  }
-
-  if (frontId && nfcId && frontId !== nfcId) {
-    mismatches.push('front-vs-nfc-national-id-mismatch')
-  }
 
   if (backId && nfcId && backId !== nfcId) {
     mismatches.push('back-vs-nfc-national-id-mismatch')
@@ -83,8 +62,23 @@ function collectMismatches(
   return mismatches
 }
 
-function buildBlockingErrors(params: { nationalId?: string; nfc?: NidNfcReadResult }): string[] {
+function buildBlockingErrors(params: {
+  barcodeNationalId?: string
+  frontImageUri?: string
+  nationalId?: string
+  nfc?: NidNfcReadResult
+}): string[] {
   const errors: string[] = []
+
+  if (!params.frontImageUri) {
+    errors.push('missing-front-image')
+  }
+
+  if (!params.barcodeNationalId) {
+    errors.push('missing-barcode-national-id')
+  } else if (!isValidNationalId(params.barcodeNationalId)) {
+    errors.push('invalid-barcode-national-id')
+  }
 
   if (!params.nationalId) {
     errors.push('missing-national-id')
@@ -96,6 +90,13 @@ function buildBlockingErrors(params: { nationalId?: string; nfc?: NidNfcReadResu
 
   if (!params.nfc || params.nfc.status !== 'success') {
     errors.push('nfc-read-not-successful')
+  }
+
+  const nfcNationalId = normalizeNationalId(params.nfc?.nationalId?.value)
+  if (!nfcNationalId) {
+    errors.push('missing-nfc-national-id')
+  } else if (!isValidNationalId(nfcNationalId)) {
+    errors.push('invalid-nfc-national-id')
   }
 
   if (!params.nfc?.signingCertHex) {
@@ -135,33 +136,20 @@ export function useNidVerification({
   )
 
   const submitFront = useCallback(
-    (nationalIdInput?: string) => {
+    (frontImageUri?: string) => {
       setErrorMessage(undefined)
       setPendingResult(undefined)
-      const nationalId =
-        normalizeNationalId(nationalIdInput) ?? normalizeNationalId(initialNationalId)
-
-      if (!nationalId) {
-        setError(new Error('National ID is required.'))
-        return
-      }
-
-      if (!isValidNationalId(nationalId)) {
-        setError(new Error('National ID is invalid.'))
+      if (!frontImageUri) {
+        setError(new Error('Front card image is required.'))
         return
       }
 
       setFront({
-        frontImageUri: 'file://mock-nid-front.jpg',
-        nationalId: {
-          value: nationalId,
-          source: nationalIdInput ? 'manual' : 'derived',
-          confidence: 1,
-        },
+        frontImageUri,
       })
       setCurrentStep('back-scan')
     },
-    [initialNationalId, setError],
+    [setError],
   )
 
   const submitBack = useCallback(
@@ -170,7 +158,7 @@ export function useNidVerification({
       setPendingResult(undefined)
 
       const rawValue = String(barcodeRaw ?? '').trim()
-      const fallbackNationalId = front?.nationalId?.value ?? initialNationalId
+      const fallbackNationalId = initialNationalId
       const fallbackRaw = fallbackNationalId ? `NID*${fallbackNationalId}*IRN` : ''
       const resolvedRaw = rawValue || fallbackRaw
 
@@ -188,7 +176,6 @@ export function useNidVerification({
       }
 
       setBack({
-        backImageUri: 'file://mock-nid-back.jpg',
         barcodeRaw: resolvedRaw,
         barcode,
         nationalId: {
@@ -199,7 +186,7 @@ export function useNidVerification({
       })
       setCurrentStep('nfc-read')
     },
-    [front?.nationalId?.value, initialNationalId, setError],
+    [initialNationalId, setError],
   )
 
   const readNfc = useCallback(async () => {
@@ -209,9 +196,7 @@ export function useNidVerification({
 
     try {
       const expectedNationalId =
-        normalizeNationalId(back?.nationalId?.value) ??
-        normalizeNationalId(front?.nationalId?.value) ??
-        normalizeNationalId(initialNationalId)
+        normalizeNationalId(back?.nationalId?.value) ?? normalizeNationalId(initialNationalId)
 
       const result = await safeNfcReader({
         expectedNationalId,
@@ -222,9 +207,12 @@ export function useNidVerification({
         return
       }
 
-      const nationalId = resolveNationalId(front, back, result)
-      const mismatches = collectMismatches(front, back, result)
+      const nationalId = resolveNationalId(back, result)
+      const barcodeNationalId = normalizeNationalId(back?.nationalId?.value)
+      const mismatches = collectMismatches(back, result)
       const blockingErrors = buildBlockingErrors({
+        barcodeNationalId,
+        frontImageUri: front?.frontImageUri,
         nationalId,
         nfc: result,
       })
@@ -254,6 +242,7 @@ export function useNidVerification({
             similarity: 0,
             threshold: 0.1,
           },
+          referenceFaceImageUri: front?.frontImageUri,
         },
         identity: nationalId
           ? {

@@ -1,47 +1,111 @@
-import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 
 export type NidFrontScanStepProps = {
   stepIndex: number
   totalSteps: number
-  defaultNationalId?: string
   errorMessage?: string
-  onSubmit: (nationalIdInput?: string) => void
+  onSubmit: (frontImageUri: string) => void
   onCancel?: () => void
 }
 
 export function NidFrontScanStep({
   stepIndex,
   totalSteps,
-  defaultNationalId,
   errorMessage,
   onSubmit,
   onCancel,
 }: NidFrontScanStepProps): JSX.Element {
-  const [nationalId, setNationalId] = useState(defaultNationalId ?? '')
+  const { hasPermission, requestPermission } = useCameraPermission()
+  const device = useCameraDevice('back')
+  const cameraRef = useRef<Camera>(null)
+
+  const [busy, setBusy] = useState(false)
+  const [capturedFrontUri, setCapturedFrontUri] = useState<string>()
+
+  useEffect(() => {
+    if (hasPermission) return
+    void requestPermission()
+  }, [hasPermission, requestPermission])
+
+  const captureFront = useCallback(async () => {
+    if (!cameraRef.current || !device || busy) return
+    setBusy(true)
+    try {
+      const photo = await cameraRef.current.takePhoto()
+      const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`
+      setCapturedFrontUri(uri)
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, device])
 
   return (
     <View style={styles.container}>
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
-      <Text style={styles.title}>Scan NID Front</Text>
+      <Text style={styles.title}>Capture NID Front</Text>
       <Text style={styles.subtitle}>
-        Phase 1 uses manual fallback for the national ID while front image capture stays mocked.
+        Capture a clear image of the front side. No OCR is used in this flow.
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder='National ID (manual fallback)'
-        autoCapitalize='none'
-        keyboardType='number-pad'
-        value={nationalId}
-        onChangeText={setNationalId}
-      />
+      <View style={styles.previewFrame}>
+        {capturedFrontUri ? (
+          <Image
+            source={{ uri: capturedFrontUri }}
+            style={styles.previewImage}
+            resizeMode='cover'
+          />
+        ) : hasPermission && device ? (
+          <Camera ref={cameraRef} style={styles.camera} device={device} isActive photo />
+        ) : (
+          <View style={styles.cameraPlaceholder}>
+            <Text style={styles.placeholderText}>Camera permission is required.</Text>
+            <Pressable style={styles.secondaryButton} onPress={() => void requestPermission()}>
+              <Text style={styles.secondaryButtonText}>Grant Camera Permission</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
 
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-      <Pressable style={styles.primaryButton} onPress={() => onSubmit(nationalId)}>
-        <Text style={styles.primaryButtonText}>Continue to Back Scan</Text>
-      </Pressable>
+      <View style={styles.row}>
+        {capturedFrontUri ? (
+          <Pressable
+            style={[styles.secondaryButton, busy ? styles.disabledButton : null]}
+            onPress={() => {
+              setCapturedFrontUri(undefined)
+            }}
+            disabled={busy}
+          >
+            <Text style={styles.secondaryButtonText}>Retake</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={[styles.secondaryButton, busy ? styles.disabledButton : null]}
+            onPress={() => {
+              void captureFront()
+            }}
+            disabled={busy || !hasPermission || !device}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {busy ? 'Capturing...' : 'Capture Front'}
+            </Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          style={[styles.primaryButton, !capturedFrontUri ? styles.disabledButton : null]}
+          onPress={() => {
+            if (!capturedFrontUri) return
+            onSubmit(capturedFrontUri)
+          }}
+          disabled={!capturedFrontUri}
+        >
+          <Text style={styles.primaryButtonText}>Continue to Back Scan</Text>
+        </Pressable>
+      </View>
 
       {onCancel ? (
         <Pressable style={styles.secondaryButton} onPress={onCancel}>
@@ -53,6 +117,15 @@ export function NidFrontScanStep({
 }
 
 const styles = StyleSheet.create({
+  camera: {
+    flex: 1,
+  },
+  cameraPlaceholder: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 16,
+  },
   container: {
     flex: 1,
     gap: 12,
@@ -60,25 +133,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   error: {
     color: '#DC2626',
     fontSize: 13,
   },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D1D5DB',
+  placeholderText: {
+    color: '#4B5563',
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  previewFrame: {
+    backgroundColor: '#111827',
     borderRadius: 12,
-    borderWidth: 1,
-    color: '#111827',
-    fontSize: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    height: 260,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  previewImage: {
+    flex: 1,
+    width: '100%',
   },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#111827',
     borderRadius: 12,
-    marginTop: 8,
+    flex: 1,
     paddingVertical: 14,
   },
   primaryButtonText: {
@@ -86,11 +168,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   secondaryButton: {
     alignItems: 'center',
     borderColor: '#D1D5DB',
     borderRadius: 12,
     borderWidth: 1,
+    flex: 1,
     paddingVertical: 14,
   },
   secondaryButtonText: {

@@ -31,3 +31,46 @@ Quick verification after archive:
 
 - `Jomhoor.app/EXConstants.bundle/app.config` should show `extra.APP_ENV`
 - `Jomhoor.app/Info.plist` should show expected `CFBundleIdentifier` and ATS values.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# TODO
+
+## Arman
+- Enable voting for iranian NIDC and passport
+- Replace Rarimo as much as we can
+- ZK documentation
+
+## Shooresh
+- NID visual scan
+- list of passports before visual scan
+- Flow chart data flow User-data schema
+
+# Backlog
+- After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop
