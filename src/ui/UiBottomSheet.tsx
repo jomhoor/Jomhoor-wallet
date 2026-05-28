@@ -170,7 +170,7 @@ export const BottomSheetHeader = memo(
     return (
       <View
         {...rest}
-        className={cn('flex-row items-center rounded-t-2xl py-6 pb-0', className)}
+        className={cn('rounded-t-2xl py-6 pb-0', className)}
         style={[
           rest.style,
           {
@@ -179,14 +179,17 @@ export const BottomSheetHeader = memo(
           },
         ]}
       >
-        <View className='relative w-full'>
+        <View className='flex-row items-center'>
+          {title && <View className='size-[24px]' />}
           {title && (
-            <Text className='typography-h6 flex-1 font-bold text-textPrimary'>{title}</Text>
+            <Text className='typography-h6 flex-1 text-center font-bold text-textPrimary'>
+              {title}
+            </Text>
           )}
 
           <Pressable
             onPress={dismiss}
-            className='absolute right-0 top-1/2 size-[24px] -translate-y-1/2 items-center justify-center'
+            className='size-[24px] items-center justify-center'
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             accessibilityLabel='close modal'
             accessibilityRole='button'

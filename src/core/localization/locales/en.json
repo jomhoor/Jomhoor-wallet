@@ -1,6 +1,19 @@
 {
   "auth": {
+    "create-wallet": {
+      "copy-btn": "Copy to Clipboard",
+      "create-btn": "Create Key",
+      "import-btn": "Import Key",
+      "private-key-ph": "Your private key",
+      "title": "Your key"
+    },
     "intro": {
+      "auth-sheet": {
+        "create-btn": "Create a new profile",
+        "reactivate-btn": "Re-activate old profile",
+        "subtitle": "Choose a preferred method",
+        "title": "Authorization"
+      },
       "next-btn": "Let's start",
       "step-1": {
         "subtitle": "For those who seek freedom and privacy",
@@ -38,6 +51,19 @@
     "cancel": "Cancel",
     "compass": "Compass",
     "documents": "Documents",
+    "documents-without-docs": {
+      "about-app-card-subtitle": "Learn how this works",
+      "about-app-card-title": "The App",
+      "about-app-p1": "Jomhoor app is built using the following technologies: NFC card readers, zero-knowledge proofs, end-to-end encryption, and decentralized identity standards to ensure secure and private digital identity verification.",
+      "about-app-p2": "When you scan your government-issued ID card using NFC technology, the app reads the data directly from the card. Instead of storing this data on a central server, the app uses zero-knowledge proofs to verify your identity without actually transmitting your personal information. This means that your sensitive data remains on your device and is never shared with third parties.",
+      "about-app-p3": "Once your identity is verified, the app creates a decentralized identity (DID) for you. This DID is stored on a blockchain or distributed ledger, giving you full control over your digital identity. You can use this DID to prove your identity to various services without revealing unnecessary personal information. You can vote securely and anonymously using your digital identity, ensuring that your vote is private and cannot be traced back to you.",
+      "about-app-sheet-title": "About the App",
+      "ok-btn": "Okay",
+      "start-btn": "Let's start",
+      "start-scan-sheet-title": "Start scan",
+      "subtitle": "This profile is anonymous and secure",
+      "title": "Create your digital identity"
+    },
     "enter-url": "Enter dApp URL",
     "hub": "Hub",
     "profile": "Profile",
@@ -187,6 +213,11 @@
     "one": "TAB one",
     "scan-nfc": {
       "tip": "1. Make sure you remove the case from the device\n2. Press Start NFC Scan and place your Passport/ID to the back of your phone\n3. Press Generate Proof"
+    },
+    "select-doc-type": {
+      "id-card": "ID Card",
+      "passport": "Passport",
+      "title": "Select document type"
     },
     "two": "TAB two",
     "typography": "Typography"

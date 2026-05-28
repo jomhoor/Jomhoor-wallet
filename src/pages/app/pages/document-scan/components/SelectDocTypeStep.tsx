@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -6,6 +7,7 @@ import { UiCard, UiIcon } from '@/ui'
 import { DocType } from '@/utils/e-document'
 
 export default function SelectDocTypeStep() {
+  const { t } = useTranslation()
   const { setDocType } = useDocumentScanContext()
   const insets = useSafeAreaInsets()
 
@@ -18,8 +20,11 @@ export default function SelectDocTypeStep() {
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className='flex flex-1 flex-col gap-4 p-5'>
-          <Text className='typography-h4 my-4 text-center text-textPrimary'>
-            Select doc type step
+          <Text
+            className='typography-h4 my-4 text-center text-textPrimary'
+            style={{ lineHeight: 52 }}
+          >
+            {t('tabs.select-doc-type.title')}
           </Text>
 
           <View className='flex flex-col gap-5'>
@@ -30,7 +35,12 @@ export default function SelectDocTypeStep() {
             >
               <UiCard className='flex flex-row items-center gap-2'>
                 <UiIcon customIcon='suitcaseSimpleIcon' className='text-textPrimary' />
-                <Text className='typography-subtitle4 text-textPrimary'>Passport</Text>
+                <Text
+                  className='typography-subtitle4 text-textPrimary'
+                  style={{ textAlign: 'left' }}
+                >
+                  {t('tabs.select-doc-type.passport')}
+                </Text>
               </UiCard>
             </Pressable>
 
@@ -41,7 +51,12 @@ export default function SelectDocTypeStep() {
             >
               <UiCard className='flex flex-row items-center gap-2'>
                 <UiIcon customIcon='cardholderIcon' className='text-textPrimary' />
-                <Text className='typography-subtitle4 text-textPrimary'>ID CARD</Text>
+                <Text
+                  className='typography-subtitle4 text-textPrimary'
+                  style={{ textAlign: 'left' }}
+                >
+                  {t('tabs.select-doc-type.id-card')}
+                </Text>
               </UiCard>
             </Pressable>
           </View>

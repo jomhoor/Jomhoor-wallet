@@ -152,9 +152,8 @@ export default function Intro() {
       <UiBottomSheet
         headerComponent={
           <BottomSheetHeader
-            title='Authorization'
+            title={translate('auth.intro.auth-sheet.title')}
             dismiss={bottomSheet.dismiss}
-            className='typography-h6 px-screen-x text-center text-textPrimary'
           />
         }
         ref={bottomSheet.ref}
@@ -166,19 +165,21 @@ export default function Intro() {
       >
         <BottomSheetView style={{ paddingBottom: insets.bottom }}>
           <View className={cn('flex flex-col gap-gutter px-screen-x py-0')}>
-            <Text className='typography-body3 text-textSecondary'>Choose a preferred method</Text>
+            <Text className='typography-body3 mt-2 text-center text-textSecondary'>
+              {translate('auth.intro.auth-sheet.subtitle')}
+            </Text>
             <UiHorizontalDivider />
             <View className='mt-auto flex w-full flex-col gap-2'>
               <UiButton
                 size='large'
                 leadingIconProps={{ customIcon: 'userPlusIcon' }}
-                title='Create a new profile'
+                title={translate('auth.intro.auth-sheet.create-btn')}
                 onPress={handleCreatePK}
               />
               <UiButton
                 size='large'
                 leadingIconProps={{ customIcon: 'share1Icon' }}
-                title='Re-activate old profile'
+                title={translate('auth.intro.auth-sheet.reactivate-btn')}
                 onPress={handleImportPK}
               />
             </View>

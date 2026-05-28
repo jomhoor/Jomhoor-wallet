@@ -35,11 +35,11 @@ export default function DocumentsWithoutDocs() {
       <UiCard>
         <UiIcon customIcon='starFillIcon' className='m-auto mb-5 size-[110] color-primaryMain' />
         <View className='flex flex-col gap-2'>
-          <Text className='typography-h6 text-center text-textPrimary'>
-            Create your digital identity
+          <Text className='typography-h6 text-center text-textPrimary' style={{ lineHeight: 36 }}>
+            {t('home.documents-without-docs.title')}
           </Text>
           <Text className='typography-body3 text-center text-textPrimary'>
-            This profile is anonymous and secure
+            {t('home.documents-without-docs.subtitle')}
           </Text>
         </View>
 
@@ -48,7 +48,7 @@ export default function DocumentsWithoutDocs() {
         <UiButton
           className='w-full'
           size='large'
-          title="Let's start"
+          title={t('home.documents-without-docs.start-btn')}
           trailingIconProps={{
             customIcon: 'arrowRightIcon',
           }}
@@ -64,8 +64,8 @@ export default function DocumentsWithoutDocs() {
             aboutAppBottomSheet.present()
           },
         }}
-        title='The App'
-        subtitle='Learn how this works'
+        title={t('home.documents-without-docs.about-app-card-title')}
+        subtitle={t('home.documents-without-docs.about-app-card-subtitle')}
         leadingContent={<UiIcon customIcon='infoIcon' className='size-[40] text-primaryMain' />}
         trailingContent={
           <UiIcon customIcon='arrowRightIcon' className='size-[24] text-textPrimary' />
@@ -84,35 +84,26 @@ export default function DocumentsWithoutDocs() {
           <View className={cn('flex flex-col items-center gap-gutter px-screen-x py-0')}>
             <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
-            <Text className='typography-h5 text-textPrimary'>About the App</Text>
+            <Text className='typography-h5 text-textPrimary' style={{ lineHeight: 42 }}>
+              {t('home.documents-without-docs.about-app-sheet-title')}
+            </Text>
 
             <UiHorizontalDivider className='my-4' />
 
-            <Text className='typography-body2 text-textSecondary'>
-              Jomhoor app is built using the following technologies: NFC card readers,
-              zero-knowledge proofs, end-to-end encryption, and decentralized identity standards to
-              ensure secure and private digital identity verification.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p1')}
             </Text>
 
-            <Text className='typography-body2 text-textSecondary'>
-              you scan your government-issued ID card using NFC technology, the app reads the data
-              directly from the card. Instead of storing this data on a central server, the app uses
-              zero-knowledge proofs to verify your identity without actually transmitting your
-              personal information. This means that your sensitive data remains on your device and
-              is never shared with third parties.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p2')}
             </Text>
-            <Text className='typography-body2 text-textSecondary'>
-              once your identity is verified, the app creates a decentralized identity (DID) for
-              you. This DID is stored on a blockchain or distributed ledger, giving you full control
-              over your digital identity. You can use this DID to prove your identity to various
-              services without revealing unnecessary personal information. You can vote securely and
-              anonymously using your digital identity, ensuring that your vote is private and cannot
-              be traced back to you.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p3')}
             </Text>
 
             <UiButton
               className='mt-auto w-full'
-              title='Okay'
+              title={t('home.documents-without-docs.ok-btn')}
               onPress={() => {
                 aboutAppBottomSheet.dismiss()
               }}
@@ -133,35 +124,26 @@ export default function DocumentsWithoutDocs() {
           <View className={cn('flex flex-col items-center gap-gutter px-screen-x py-0')}>
             <UiIcon customIcon='infoIcon' className='size-[80] text-primaryMain' />
 
-            <Text className='typography-h5 text-textPrimary'>Start scan</Text>
+            <Text className='typography-h5 text-textPrimary' style={{ lineHeight: 42 }}>
+              {t('home.documents-without-docs.start-scan-sheet-title')}
+            </Text>
 
             <UiHorizontalDivider className='my-4' />
 
-            <Text className='typography-body2 text-textSecondary'>
-              Jomhoor app is built using the following technologies: NFC card readers,
-              zero-knowledge proofs, end-to-end encryption, and decentralized identity standards to
-              ensure secure and private digital identity verification.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p1')}
             </Text>
 
-            <Text className='typography-body2 text-textSecondary'>
-              you scan your government-issued ID card using NFC technology, the app reads the data
-              directly from the card. Instead of storing this data on a central server, the app uses
-              zero-knowledge proofs to verify your identity without actually transmitting your
-              personal information. This means that your sensitive data remains on your device and
-              is never shared with third parties.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p2')}
             </Text>
-            <Text className='typography-body2 text-textSecondary'>
-              once your identity is verified, the app creates a decentralized identity (DID) for
-              you. This DID is stored on a blockchain or distributed ledger, giving you full control
-              over your digital identity. You can use this DID to prove your identity to various
-              services without revealing unnecessary personal information. You can vote securely and
-              anonymously using your digital identity, ensuring that your vote is private and cannot
-              be traced back to you.
+            <Text className='typography-body2 text-textSecondary' style={{ textAlign: 'left' }}>
+              {t('home.documents-without-docs.about-app-p3')}
             </Text>
 
             <UiButton
               className='mt-auto w-full'
-              title='Okay'
+              title={t('home.documents-without-docs.ok-btn')}
               onPress={() => {
                 startScanBottomSheet.dismiss()
                 navigation.navigate('App', {
