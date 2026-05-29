@@ -68,7 +68,10 @@
     }
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "\\.d\\.ts$"
+    ]
   },
   "dependencies": {
     "@dev-plugins/react-navigation": "^0.2.0",
