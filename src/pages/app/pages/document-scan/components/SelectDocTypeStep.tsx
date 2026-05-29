@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/core'
 import { useTranslation } from 'react-i18next'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -9,6 +10,7 @@ import { DocType } from '@/utils/e-document'
 export default function SelectDocTypeStep() {
   const { t } = useTranslation()
   const { setDocType } = useDocumentScanContext()
+  const navigation = useNavigation()
   const insets = useSafeAreaInsets()
 
   return (
@@ -20,6 +22,18 @@ export default function SelectDocTypeStep() {
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className='flex flex-1 flex-col gap-4 p-5'>
+          <View className='flex-row items-center'>
+            <Pressable
+              onPress={() => {
+                navigation.navigate('App', { screen: 'Home' })
+              }}
+            >
+              <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>
+                <UiIcon customIcon='arrowLeftIcon' size={20} className='color-textPrimary' />
+              </View>
+            </Pressable>
+          </View>
+
           <Text
             className='typography-h4 my-4 text-center text-textPrimary'
             style={{ lineHeight: 52 }}

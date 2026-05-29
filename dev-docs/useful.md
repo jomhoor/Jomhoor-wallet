@@ -43,7 +43,7 @@ Quick verification after archive:
 ## Shooresh
 
 - [x] NID visual scan
-- [ ] list of passports before visual scan
+- [x] list of passports before visual scan
 - [ ] Flow chart data flow User-data schema
 
 # Backlog
@@ -52,8 +52,8 @@ Quick verification after archive:
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
 - Add the final waypoint at the center and take a photo to use in comparison.
 
-
 # Next release
+
 - support other types of NIDC
 - Support more countries
 - App map
