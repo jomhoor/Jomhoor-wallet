@@ -7,7 +7,7 @@
     "url": "https://github.com/jomhoor/Jomhoor-wallet.git"
   },
   "main": "src/main.ts",
-  "version": "0.5.22",
+  "version": "0.5.26",
   "scripts": {
     "prebuild:clean:DANGEROUS": "npx expo prebuild --clean && npx pod-install",
     "start": "npx expo start --clear",

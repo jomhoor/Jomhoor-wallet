@@ -106,8 +106,8 @@ android {
         applicationId 'org.jomhoor.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 524
-        versionName "0.5.24"
+        versionCode 526
+        versionName "0.5.26"
     }
     signingConfigs {
         debug {

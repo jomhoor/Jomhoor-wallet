@@ -10,15 +10,17 @@ type PassportCountryOption = {
 }
 
 const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
-  { code: 'IRN', name: 'Iran' },
-  { code: 'AFG', name: 'Afghanistan' },
-  { code: 'ARE', name: 'United Arab Emirates' },
+  { code: 'IRN', name: 'Iran ایران' },
+  { code: 'AFG', name: 'Afghanistan افغانستان' },
+  { code: 'ARE', name: 'United Arab Emirates الإمارات العربية المتحدة' },
+  { code: 'IND', name: 'India भारत' },
+  { code: 'JPN', name: 'Japan 日本' },
   { code: 'AUS', name: 'Australia' },
   { code: 'CAN', name: 'Canada' },
   { code: 'DEU', name: 'Germany' },
   { code: 'FRA', name: 'France' },
   { code: 'GBR', name: 'United Kingdom' },
-  { code: 'IRQ', name: 'Iraq' },
+  { code: 'IRQ', name: 'Iraq العراق' },
   { code: 'SWE', name: 'Sweden' },
   { code: 'TUR', name: 'Turkey' },
   { code: 'USA', name: 'United States' },

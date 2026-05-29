@@ -45,6 +45,7 @@ Quick verification after archive:
 - [x] NID visual scan
 - [x] list of passports before visual scan
 - [ ] Flow chart data flow User-data schema
+- [ ] Include proof gen required data
 
 # Backlog
 
