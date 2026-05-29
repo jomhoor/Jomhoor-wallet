@@ -1,116 +1,122 @@
-import { AsnConvert } from '@peculiar/asn1-schema'
-import { Certificate } from '@peculiar/asn1-x509'
+import {
+  type NidNfcReadResult,
+  NidVerificationFlow,
+  type NidVerificationResult,
+  type ReadNidNfcInput,
+} from '@iland/nid-verification'
 import { useNavigation } from '@react-navigation/core'
-import { Image } from 'expo-image'
-import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
-import { Pressable } from 'react-native-gesture-handler'
+import { useCallback, useEffect } from 'react'
+import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { translate } from '@/core'
-import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
-import { UiButton, UiIcon } from '@/ui'
-import { EID } from '@/utils/e-document'
-import { ExtendedCertificate } from '@/utils/e-document/extended-cert'
+import { ErrorHandler } from '@/core'
+import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import {
   initNfc,
   readSigningAndAuthCertificates,
   stopNfc,
 } from '@/utils/e-document/inid-nfc-reader'
 
+function normalizeNationalId(value?: string): string | undefined {
+  if (!value) return undefined
+  const normalized = value
+    .replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/\D/g, '')
+  return normalized || undefined
+}
+
 export default function ScanNfcStep() {
-  const { setTempEDoc } = useDocumentScanContext()
   const insets = useSafeAreaInsets()
-  const [busy, setBusy] = useState(false)
-  const [isScanning, setIsScanning] = useState(false)
   const navigation = useNavigation()
-  // start NFC once, right after mount
+
+  const { resetFaceVerification, setCurrentStep, setNidVerificationResult, setPassportNfcDetails } =
+    useDocumentScanContext()
+
   useEffect(() => {
-    initNfc().catch(e => console.warn('NFC init error', e))
+    void initNfc().catch(() => undefined)
+
+    return () => {
+      void stopNfc().catch(() => undefined)
+    }
   }, [])
 
-  const onReadPress = useCallback(async () => {
-    setBusy(true)
+  const readLiveNidNfc = useCallback(async (input: ReadNidNfcInput): Promise<NidNfcReadResult> => {
+    const expectedNationalId = normalizeNationalId(input.expectedNationalId)
+
     try {
-      const { signingCert, authCert } = await readSigningAndAuthCertificates(() => {
-        setIsScanning(true)
-      })
+      const { signingCert, authCert } = await readSigningAndAuthCertificates()
+      const hasSigningCert = Boolean(signingCert)
+      const hasAuthCert = Boolean(authCert)
+      const status = hasSigningCert && hasAuthCert ? 'success' : 'failed'
 
-      if (!signingCert) throw new Error('Signing certificate not found')
+      return {
+        status,
+        nationalId: expectedNationalId
+          ? {
+              value: expectedNationalId,
+              source: 'derived',
+              confidence: 0.9,
+            }
+          : undefined,
+        signingCertHex: signingCert ?? undefined,
+        authCertHex: authCert ?? undefined,
+        debug: {
+          backend: 'inid-nfc-reader',
+          hasAuthCert,
+          hasSigningCert,
+          mocked: false,
+          readAt: Date.now(),
+        },
+      }
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Failed to read NID NFC chip.')
+    }
+  }, [])
 
-      const extendedSigCert = new ExtendedCertificate(
-        AsnConvert.parse(Buffer.from(signingCert, 'hex'), Certificate),
+  const handleComplete = (result: NidVerificationResult) => {
+    setNidVerificationResult(result)
+    if (!result.verified) {
+      ErrorHandler.process(
+        new Error('NID verification did not pass'),
+        'NID verification did not pass validation checks.',
       )
-
-      if (!authCert) throw new Error('Authentication certificate not found')
-
-      const extendedAuthCert = new ExtendedCertificate(
-        AsnConvert.parse(Buffer.from(authCert, 'hex'), Certificate),
-      )
-
-      const eID = new EID(extendedSigCert, extendedAuthCert)
-
-      setTempEDoc(eID)
-    } catch (e) {
-      console.error({ e })
+      return
     }
 
-    setBusy(false)
-    setIsScanning(false)
-  }, [setTempEDoc])
-
-  // const pk = walletStore.useWalletStore(state => state.privateKey)
-  // const registrationChallenge = walletStore.useRegistrationChallenge()
+    setPassportNfcDetails({
+      normalized: {
+        firstName: result.nfc.firstName?.value,
+        lastName: result.nfc.lastName?.value,
+        nidn: result.identity?.nationalId,
+      },
+      portrait: result.front.frontImageUri
+        ? {
+            filePath: result.front.frontImageUri,
+          }
+        : undefined,
+    })
+    resetFaceVerification()
+    setCurrentStep(Steps.FaceLivenessStep)
+  }
 
   return (
     <View
-      style={{ paddingBottom: insets.bottom, paddingTop: insets.top }}
-      className='flex-1 justify-center p-6'
+      style={{
+        flex: 1,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+      }}
     >
-      <View className='flex-row'>
-        <Text className='typography-h5 mb-2 text-textPrimary'>NFC Reader</Text>
-        <View className='flex-1' />
-        <Pressable
-          className='absolute right-[15px] top-[15px]'
-          onPress={() => {
-            stopNfc()
-            navigation.navigate('App', { screen: 'Home' })
-          }}
-        >
-          <View className='h-10 w-10 items-center justify-center rounded-full bg-componentPrimary'>
-            <UiIcon customIcon='closeIcon' size={20} className='color-textPrimary' />
-          </View>
-        </Pressable>
-      </View>
-      <Text className='typography-body3 mb-6 text-textSecondary'>Reading personal data</Text>
-      {isScanning && (
-        <Text className='typography-body2 mb-6 rounded-xl border-componentPrimary bg-componentPrimary p-4 text-center text-textPrimary'>
-          Scanning NFC tag... Please hold your passport close to the phone.
-        </Text>
-      )}
-      {!isScanning && busy && (
-        <Text className='typography-body2 mb-6 rounded-xl border-componentPrimary bg-componentPrimary p-4 text-center text-textPrimary'>
-          Place your Passport/ID to the back of your phone
-        </Text>
-      )}
-      <Image
-        source={require('@assets/images/passport-scan-example.png')}
-        style={{
-          width: 300,
-          height: 300,
-          alignSelf: 'center',
-          marginBottom: 24,
-          marginTop: 24,
+      <NidVerificationFlow
+        nfcReader={readLiveNidNfc}
+        onComplete={handleComplete}
+        onCancel={() => {
+          navigation.navigate('App', { screen: 'Home' })
         }}
-      />
-      <Text className='typography-body3 text-textSecondary'>{translate('tabs.scan-nfc.tip')}</Text>
-      {busy && <ActivityIndicator className='my-4' />}
-      {/* {error && <Text className='mt-4 text-errorMain typography-body2'>{error}</Text>} */}
-      <UiButton
-        onPress={onReadPress}
-        title={busy ? 'Read Signing Certificate' : 'Start NFC Scan'}
-        className='mt-auto w-full'
-        disabled={busy}
+        onError={error => {
+          ErrorHandler.processWithoutFeedback(error)
+        }}
       />
     </View>
   )

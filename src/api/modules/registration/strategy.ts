@@ -38,6 +38,11 @@ import { RARIMO_CHAINS } from '@/api/modules/rarimo/constants'
 import { relayerRegister } from '@/api/modules/registration/relayer'
 import { Config } from '@/config'
 import { createPoseidonSMTContract } from '@/helpers/contracts'
+import {
+  classifyIdentityCreationError,
+  logIdentityDiagnostic,
+  logIdentityDiagnosticError,
+} from '@/helpers/identity-proof-diagnostics'
 import { CertificateAlreadyRegisteredError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
 import { Registration__factory } from '@/types/contracts/factories/Registration__factory'
@@ -276,20 +281,48 @@ export abstract class RegistrationStrategy {
     cert: ExtendedCertificate,
     slaveMaster: Certificate,
   ) => {
+    let stage = 'register-certificate-build-call-data'
+
+    logIdentityDiagnostic('IdentityProof', 'RegistrationStrategy.registerCertificate:start', {
+      cscaCertificateCount: CSCABytes.length,
+      hasSlaveCertificateIndex: Boolean(cert.slaveCertificateIndex),
+    })
+
     try {
       const callData = await RegistrationStrategy.buildRegisterCertCallData(
         CSCABytes,
         cert,
         slaveMaster,
       )
+      logIdentityDiagnostic(
+        'IdentityProof',
+        'RegistrationStrategy.registerCertificate:call-data-built',
+        {
+          callDataLength: callData.length,
+        },
+      )
 
+      stage = 'register-certificate-relayer-request'
       const { data } = await relayerRegister(callData, Config.REGISTRATION_CONTRACT_ADDRESS)
+      logIdentityDiagnostic(
+        'IdentityProof',
+        'RegistrationStrategy.registerCertificate:relayer-accepted',
+        {
+          hasTxHash: Boolean(data?.tx_hash),
+        },
+      )
 
+      stage = 'register-certificate-transaction-lookup'
       const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
 
       if (!tx) throw new TypeError('Transaction not found')
 
+      stage = 'register-certificate-transaction-wait'
       await tx.wait()
+      logIdentityDiagnostic(
+        'IdentityProof',
+        'RegistrationStrategy.registerCertificate:transaction-confirmed',
+      )
     } catch (error) {
       const axiosError = error as AxiosError
 
@@ -302,6 +335,21 @@ export abstract class RegistrationStrategy {
       ) {
         throw new CertificateAlreadyRegisteredError()
       }
+
+      const classification = classifyIdentityCreationError({
+        stage,
+        error: axiosError,
+      })
+      logIdentityDiagnosticError({
+        domain: 'IdentityProof',
+        event: 'RegistrationStrategy.registerCertificate:failed',
+        stage,
+        classification,
+        error: axiosError,
+        context: {
+          cscaCertificateCount: CSCABytes.length,
+        },
+      })
 
       throw axiosError
     }
@@ -320,17 +368,53 @@ export abstract class RegistrationStrategy {
       encoding: FileSystem.EncodingType.UTF8,
     })
 
-    return parsePemString(CSCAPemFileContent)
+    const parsed = parsePemString(CSCAPemFileContent)
+    logIdentityDiagnostic('PassportVerification', 'retrieveCSCAFromPem:parsed', {
+      certificateCount: parsed.length,
+    })
+
+    return parsed
   }
 
   public static async requestRelayerRegisterMethod(registerCallData: string): Promise<void> {
-    const { data } = await relayerRegister(registerCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
+    let stage = 'register-relayer-request'
 
-    const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+    logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:start', {
+      callDataLength: registerCallData.length,
+    })
 
-    if (!tx) throw new TypeError('Transaction not found')
+    try {
+      const { data } = await relayerRegister(registerCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
+      logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:relayer-accepted', {
+        hasTxHash: Boolean(data?.tx_hash),
+      })
 
-    await tx.wait()
+      stage = 'register-transaction-lookup'
+      const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+
+      if (!tx) throw new TypeError('Transaction not found')
+
+      stage = 'register-transaction-wait'
+      await tx.wait()
+      logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:transaction-confirmed')
+    } catch (error) {
+      const classification = classifyIdentityCreationError({
+        stage,
+        error,
+      })
+      logIdentityDiagnosticError({
+        domain: 'IdentityProof',
+        event: 'requestRelayerRegisterMethod:failed',
+        stage,
+        classification,
+        error,
+        context: {
+          callDataLength: registerCallData.length,
+        },
+      })
+
+      throw error
+    }
   }
 
   public async buildRegisterCallData(

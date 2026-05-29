@@ -12,7 +12,7 @@ export default function GenerateProofStep() {
   const insets = useSafeAreaInsets()
   const appPaddings = useAppPaddings()
 
-  const { creatingIdentityStep } = useDocumentScanContext()
+  const { creatingIdentityStep, nidProofInputAdapter } = useDocumentScanContext()
 
   const navigation = useNavigation()
 
@@ -116,6 +116,13 @@ export default function GenerateProofStep() {
           ),
         }[creatingIdentityStep]
       }
+      {nidProofInputAdapter?.mode ? (
+        <Text className='typography-caption mt-4 text-center text-textSecondary'>
+          {nidProofInputAdapter.mode === 'phase2-nfc-live'
+            ? 'Running phase 2 NID live NFC adapter path'
+            : 'Running phase 1 NID mock proof adapter path'}
+        </Text>
+      ) : null}
     </View>
   )
 }

@@ -1,3 +1,4 @@
+import { type NidVerificationResult, toNidProofInputAdapterData } from '@iland/nid-verification'
 import {
   compareFaces,
   DEFAULT_FACE_COMPARISON_THRESHOLD,
@@ -15,6 +16,7 @@ import { Camera, useCameraDevice, useCameraPermission } from 'react-native-visio
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
+import { DocType } from '@/utils/e-document'
 
 type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'cropped' | 'failed' | 'success'
 
@@ -52,7 +54,17 @@ export default function FaceComparisonStep(): JSX.Element {
   const device = useCameraDevice('front')
   const cameraRef = useRef<Camera>(null)
 
-  const { passportNfcDetails, setCurrentStep, setFaceComparisonResult } = useDocumentScanContext()
+  const {
+    docType,
+    faceVerification,
+    nidVerificationResult,
+    passportNfcDetails,
+    runMockNidProofGeneration,
+    setCurrentStep,
+    setFaceComparisonResult,
+    setNidVerificationResult,
+  } = useDocumentScanContext()
+  const isNidFlow = docType === DocType.ID
 
   const [comparisonState, setComparisonState] = useState<ComparisonState>('initializing')
   const [cameraReady, setCameraReady] = useState(false)
@@ -91,7 +103,9 @@ export default function FaceComparisonStep(): JSX.Element {
         if (!portraitUri) {
           setComparisonState('failed')
           setErrorMessage(
-            'Passport portrait was not found. You can retry NFC or continue to preview.',
+            isNidFlow
+              ? 'NID front image was not found. Retry front capture and NFC.'
+              : 'Passport portrait was not found. You can retry NFC or continue to preview.',
           )
           return
         }
@@ -121,6 +135,7 @@ export default function FaceComparisonStep(): JSX.Element {
   }, [
     device,
     hasPermission,
+    isNidFlow,
     passportNfcDetails?.portrait?.base64,
     passportNfcDetails?.portrait?.filePath,
     portraitUri,
@@ -241,6 +256,48 @@ export default function FaceComparisonStep(): JSX.Element {
       }
 
       setFaceComparisonResult(result)
+      if (docType === DocType.ID && nidVerificationResult) {
+        const mergedFaceResult: NidVerificationResult = {
+          ...nidVerificationResult,
+          verified: Boolean(
+            nidVerificationResult.verified &&
+              faceVerification.liveness?.passed &&
+              faceVerification.gaze?.passed &&
+              result.passed,
+          ),
+          finalDecision:
+            nidVerificationResult.verified &&
+            faceVerification.liveness?.passed &&
+            faceVerification.gaze?.passed &&
+            result.passed
+              ? 'verified'
+              : 'failed',
+          face: {
+            passed: Boolean(
+              faceVerification.liveness?.passed && faceVerification.gaze?.passed && result.passed,
+            ),
+            liveness: faceVerification.liveness ?? nidVerificationResult.face.liveness,
+            gaze: faceVerification.gaze ?? nidVerificationResult.face.gaze,
+            comparison: result,
+            liveFaceImageUri: nidVerificationResult.face.liveFaceImageUri,
+            referenceFaceImageUri: nidVerificationResult.face.referenceFaceImageUri,
+          },
+          debug: {
+            mockedFace: false,
+            mockedNfc: nidVerificationResult.debug?.mockedNfc ?? false,
+            stepsCompleted: nidVerificationResult.debug?.stepsCompleted ?? [
+              'front-scan',
+              'back-scan',
+              'nfc-read',
+            ],
+          },
+        }
+
+        setNidVerificationResult(mergedFaceResult)
+        setComparisonState('success')
+        await runMockNidProofGeneration(toNidProofInputAdapterData(mergedFaceResult))
+        return
+      }
       setComparisonState('success')
       successTransitionTimeoutRef.current = setTimeout(() => {
         setCurrentStep(Steps.DocumentPreviewStep)
@@ -254,7 +311,11 @@ export default function FaceComparisonStep(): JSX.Element {
       })
       setComparisonState('failed')
       if (code === 'REFERENCE_IMAGE_UNAVAILABLE') {
-        setErrorMessage('Passport portrait is missing. Please retry NFC read.')
+        setErrorMessage(
+          isNidFlow
+            ? 'NID front image is missing. Retry front capture and NFC read.'
+            : 'Passport portrait is missing. Please retry NFC read.',
+        )
       } else if (code === 'LIVE_IMAGE_UNAVAILABLE') {
         setErrorMessage('Live capture failed. Please retry.')
       } else if (code === 'FACE_NOT_DETECTED') {
@@ -307,7 +368,9 @@ export default function FaceComparisonStep(): JSX.Element {
       </View>
 
       <Text className='typography-body3 mt-3 text-textSecondary'>
-        Capture a live selfie, preview both 112x112 cropped faces, then run comparison.
+        {isNidFlow
+          ? 'Capture a live selfie and compare it with the cropped face from NID front image.'
+          : 'Capture a live selfie, preview both 112x112 cropped faces, then run comparison.'}
       </Text>
 
       <View className='mt-6 rounded-xl bg-componentPrimary p-4'>
@@ -318,7 +381,7 @@ export default function FaceComparisonStep(): JSX.Element {
               style={{ width: 92, height: 92, borderRadius: 999 }}
             />
             <Text className='typography-body4 mt-2 text-textSecondary'>
-              Passport portrait loaded
+              {isNidFlow ? 'NID front image loaded' : 'Passport portrait loaded'}
             </Text>
           </View>
         ) : null}
@@ -330,7 +393,9 @@ export default function FaceComparisonStep(): JSX.Element {
                 source={{ uri: croppedPreviewUris.referenceUri }}
                 style={{ width: 112, height: 112, borderRadius: 10 }}
               />
-              <Text className='typography-body4 mt-2 text-textSecondary'>Passport crop</Text>
+              <Text className='typography-body4 mt-2 text-textSecondary'>
+                {isNidFlow ? 'Card front crop' : 'Passport crop'}
+              </Text>
             </View>
             <View className='items-center'>
               <Image
@@ -346,7 +411,9 @@ export default function FaceComparisonStep(): JSX.Element {
           {comparisonState === 'initializing'
             ? 'Preparing face model...'
             : comparisonState === 'capturing'
-              ? 'Comparing live face with passport portrait...'
+              ? isNidFlow
+                ? 'Comparing live face with NID front image face crop...'
+                : 'Comparing live face with passport portrait...'
               : comparisonState === 'cropped'
                 ? 'Cropped previews ready. Review them, then compare.'
                 : comparisonState === 'success'
