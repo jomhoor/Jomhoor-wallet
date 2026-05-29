@@ -12,7 +12,7 @@
     "prebuild:clean:DANGEROUS": "npx expo prebuild --clean && npx pod-install",
     "start": "npx expo start --clear",
     "android": "npx expo run:android --device",
-    "ios": "npx expo run:ios --device",
+    "ios": "APP_ENV=production npx expo run:ios --device",
     "build:development:ios": "cross-env APP_ENV=development eas build --profile development --platform ios",
     "build:development:android": "cross-env APP_ENV=development eas build --profile development --platform android",
     "build:iland": "npx tsc -p packages/passport-verification/tsconfig.json && npx tsc -p packages/nid-verification/tsconfig.json && yarn install && npx pod-install && (cd android && ./gradlew :app:assembleDebug)",

@@ -31,6 +31,7 @@ import type { PassportNfcScanOutput } from '@/utils/e-document/passport-nfc-read
 
 export enum Steps {
   SelectDocTypeStep,
+  SelectPassportCountryStep,
   ScanMrzStep,
   ScanPassportNfcStep,
   PassportNfcDetailsStep,
@@ -65,6 +66,8 @@ type DocumentScanContext = {
 
   docType?: DocType
   setDocType: (docType: DocType) => void
+  passportCountryCode?: string
+  setPassportCountryCode: (value?: string) => void
 
   tempMRZ?: FieldRecords
   setTempMrz: (value: FieldRecords) => void
@@ -164,6 +167,10 @@ const documentScanContext = createContext<DocumentScanContext>({
   setDocType: () => {
     throw new Error('setDocType not implemented')
   },
+  passportCountryCode: undefined,
+  setPassportCountryCode: () => {
+    throw new Error('setPassportCountryCode not implemented')
+  },
   tempMRZ: undefined,
   setTempMrz: () => {
     throw new Error('setMrz not implemented')
@@ -220,7 +227,7 @@ const sleep = (ms: number) =>
   })
 
 function getInitialStep(docType?: DocType): Steps {
-  if (docType === DocType.PASSPORT) return Steps.ScanMrzStep
+  if (docType === DocType.PASSPORT) return Steps.SelectPassportCountryStep
   if (docType === DocType.ID) return Steps.ScanNfcStep
   return Steps.SelectDocTypeStep
 }
@@ -281,6 +288,7 @@ export function ScanContextProvider({
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
 
   const [selectedDocType, setSelectedDocType] = useState(docType)
+  const [passportCountryCode, setPassportCountryCode] = useState<string>()
 
   const [tempMRZ, setTempMRZ] = useState<FieldRecords>()
   const [tempEDoc, setTempEDoc] = useState<EDocument>()
@@ -506,6 +514,7 @@ export function ScanContextProvider({
       selectedDocType: value,
     })
     setSelectedDocType(value)
+    setPassportCountryCode(undefined)
     setPassportNfcDetails(undefined)
     setPassportMrzBarcode(undefined)
     setNidVerificationResult(undefined)
@@ -514,7 +523,7 @@ export function ScanContextProvider({
       enabled: true,
     })
     if (value === DocType.PASSPORT) {
-      setCurrentStep(Steps.ScanMrzStep)
+      setCurrentStep(Steps.SelectPassportCountryStep)
     } else {
       setCurrentStep(Steps.ScanNfcStep)
     }
@@ -761,6 +770,8 @@ export function ScanContextProvider({
 
         docType: selectedDocType,
         setDocType: handleSetSelectedDocType,
+        passportCountryCode,
+        setPassportCountryCode,
 
         tempMRZ,
         tempEDoc,
