@@ -1,11 +1,12 @@
 import {
   type NidNfcReadResult,
   NidVerificationFlow,
+  type NidVerificationInitialData,
   type NidVerificationResult,
   type ReadNidNfcInput,
 } from '@iland/nid-verification'
 import { useNavigation } from '@react-navigation/core'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -30,8 +31,40 @@ export default function ScanNfcStep() {
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
-  const { resetFaceVerification, setCurrentStep, setNidVerificationResult, setPassportNfcDetails } =
-    useDocumentScanContext()
+  const {
+    resetFaceVerification,
+    setCurrentStep,
+    setNidVerificationResult,
+    setPassportNfcDetails,
+    verificationUserData,
+  } = useDocumentScanContext()
+
+  const nidInitialData = useMemo<NidVerificationInitialData>(() => {
+    const nid = verificationUserData.document.nid
+
+    return {
+      front: nid.front?.imageUri
+        ? {
+            frontImageUri: nid.front.imageUri,
+          }
+        : undefined,
+      back: nid.back
+        ? {
+            barcode: nid.back.barcode,
+            barcodeRaw: nid.back.barcodeRaw,
+            nationalId: nid.back.nationalId
+              ? {
+                  value: nid.back.nationalId,
+                  source: 'barcode',
+                  confidence: 0.95,
+                }
+              : undefined,
+          }
+        : undefined,
+      nfc: nid.nfc,
+      result: nid.verification,
+    }
+  }, [verificationUserData])
 
   useEffect(() => {
     void initNfc().catch(() => undefined)
@@ -109,6 +142,7 @@ export default function ScanNfcStep() {
       }}
     >
       <NidVerificationFlow
+        initialData={nidInitialData}
         nfcReader={readLiveNidNfc}
         onComplete={handleComplete}
         onCancel={() => {

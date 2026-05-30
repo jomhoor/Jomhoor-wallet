@@ -3,10 +3,11 @@ import { View } from 'react-native'
 import { useNidVerification } from '../hooks'
 import type { NidNfcReader } from '../nfc'
 import { NidBackScanStep, NidFrontScanStep, NidNfcReadStep } from '../steps'
-import type { NidVerificationResult } from '../types'
+import type { NidVerificationInitialData, NidVerificationResult } from '../types'
 
 export type NidVerificationFlowProps = {
   initialNationalId?: string
+  initialData?: NidVerificationInitialData
   onComplete: (result: NidVerificationResult) => void
   onCancel?: () => void
   onError?: (error: Error) => void
@@ -15,6 +16,7 @@ export type NidVerificationFlowProps = {
 
 export function NidVerificationFlow({
   initialNationalId,
+  initialData,
   onComplete,
   onCancel,
   onError,
@@ -37,6 +39,7 @@ export function NidVerificationFlow({
     cancel,
   } = useNidVerification({
     initialNationalId,
+    initialData,
     onComplete,
     onCancel,
     onError,

@@ -5,6 +5,7 @@ import { readMockNidNfc, type NidNfcReader } from '../nfc'
 import type {
   NidBackScanResult,
   NidFrontScanResult,
+  NidVerificationInitialData,
   NidNfcReadResult,
   NidVerificationResult,
   NidVerificationStep,
@@ -14,6 +15,7 @@ const STEP_ORDER: NidVerificationStep[] = ['front-scan', 'back-scan', 'nfc-read'
 
 export type UseNidVerificationOptions = {
   initialNationalId?: string
+  initialData?: NidVerificationInitialData
   onComplete: (result: NidVerificationResult) => void
   onError?: (error: Error) => void
   onCancel?: () => void
@@ -60,6 +62,18 @@ function collectMismatches(back?: NidBackScanResult, nfc?: NidNfcReadResult): st
   }
 
   return mismatches
+}
+
+function resolveInitialStep(initialData?: NidVerificationInitialData): NidVerificationStep {
+  if (initialData?.result || initialData?.nfc || initialData?.back) {
+    return 'nfc-read'
+  }
+
+  if (initialData?.front) {
+    return 'back-scan'
+  }
+
+  return 'front-scan'
 }
 
 function buildBlockingErrors(params: {
@@ -112,16 +126,21 @@ function buildBlockingErrors(params: {
 
 export function useNidVerification({
   initialNationalId,
+  initialData,
   onComplete,
   onError,
   onCancel,
   nfcReader,
 }: UseNidVerificationOptions) {
-  const [currentStep, setCurrentStep] = useState<NidVerificationStep>('front-scan')
-  const [front, setFront] = useState<NidFrontScanResult>()
-  const [back, setBack] = useState<NidBackScanResult>()
-  const [nfc, setNfc] = useState<NidNfcReadResult>()
-  const [pendingResult, setPendingResult] = useState<NidVerificationResult>()
+  const [currentStep, setCurrentStep] = useState<NidVerificationStep>(() =>
+    resolveInitialStep(initialData),
+  )
+  const [front, setFront] = useState<NidFrontScanResult | undefined>(() => initialData?.front)
+  const [back, setBack] = useState<NidBackScanResult | undefined>(() => initialData?.back)
+  const [nfc, setNfc] = useState<NidNfcReadResult | undefined>(() => initialData?.nfc)
+  const [pendingResult, setPendingResult] = useState<NidVerificationResult | undefined>(
+    () => initialData?.result,
+  )
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>()
 

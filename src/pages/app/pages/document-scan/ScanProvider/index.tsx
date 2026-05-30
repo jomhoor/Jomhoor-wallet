@@ -8,7 +8,7 @@ import type {
   PassportNfcReadResult,
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
-import type { PropsWithChildren } from 'react'
+import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
 import { useCallback } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
@@ -58,6 +58,7 @@ type DocumentScanContext = {
   setCurrentStep: (step: Steps) => void
 
   verificationUserData: VerificationUserData
+  setVerificationUserData: Dispatch<SetStateAction<VerificationUserData>>
 
   creatingIdentityStep: GenProofSteps
   nidVerificationResult?: NidVerificationResult
@@ -248,6 +249,9 @@ const documentScanContext = createContext<DocumentScanContext>({
   },
 
   verificationUserData: createInitialVerificationUserData(),
+  setVerificationUserData: () => {
+    throw new Error('setVerificationUserData not implemented')
+  },
 
   creatingIdentityStep: GenProofSteps.DownloadCircuit,
   nidVerificationResult: undefined,
@@ -407,7 +411,7 @@ export function ScanContextProvider({
 
   const [currentStep, setCurrentStep] = useState<Steps>(getInitialStep(docType))
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
-  const [verificationUserData] = useState<VerificationUserData>(() =>
+  const [verificationUserData, setVerificationUserData] = useState<VerificationUserData>(() =>
     createInitialVerificationUserData(docType),
   )
 
@@ -886,6 +890,7 @@ export function ScanContextProvider({
         setCurrentStep,
 
         verificationUserData,
+        setVerificationUserData,
 
         creatingIdentityStep,
         nidVerificationResult,

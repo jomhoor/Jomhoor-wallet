@@ -82,6 +82,13 @@ export type NidVerificationResult = {
   }
 }
 
+export type NidVerificationInitialData = {
+  front?: NidFrontScanResult
+  back?: NidBackScanResult
+  nfc?: NidNfcReadResult
+  result?: NidVerificationResult
+}
+
 export type NidProofInputAdapterData = {
   docType: 'ID'
   mode: 'phase1-mock' | 'phase2-nfc-live'
