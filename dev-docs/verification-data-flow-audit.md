@@ -1,639 +1,453 @@
 # Jomhoor App: Verification Data Flow Audit
 
-**Date:** May 30, 2026  
-**Scope:** Passport/Document verification and NID verification flows  
-**Status:** Completed audit covering implemented passport flow and planned NID flow
+- **Date:** May 30, 2026
+- **Scope:** Passport and Iranian NID verification flows
+- **Status:** Updated to match current code after verificationUserData Phase 3 and NID proof handoff work
 
 ---
 
 ## Executive Summary
 
-The Jomhoor app implements a multi-step identity verification pipeline that collects sensitive biometric and document data through NFC reads, camera captures, and barcode scanning. This audit documents how user verification data is collected, processed, stored, and cleaned up across two verification flows:
+The document verification flow now uses `verificationUserData` in `ScanProvider` as the canonical per-session verification object. Legacy state variables still exist as compatibility fallbacks, but new writes are copied into `verificationUserData` first and many older transient states are cleared immediately after canonical storage.
 
-1. **Passport/Document Verification** (✅ Implemented) — reads ICAO 9303 passports via NFC + face liveness/comparison
-2. **NID Verification** (🔄 Planned/Partial) — reads Iranian National ID cards via NFC + face verification
+Current supported flows:
 
-**Key Findings:**
+1. **Passport verification**: country selection, MRZ/barcode scan, NFC read, liveness, gaze, face comparison, document preview, Noir proof generation.
+2. **NID verification**: front image capture, back barcode scan, live NFC certificate read, liveness, gaze, face comparison against the NID front image, `EID` adapter creation, Noir EID proof generation.
 
-- Sensitive data (face images, NFC raw bytes, certificates) is held in **React context state** during the flow
-- Portrait images are stored **optionally on disk** via file URIs (not base64 in memory)
-- Intermediate data is **reset on step transitions** but **persists in state** if the user goes back
-- **No explicit cleanup** of camera frames or temporary face crops after comparison
-- Certificate/credential data flows into secure storage via **Zustand + expo-secure-store**
-- NID flow uses **mock adapters** for phase 1; phase 2 is planned for live NFC integration
+Key current facts:
+
+- `verificationUserData.document.passport` stores passport MRZ/barcode/NFC output, including `EPassport` for proof generation.
+- `verificationUserData.document.nid` stores NID front/back/NFC output, final verification result, proof adapter data, and the generated `EID` object used by Noir EID proof generation.
+- NID proof generation now uses the real `createIdentity()` path, not `runMockNidProofGeneration()` after face comparison succeeds.
+- NID NFC currently reads signing/auth certificate hex. `dg1Bytes`, `dg15Bytes`, and `sodBytes` are typed and carried if available, but real APDU extraction for those DG/SOD files is not implemented yet.
+- Passport native NFC modules now expose `clearTemporaryData()`; JS falls back to session cancel/disconnect when unavailable.
+- NID NFC cleanup runs through `clearInidNfcTemporaryData()` after NID NFC data is stored.
+
+---
+
+## Canonical Session Object
+
+`verificationUserData` is defined in `src/pages/app/pages/document-scan/ScanProvider/index.tsx`.
+
+Current shape, simplified:
+
+```ts
+VerificationUserData = {
+  session: {
+    id: string
+    startedAt: number
+    docType?: DocType
+    selectedPassportCountry?: string
+    status: 'collecting' | 'ready-for-proof' | 'proofing' | 'completed' | 'cancelled' | 'failed'
+  }
+  document: {
+    passport: {
+      mrz?: {
+        fields?: FieldRecords
+        credentials?: PassportCredentials
+        rawBarcode?: string
+        parsedBarcode?: { raw?: string; nidn?: string; fields?: Record<string, unknown> }
+      }
+      nfc?: {
+        normalized?: PassportNfcScanOutput['normalized']
+        files?: PassportNfcReadResult['files']
+        packageNfcResult?: PassportNfcReadResult
+        portrait?: { base64?: string; filePath?: string }
+        ePassport?: EPassport
+        backend?: PassportNfcReadResult['backend']
+        finalStatus?: PassportNfcReadResult['finalStatus']
+        nativeSessionId?: string
+      }
+    }
+    nid: {
+      front?: { imageUri?: string; capturedAt?: number }
+      back?: {
+        barcodeRaw?: string
+        barcode?: NidVerificationResult['back']['barcode']
+        nationalId?: string
+      }
+      nfc?: NidVerificationResult['nfc'] & { nativeSessionId?: string }
+      eID?: EID
+      verification?: NidVerificationResult
+      proofInput?: NidProofInputAdapterData
+    }
+  }
+  biometrics: {
+    liveness?: LivenessResult
+    gaze?: GazeChallengeResult
+    comparison?: FaceComparisonResult
+    images?: {
+      referenceUri?: string
+      liveCaptureUri?: string
+      referenceCropUri?: string
+      liveCropUri?: string
+    }
+  }
+  proof: {
+    creatingIdentityStep?: GenProofSteps
+    identity?: IdentityItem
+    error?: { code?: string; message: string }
+  }
+  evidence: VerificationEvidenceRecord[]
+}
+```
+
+`evidence` records store the step, source, timestamp, and keys written. They are diagnostic metadata only and should not contain raw personal data.
+
+---
+
+## Current Passport Flow
+
+```mermaid
+graph TD
+    A["SelectDocTypeStep: Passport"] --> B["SelectPassportCountryStep"]
+    B --> C["ScanPassportMrzStep"]
+    C --> C1["PassportMrzBarcodeScanScreen"]
+    C1 --> C2["setPassportMrzBarcode"]
+    C2 --> C3["verificationUserData.document.passport.mrz"]
+    C3 --> D["ScanPassportNfcStep"]
+
+    D --> D1["readPassportScanOutput"]
+    D1 --> D2["native-ios/native-android or JS passport NFC"]
+    D2 --> D3["PassportNfcReadResult"]
+    D3 --> D4["packageNfcResultToEPassport"]
+    D4 --> D5["verificationUserData.document.passport.nfc.ePassport"]
+    D5 --> D6["clearPassportNfcTemporaryData"]
+    D5 --> E["PassportNfcDetailsStep"]
+
+    E --> F["FaceLivenessStep"]
+    F --> F1["verificationUserData.biometrics.liveness"]
+    F1 --> G["GazeChallengeStep"]
+    G --> G1["verificationUserData.biometrics.gaze"]
+    G1 --> H["FaceComparisonStep"]
+    H --> H1["Passport portrait vs live face"]
+    H1 --> H2["verificationUserData.biometrics.comparison + images"]
+    H2 --> I["DocumentPreviewStep"]
+    I --> J["createIdentity"]
+    J --> J1["NoirEPassportRegistration"]
+    J1 --> J2["GenerateProofStep"]
+    J2 --> J3["Identity stored"]
+```
+
+### Passport Write Points
+
+| Step                       | Code                                                 | Canonical write                                                    |
+| -------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| Document type              | `handleSetSelectedDocType()`                         | `session.docType`                                                  |
+| Country                    | `handleSetPassportCountryCode()`                     | `session.selectedPassportCountry`                                  |
+| MRZ fields                 | `handleSetMrz()`                                     | `document.passport.mrz.fields`                                     |
+| MRZ/barcode package result | `handleSetPassportMrzBarcode()`                      | `document.passport.mrz.credentials`, `parsedBarcode`, `rawBarcode` |
+| NFC result                 | `handleSetPassportNfcScanOutput()`                   | `document.passport.nfc.*`, including `ePassport`                   |
+| NFC display details        | `handleSetPassportNfcDetails()`                      | `document.passport.nfc.normalized`, `portrait`, `packageNfcResult` |
+| Liveness                   | `setFaceLivenessResult()`                            | `biometrics.liveness`                                              |
+| Gaze                       | `setFaceGazeResult()`                                | `biometrics.gaze`                                                  |
+| Face comparison            | `setFaceComparisonResult()` and `FaceComparisonStep` | `biometrics.comparison`, `biometrics.images`                       |
+| Proof completion           | `createIdentity()`                                   | `proof.identity`, `proof.creatingIdentityStep`, `session.status`   |
+
+### Passport Proof Input
+
+`createIdentity()` resolves the document for passport proof as:
+
+```ts
+proofEDoc = tempEDoc ?? verificationUserData.document.passport.nfc?.ePassport
+```
+
+The proof generator receives an `EPassport` containing:
+
+- `personDetails`
+- `sodBytes`
+- `dg1Bytes`
+- optional `dg15Bytes`
+- optional `dg11Bytes`
+- optional `aaSignature`
+
+The proof strategy is `NoirEPassportRegistration`, which builds a `NoirEPassportBasedRegistrationCircuit`.
+
+---
+
+## Current NID Flow
+
+```mermaid
+graph TD
+    A["SelectDocTypeStep: ID"] --> B["ScanNfcStep"]
+    B --> C["NidVerificationFlow"]
+
+    C --> C1["NidFrontScanStep"]
+    C1 --> C2["onFrontStored"]
+    C2 --> C3["verificationUserData.document.nid.front"]
+
+    C3 --> D1["NidBackScanStep"]
+    D1 --> D2["parseNidBarcode"]
+    D2 --> D3["onBackStored"]
+    D3 --> D4["verificationUserData.document.nid.back"]
+
+    D4 --> E1["NidNfcReadStep"]
+    E1 --> E2["readSigningCertDgAndSod"]
+    E2 --> E3["readSigningAndAuthCertificates"]
+    E3 --> E4["NidNfcReadResult"]
+    E4 --> E5["onNfcStored"]
+    E5 --> E6["verificationUserData.document.nid.nfc + verification"]
+    E6 --> E7["clearInidNfcTemporaryData"]
+
+    E6 --> F["handleComplete"]
+    F --> F1["nidNfcResultToEID"]
+    F1 --> F2["setTempEDoc(EID)"]
+    F2 --> F3["verificationUserData.document.nid.eID"]
+
+    F3 --> G["FaceLivenessStep"]
+    G --> H["GazeChallengeStep"]
+    H --> I["FaceComparisonStep"]
+    I --> I1["NID front image crop vs live face crop"]
+    I1 --> I2["merge face result into NidVerificationResult"]
+    I2 --> I3["setNidProofInputAdapter"]
+    I3 --> J["createIdentity"]
+    J --> J1["NoirEIDRegistration"]
+    J1 --> K["GenerateProofStep"]
+    K --> L["Identity stored"]
+```
+
+### NID Write Points
+
+| Step              | Code                                               | Canonical write                                                                   |
+| ----------------- | -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Front image       | `ScanNfcStep.handleFrontStored()`                  | `document.nid.front.imageUri`, `capturedAt`                                       |
+| Back barcode      | `ScanNfcStep.handleBackStored()`                   | `document.nid.back.barcodeRaw`, `barcode`, `nationalId`                           |
+| NFC read          | `ScanNfcStep.handleNfcStored()`                    | `document.nid.nfc`, `document.nid.verification`, `session.status`                 |
+| EID adapter       | `ScanNfcStep.handleComplete()` + `setTempEDoc()`   | `document.nid.eID`                                                                |
+| Liveness          | `setFaceLivenessResult()`                          | `biometrics.liveness`                                                             |
+| Gaze              | `setFaceGazeResult()`                              | `biometrics.gaze`                                                                 |
+| Face comparison   | `FaceComparisonStep` + `setFaceComparisonResult()` | `biometrics.comparison`, `biometrics.images`, updated `document.nid.verification` |
+| NID proof adapter | `setNidProofInputAdapter()`                        | `document.nid.proofInput`, `proof.creatingIdentityStep`, `session.status`         |
+| Proof completion  | `createIdentity()`                                 | `proof.identity`, `proof.creatingIdentityStep`, `session.status`                  |
+
+### NID Proof Input
+
+`createIdentity()` resolves the document for NID proof as:
+
+```ts
+proofEDoc = tempEDoc ?? verificationUserData.document.nid.eID
+```
+
+`nidNfcResultToEID()` converts `NidNfcReadResult` into an `EID` by parsing:
+
+- `signingCertHex` -> `EID.sigCertificate`
+- `authCertHex` -> `EID.authCertificate`
+
+The proof strategy is `NoirEIDRegistration`, which uses `NoirEIDBasedRegistrationCircuit`.
+
+Current Noir EID proof circuit requires:
+
+- signing certificate TBS bytes, derived from `EID.sigCertificate`
+- authentication certificate public key, derived from `EID.authCertificate`
+- signing certificate signature, derived from `EID.sigCertificate`
+- ICAO/Rarimo SMT root and siblings, fetched in `NoirEIDRegistration`
+- wallet private key, from wallet store
+
+### NID DG/SOD Status
+
+`NidNfcReadResult` now supports optional:
+
+- `dg1Bytes`
+- `dg15Bytes`
+- `sodBytes`
+
+`NidProofInputAdapterData.nfcArtifacts` also carries those fields if present.
+
+However, `readSigningCertDgAndSod()` currently wraps `readSigningAndAuthCertificates()` and does not yet perform real DG/SOD APDU reads. The current real proof path is certificate-based, matching the current Noir EID circuit. DG/SOD extraction remains a future NFC reader enhancement.
 
 ---
 
 ## Data Categories Inventory
 
-### 1. Document Images
+### Document Images
 
-| Data                    | Source             | Storage      | Persistence | Network | Logging    | Lifetime             | Cleanup      | Risk       |
-| ----------------------- | ------------------ | ------------ | ----------- | ------- | ---------- | -------------------- | ------------ | ---------- |
-| **Front image (NID)**   | Camera via OCR     | Memory (URI) | Per-session | None    | Debug only | Until step reset     | On next scan | **MEDIUM** |
-| **Back image (NID)**    | Camera via barcode | Memory (URI) | Per-session | None    | Debug only | Until step reset     | On next scan | **MEDIUM** |
-| **MRZ scan (passport)** | Camera barcode     | Memory (URI) | Per-session | No      | Diagnostic | Until barcode parsed | Auto-cleared | **LOW**    |
+| Data              | Source                                          | Current storage                                                                                      | Persistence                                    | Cleanup                                                                                           | Risk   |
+| ----------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| NID front image   | `NidFrontScanStep` camera/capture UI            | `verificationUserData.document.nid.front.imageUri`                                                   | Per session                                    | Reset on new doc type/session; not file-deleted here                                              | Medium |
+| NID back image    | Not currently stored as image in canonical flow | N/A                                                                                                  | N/A                                            | N/A                                                                                               | Low    |
+| Passport portrait | NFC DG2/native output                           | `verificationUserData.document.passport.nfc.portrait` and `EPassport.personDetails.passportImageRaw` | Session and persisted inside identity document | Revocation/identity removal                                                                       | Medium |
+| Live face capture | Vision Camera photo                             | `verificationUserData.biometrics.images.liveCaptureUri`                                              | Per session file URI                           | Not explicitly deleted in app step                                                                | High   |
+| Face crops        | `getCenteredFaceSquareCrop()`                   | `verificationUserData.biometrics.images.referenceCropUri/liveCropUri`                                | Per session file URI                           | Package cleanup exists for internal prepared images; app-held crop URI cleanup needs verification | Medium |
 
-**Assumptions:** Front/back images for NID are stored as file URIs (paths), not base64 in memory. Full verification of cleanup timing needed.
+### MRZ and Barcode Data
 
----
+| Data                          | Source                  | Current storage                                                                                                          | Persistence                            | Cleanup                    | Risk   |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- | -------------------------- | ------ |
+| Passport MRZ fields           | MRZ/barcode scan        | `verificationUserData.document.passport.mrz.fields`                                                                      | Per session                            | New session/doc type reset | Medium |
+| Passport credentials          | MRZ parse               | `verificationUserData.document.passport.mrz.credentials`                                                                 | Per session, then identity proof input | New session/doc type reset | Medium |
+| Passport barcode payload/NIDN | Barcode parser          | `verificationUserData.document.passport.mrz.parsedBarcode/rawBarcode`                                                    | Per session                            | New session/doc type reset | Medium |
+| NID back barcode payload      | NID barcode scan        | `verificationUserData.document.nid.back.barcodeRaw/barcode`                                                              | Per session                            | New session/doc type reset | Medium |
+| NID national ID               | NID barcode/NFC derived | `verificationUserData.document.nid.back.nationalId`, `document.nid.nfc.nationalId`, `document.nid.verification.identity` | Per session and proof input            | New session/doc type reset | High   |
 
-### 2. MRZ Data
+### NFC Data
 
-| Data                  | Source         | Storage                | Persistence | Network        | Logging           | Lifetime                        | Cleanup               | Risk       |
-| --------------------- | -------------- | ---------------------- | ----------- | -------------- | ----------------- | ------------------------------- | --------------------- | ---------- |
-| **Parsed MRZ fields** | Barcode reader | Context state          | Per-session | No             | Diagnostic logged | Until manual reset or next scan | Manual reset required | **MEDIUM** |
-| **MRZ raw string**    | OCR or barcode | Temp variable          | Per-session | No             | Debug only        | During read op                  | Auto-freed            | **LOW**    |
-| **Document number**   | MRZ            | Context + secure store | Persistent  | Via proof data | Diagnostic        | Until revoked                   | On revocation         | **HIGH**   |
-| **DOB, expiry**       | MRZ            | Context + secure store | Persistent  | Via proof data | Diagnostic        | Until revoked                   | On revocation         | **MEDIUM** |
+| Data                           | Source               | Current storage                                                                     | Persistence                                          | Cleanup                                                                                         | Risk             |
+| ------------------------------ | -------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------- |
+| Passport DG1/DG15/SOD files    | Passport NFC         | `verificationUserData.document.passport.nfc.files`, `packageNfcResult`, `ePassport` | Per session, then persisted in identity document     | Native `clearTemporaryData()` after read; identity persists until removal/revocation            | Medium           |
+| Passport DG2 portrait          | Passport NFC         | `portrait`, `EPassport.personDetails.passportImageRaw`                              | Per session and persisted in identity document       | Native temp cleanup; identity persists                                                          | Medium           |
+| Passport BAC/session internals | Native/JS NFC reader | Native/JS memory                                                                    | During read                                          | `clearPassportNfcTemporaryData()` / cancel                                                      | High during read |
+| NID signing cert               | NID NFC APDU         | `verificationUserData.document.nid.nfc.signingCertHex`, `EID.sigCertificate`        | Per session, then persisted in EID identity document | `clearInidNfcTemporaryData()` clears NFC session only; canonical data remains until session end | Medium           |
+| NID auth cert                  | NID NFC APDU         | `verificationUserData.document.nid.nfc.authCertHex`, `EID.authCertificate`          | Per session, then persisted in EID identity document | Same as signing cert                                                                            | Medium           |
+| NID DG1/DG15/SOD               | Future NID APDU read | Optional fields in `NidNfcReadResult`                                               | Not currently populated                              | N/A                                                                                             | Medium           |
 
-**Location:** `ScanProvider.tsx:tempMRZ` state  
-**Logged:** `setTempMrz()` at `ScanProvider/index.tsx:532-545`
+### Biometrics
 
----
+| Data                          | Source                        | Current storage                              | Persistence | Cleanup                                                        | Risk   |
+| ----------------------------- | ----------------------------- | -------------------------------------------- | ----------- | -------------------------------------------------------------- | ------ |
+| Liveness result               | Face detector/challenge logic | `verificationUserData.biometrics.liveness`   | Per session | `resetFaceVerification()` clears biometrics                    | Low    |
+| Gaze result                   | Gaze challenge                | `verificationUserData.biometrics.gaze`       | Per session | `resetFaceVerification()` clears biometrics                    | Low    |
+| Face comparison result        | `compareFaces()`              | `verificationUserData.biometrics.comparison` | Per session | `resetFaceVerification()` clears biometrics                    | Medium |
+| Live/reference image URI refs | Camera/crop utilities         | `verificationUserData.biometrics.images`     | Per session | Reset clears references only; file deletion needs verification | High   |
 
-### 3. Barcode Data
+### Proof and Identity Data
 
-| Data                  | Source              | Storage                      | Persistence | Network        | Logging    | Lifetime               | Cleanup              | Risk       |
-| --------------------- | ------------------- | ---------------------------- | ----------- | -------------- | ---------- | ---------------------- | -------------------- | ---------- |
-| **Barcode raw**       | Camera OCR          | Context state                | Per-session | No             | Diagnostic | Until next scan        | Manual reset         | **MEDIUM** |
-| **Parsed barcode**    | `parseNidBarcode()` | Context + state              | Per-session | No             | Diagnostic | Until next scan        | Manual reset         | **MEDIUM** |
-| **NIDN from barcode** | Barcode parser      | Context (passportMrzBarcode) | Per-session | Via proof data | Diagnostic | Until identity created | On identity creation | **MEDIUM** |
-
-**Location:** `ScanProvider.tsx:passportMrzBarcode`  
-**Parser:** `packages/nid-verification/src/barcode/index.ts`
-
----
-
-### 4. OCR/Manual Input
-
-| Data                     | Source        | Storage           | Persistence | Network | Logging    | Lifetime            | Cleanup      | Risk       |
-| ------------------------ | ------------- | ----------------- | ----------- | ------- | ---------- | ------------------- | ------------ | ---------- |
-| **OCR-extracted fields** | Camera vision | Memory (NID flow) | Per-session | No      | Diagnostic | Until step complete | On next scan | **MEDIUM** |
-| **Manual entry**         | User keyboard | Memory            | Per-session | No      | Diagnostic | Until step complete | On reset     | **LOW**    |
-
-**NID Flow:** OCR results stored in `NidFrontScanResult` with `NidEvidenceField` (source + confidence)  
-**Location:** `packages/nid-verification/src/types/index.ts:16-22`
-
----
-
-### 5. NFC Raw Data and Parsed Fields
-
-#### NFC Raw Bytes
-
-| Data                        | Source           | Storage                 | Persistence           | Network   | Logging              | Lifetime        | Cleanup       | Risk       |
-| --------------------------- | ---------------- | ----------------------- | --------------------- | --------- | -------------------- | --------------- | ------------- | ---------- |
-| **NFC session keys (BAC)**  | Derived from MRZ | Memory (crypto context) | None                  | No        | None                 | During NFC read | Auto-freed    | **HIGH**   |
-| **DG1 raw bytes**           | NFC chip         | EDocument object        | Persistent (in proof) | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **MEDIUM** |
-| **DG2 raw bytes (face)**    | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **MEDIUM** |
-| **DG15 raw bytes (AA key)** | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **LOW**    |
-| **SOD bytes (signature)**   | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **LOW**    |
-
-**NFC Protocol:** ICAO 9303 Part 11 Basic Access Control (BAC)  
-**Implementation:** `src/utils/e-document/passport-nfc-reader.ts:49-150` (crypto operations)
-
-#### NFC Parsed Fields
-
-| Data                           | Source        | Storage            | Persistence | Network | Logging            | Lifetime               | Cleanup                  | Risk       |
-| ------------------------------ | ------------- | ------------------ | ----------- | ------- | ------------------ | ---------------------- | ------------------------ | ---------- |
-| **Normalized passport fields** | NFC DG1 parse | Context state      | Per-session | No      | Diagnostic         | Until identity created | Auto-cleared on creation | **MEDIUM** |
-| **NID fields (from NFC)**      | NFC APDU      | `NidNfcReadResult` | Per-session | No      | Diagnostic + debug | Until identity created | Manual cleanup           | **MEDIUM** |
-| **CSN / CRN (card serial)**    | NFC CPLC      | `NidNfcReadResult` | Per-session | No      | Debug              | Until identity created | Manual cleanup           | **LOW**    |
-
-**Passport location:** `ScanProvider.tsx:passportNfcDetails`  
-**NID location:** `packages/nid-verification/src/types/index.ts:31-44`
+| Data                   | Source                           | Current storage                                | Persistence                              | Cleanup                     | Risk     |
+| ---------------------- | -------------------------------- | ---------------------------------------------- | ---------------------------------------- | --------------------------- | -------- |
+| Passport proof input   | `EPassport` + wallet private key | In memory during `createIdentity()`            | Proof stored in `IdentityItem`           | Identity removal/revocation | High     |
+| NID proof input        | `EID` + wallet private key       | In memory during `createIdentity()`            | Proof stored in `IdentityItem`           | Identity removal/revocation | High     |
+| NID debug adapter data | `toNidProofInputAdapterData()`   | `verificationUserData.document.nid.proofInput` | Per session                              | New session/doc type reset  | Medium   |
+| Generated proof        | Noir circuit                     | `IdentityItem.registrationProof`               | Secure store and blockchain registration | Identity removal/revocation | High     |
+| Identity document      | `EPassport` or `EID`             | `IdentityItem.document`                        | Secure store                             | Identity removal/revocation | Critical |
+| Wallet private key     | Wallet store                     | Wallet module state / secure storage           | Long-lived                               | Wallet lifecycle            | Critical |
 
 ---
 
-### 6. Certificates and Signing Material
+## Native and Cleanup Hooks
 
-| Data                                 | Source   | Storage                           | Persistence | Network           | Logging                 | Lifetime               | Cleanup        | Risk       |
-| ------------------------------------ | -------- | --------------------------------- | ----------- | ----------------- | ----------------------- | ---------------------- | -------------- | ---------- |
-| **CSCA certificates (passport SOD)** | NFC DG15 | EDocument.sod                     | Persistent  | Via proof circuit | Diagnostic (tree built) | Until revoked          | On revocation  | **MEDIUM** |
-| **AA signature**                     | NFC DG15 | EDocument.aaSignature             | Persistent  | Via proof         | Diagnostic              | Until revoked          | On revocation  | **LOW**    |
-| **Signing cert (NID)**               | NFC APDU | `NidNfcReadResult.signingCertHex` | Per-session | No                | Debug                   | Until identity created | Manual cleanup | **MEDIUM** |
-| **Auth cert (NID)**                  | NFC APDU | `NidNfcReadResult.authCertHex`    | Per-session | No                | Debug                   | Until identity created | Manual cleanup | **MEDIUM** |
+### Passport NFC
 
-**CSCA processing:** `src/api/modules/registration/strategy.ts:1-150` (cert tree building)  
-**Certificate extraction:** `src/utils/e-document/inid-nfc-reader.ts:56-80` (APDU commands)
+Code paths:
 
----
+- JS facade: `src/utils/e-document/passport-nfc-reader.ts`
+- Package runtime: `packages/passport-verification/src/passport/nfc/runtime.ts`
+- Native bridge loader: `packages/passport-verification/src/shared/native/passport-native-module.ts`
+- iOS native module: `packages/passport-verification/ios/PassportVerificationModule.swift`
+- Android native module: `packages/passport-verification/android/src/main/java/com/iland/passportverification/PassportVerificationModule.kt`
 
-### 7. Liveness Result
+Current cleanup behavior:
 
-| Data                             | Source                        | Storage         | Persistence | Network | Logging    | Lifetime                | Cleanup       | Risk    |
-| -------------------------------- | ----------------------------- | --------------- | ----------- | ------- | ---------- | ----------------------- | ------------- | ------- |
-| **Liveness passed flag**         | Face detector + sequence eval | Context state   | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
-| **Challenge sequence**           | Pre-computed sequence         | Memory (useRef) | Per-session | No      | None       | Until component unmount | Auto-freed    | **LOW** |
-| **Challenge count**              | Sequence evaluator            | Context state   | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
-| **Started/completed timestamps** | Date.now()                    | LivenessResult  | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
+- `clearPassportNfcTemporaryData()` calls package/native cleanup where available.
+- Native modules expose `clearTemporaryData()`.
+- TS bridge falls back to `cancelSession()`/`disconnect()` when `clearTemporaryData()` is unavailable.
+- `ScanPassportNfcStep` calls cleanup after `setPassportNfcScanOutput(passportOutput)`.
 
-**Location:** `src/pages/app/pages/document-scan/components/FaceLivenessStep.tsx:27-50`  
-**Logged:** `ScanProvider/index.tsx:694-708`
+### NID NFC
 
----
+Code paths:
 
-### 8. Gaze Challenge Result
+- `src/utils/e-document/inid-nfc-reader.ts`
+- `src/pages/app/pages/document-scan/components/ScanNfcStep.tsx`
 
-| Data                              | Source                               | Storage       | Persistence | Network | Logging    | Lifetime                | Cleanup       | Risk    |
-| --------------------------------- | ------------------------------------ | ------------- | ----------- | ------- | ---------- | ----------------------- | ------------- | ------- |
-| **Gaze passed flag**              | Face detector + challenge evaluation | Context state | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
-| **Challenge targets + responses** | In-memory references                 | useRef        | Per-session | No      | None       | Until component unmount | Auto-freed    | **LOW** |
+Current cleanup behavior:
 
-**Location:** `src/pages/app/pages/document-scan/components/GazeChallengeStep.tsx` (not fully read)
+- `clearInidNfcTemporaryData()` cancels the active technology request and closes NFC manager.
+- `ScanNfcStep.handleNfcStored()` calls cleanup after storing NID NFC data in `verificationUserData`.
+- This clears native/session state, not canonical verification data needed for proof generation.
 
 ---
 
-### 9. Face Images and Crops
+## Proof Generator Handoff
 
-| Data                        | Source                        | Storage               | Persistence | Network   | Logging     | Lifetime                  | Cleanup            | Risk       |
-| --------------------------- | ----------------------------- | --------------------- | ----------- | --------- | ----------- | ------------------------- | ------------------ | ---------- |
-| **Portrait from NFC (DG2)** | NFC DG2 data                  | Context + file URI    | Persistent  | Via proof | Diagnostic  | Until identity created    | On revocation      | **MEDIUM** |
-| **Live face frames**        | Camera frame processor        | Memory (frame buffer) | None        | No        | None        | Single frame              | Auto-freed         | **LOW**    |
-| **Captured live face**      | `takeSnapshot()`              | File system URI       | Per-session | No        | Conditional | Until comparison complete | **NOT CLEARED** ⚠️ | **HIGH**   |
-| **Face crop (reference)**   | `getCenteredFaceSquareCrop()` | Memory                | Per-session | No        | Debug       | During comparison         | Auto-freed         | **MEDIUM** |
-| **Face crop (live)**        | `getCenteredFaceSquareCrop()` | Memory                | Per-session | No        | Debug       | During comparison         | Auto-freed         | **MEDIUM** |
+### Passport
 
-**Portrait handling:** `src/pages/app/pages/document-scan/adapters/extractPackageNfcDisplayDetails.ts:59-87`  
-**Face comparison:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx:100+` (captures camera image)  
-**⚠️ Risk:** Live face image saved to disk but not explicitly deleted after comparison.
+`DocumentPreviewStep` calls `createIdentity()`.
 
----
+`createIdentity()` selects:
 
-### 10. Face Embeddings / Model Inputs
-
-| Data                             | Source                            | Storage                | Persistence | Network | Logging | Lifetime          | Cleanup    | Risk    |
-| -------------------------------- | --------------------------------- | ---------------------- | ----------- | ------- | ------- | ----------------- | ---------- | ------- |
-| **Face detection landmarks**     | Vision camera ML detector         | Memory (frame context) | None        | No      | None    | Single frame      | Auto-freed | **LOW** |
-| **Face comparison model output** | TensorFlow Lite model             | Memory                 | Per-session | No      | Debug   | During comparison | Auto-freed | **LOW** |
-| **Embedding vectors**            | Not extracted (direct comparison) | N/A                    | N/A         | N/A     | N/A     | N/A               | N/A        | **N/A** |
-
-**Implementation:** Uses `compareFaces()` from `@iland/passport-verification` (preloaded model)  
-**Location:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx:7-8, 100`
-
----
-
-### 11. Face Comparison / Likeness Result
-
-| Data                       | Source                                     | Storage       | Persistence | Network | Logging    | Lifetime         | Cleanup       | Risk       |
-| -------------------------- | ------------------------------------------ | ------------- | ----------- | ------- | ---------- | ---------------- | ------------- | ---------- |
-| **Similarity score**       | Face model output                          | Context state | Per-session | No      | Diagnostic | Until face reset | On face reset | **MEDIUM** |
-| **Comparison passed flag** | Score vs threshold                         | Context state | Per-session | No      | Diagnostic | Until face reset | On face reset | **LOW**    |
-| **Threshold value**        | Constant DEFAULT_FACE_COMPARISON_THRESHOLD | Memory        | Per-session | No      | None       | Until app close  | Auto-freed    | **LOW**    |
-
-**Location:** `ScanProvider/index.tsx:faceVerification.comparison`  
-**Logged:** `ScanProvider/index.tsx:717-735`
-
----
-
-### 12. Proof Input and Generated Proof
-
-| Data                       | Source                     | Storage                 | Persistence | Network            | Logging              | Lifetime                | Cleanup                  | Risk       |
-| -------------------------- | -------------------------- | ----------------------- | ----------- | ------------------ | -------------------- | ----------------------- | ------------------------ | ---------- |
-| **Proof input (passport)** | EPassport + wallet PK      | Memory                  | Per-session | No                 | Diagnostic           | During proof generation | Auto-freed               | **MEDIUM** |
-| **Proof input (NID)**      | `NidProofInputAdapterData` | Context state           | Per-session | No                 | Diagnostic           | Until identity created  | On identity creation     | **MEDIUM** |
-| **Generated Noir proof**   | Noir circuit execution     | Memory                  | Per-session | No                 | Diagnostic (partial) | During generation       | Auto-freed after storage | **MEDIUM** |
-| **Proof JSON**             | Noir circuit output        | Memory + secure storage | Persistent  | Via smart contract | Diagnostic           | Until revoked           | On revocation            | **HIGH**   |
-
-**Proof generation:** `src/api/modules/registration/variants/noir-epassport.ts:23-100`  
-**NID adapter:** `packages/nid-verification/src/adapters/nid-proof-input-adapter.ts`
-
----
-
-### 13. Wallet / Credential / Identity Output
-
-| Data                          | Source                | Storage                            | Persistence | Network              | Logging    | Lifetime       | Cleanup                | Risk         |
-| ----------------------------- | --------------------- | ---------------------------------- | ----------- | -------------------- | ---------- | -------------- | ---------------------- | ------------ |
-| **IdentityItem (serialized)** | Proof + document data | Secure storage (expo-secure-store) | Persistent  | No local network     | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
-| **Document (EPassport/EID)**  | NFC read result       | Within IdentityItem                | Persistent  | No                   | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
-| **Registration proof**        | Noir/Circom ZK proof  | Within IdentityItem                | Persistent  | On blockchain submit | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
-| **Private key**               | Wallet module         | Secure storage                     | Persistent  | No                   | None       | Entire session | Never (revoke wallet?) | **CRITICAL** |
-
-**Storage location:** `src/store/modules/identity/Identity.ts:23-29` (serialization)  
-**Secure store:** `src/core/secure-store.ts:30-48`
-
----
-
-## Data Flow Diagrams
-
-### Passport/Document Verification Flow (Implemented)
-
-```mermaid
-graph TD
-    A["User selects Passport"] --> B["SelectPassportCountryStep"]
-    B --> C["ScanMrzStep"]
-    C --> C1["MRZ barcode detected"]
-    C1 --> D["ScanPassportNfcStep"]
-
-    D --> D1["NFC session initiated"]
-    D1 --> D2["BAC derived from MRZ"]
-    D2 --> D3["DG1, DG2, DG15, SOD read"]
-    D3 --> D4["EPassport object created"]
-    D4 --> E["PassportNfcDetailsStep"]
-
-    E --> F["FaceLivenessStep"]
-    F --> F1["Camera frames processed"]
-    F1 --> F2["Liveness challenges evaluated"]
-    F2 --> G["GazeChallengeStep"]
-
-    G --> G1["Gaze targets tracked"]
-    G1 --> H["FaceComparisonStep"]
-    H --> H1["DG2 portrait extracted"]
-    H1 --> H2["Live face captured"]
-    H2 --> H3["Faces compared via TF model"]
-    H3 --> I["DocumentPreviewStep"]
-
-    I --> J["GenerateProofStep"]
-    J --> J1["Download Noir circuit"]
-    J1 --> J2["Generate proof from EPassport+PK"]
-    J2 --> J3["Register on-chain"]
-    J3 --> K["Identity stored in secure storage"]
-
-    style A fill:#e1f5ff
-    style K fill:#c8e6c9
-    style D3 fill:#ffe0b2
-    style H2 fill:#f8bbd0
+```ts
+const strategy = selectedDocType === DocType.PASSPORT ? epassportRegistration : eidRegistration
 ```
 
-### NID Verification Flow (Planned/Partial)
+For passport, it passes the `EPassport` from `verificationUserData.document.passport.nfc.ePassport` if the legacy `tempEDoc` has been cleared.
 
-```mermaid
-graph TD
-    A["User selects ID Card"] --> B["SelectDocTypeStep (ID)"]
-    B --> C["ScanNfcStep (MAV4/Pardis)"]
+### NID
 
-    C --> C1["IsoDep session started"]
-    C1 --> C2["APDU: Select AID / File"]
-    C2 --> C3["APDU: Read signing cert"]
-    C3 --> C4["APDU: Read auth cert"]
-    C4 --> C5["APDU: Read CSN/CRN"]
-    C5 --> D["NidNfcReadResult built"]
+After NID face comparison succeeds:
 
-    D --> E["Face verification same as passport"]
-    E --> F["NidVerificationResult combined"]
+1. `FaceComparisonStep` merges face results into `NidVerificationResult`.
+2. `setNidVerificationResult()` stores the merged result in `verificationUserData.document.nid.verification`.
+3. `setNidProofInputAdapter()` stores debug/proof handoff data in `verificationUserData.document.nid.proofInput`.
+4. `createIdentity()` runs the real Noir EID registration strategy.
+5. `createIdentity()` passes `verificationUserData.document.nid.eID` to `NoirEIDRegistration`.
 
-    F --> G{Phase?}
-    G -->|Phase 1 mock| G1["Mock proof adapter"]
-    G1 --> H["GenerateProofStep"]
-    G -->|Phase 2 live| G2["Live NFC cert extraction"]
-    G2 --> H
-
-    H --> I["Noir proof generated"]
-    I --> J["Identity stored"]
-
-    style B fill:#e1f5ff
-    style C1 fill:#fff9c4
-    style F fill:#f8bbd0
-    style G fill:#ffccbc
-    style J fill:#c8e6c9
-```
-
-### Sensitive Data Lifetime in Context
-
-```mermaid
-graph LR
-    A["MRZ scan"] -->|tempMRZ| B["Context state"]
-    B -->|user steps back| B
-    B -->|next scan| C["Cleared"]
-
-    D["NFC read"] -->|tempEDoc| E["Context + EDocument"]
-    E -->|user navigates| E
-    E -->|createIdentity| F["SecureStore"]
-    F -->|persists| G["Long-term storage"]
-
-    H["Face capture"] -->|File URI| I["Disk temp location"]
-    I -->|comparison| J["Model inference"]
-    J -->|result stored| K["Context state"]
-    K -->|NOT deleted| X["⚠️ Orphaned file"]
-
-    style X fill:#ffcdd2
-    style F fill:#c8e6c9
-    style G fill:#a5d6a7
-```
+`GenerateProofStep` displays progress from `creatingIdentityStep` and reads NID adapter mode from either legacy `nidProofInputAdapter` or `verificationUserData.document.nid.proofInput`.
 
 ---
 
-## Risk Analysis Table
+## Current Risks and Gaps
 
-| Data Type                | Source               | Stored Where             | Shared With              | Lifetime         | Cleanup                   | Risk Level  | Notes                                              |
-| ------------------------ | -------------------- | ------------------------ | ------------------------ | ---------------- | ------------------------- | ----------- | -------------------------------------------------- |
-| **MRZ/doc number**       | Barcode OCR          | Context state            | SecureStore on create    | Per-session      | Manual reset on next scan | 🟡 MEDIUM   | No automatic cleanup if user abandons flow         |
-| **Portrait (DG2)**       | NFC chip             | EDocument + file URI     | SecureStore + blockchain | Persistent       | Revocation flow           | 🟡 MEDIUM   | Standard ICAO data; encrypted by proof             |
-| **Face capture (live)**  | Camera snapshot      | File system              | Memory (comparison)      | Per-session      | **MISSING** ⚠️            | 🔴 HIGH     | File created but never deleted after comparison    |
-| **Liveness data**        | Challenge evaluation | Context state            | None                     | Per-session      | Face reset                | 🟢 LOW      | Timestamps only; no video stored                   |
-| **Gaze data**            | Detector output      | Context state            | None                     | Per-session      | Face reset                | 🟢 LOW      | Tracking points not stored                         |
-| **BAC session keys**     | MRZ-derived crypto   | Memory                   | None                     | During NFC read  | Auto-freed                | 🟢 LOW      | Crypto context garbage-collected                   |
-| **Proof (Noir)**         | Circuit execution    | SecureStore + blockchain | Smart contract           | Persistent       | Revocation                | 🟡 MEDIUM   | ZK-protected; non-interactive                      |
-| **Private key (wallet)** | Wallet module        | SecureStore              | None (prove internally)  | Session lifetime | Never                     | 🔴 CRITICAL | Should be revocation-aware                         |
-| **Identity item**        | Proof + document     | SecureStore              | None (local app)         | Persistent       | Revocation                | 🔴 CRITICAL | Serialized with SuperJSON; no encryption specified |
-| **NID barcode**          | Back card scan       | Context state            | Memory (proof adapter)   | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Parsed into `NidProofInputAdapterData`             |
-| **NID signing cert**     | NFC chip (MAV4)      | Context state            | None                     | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Phase 2: embedded in proof                         |
-| **NID auth cert**        | NFC chip (MAV4)      | Context state            | None                     | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Phase 2: embedded in proof                         |
-| **Debug metadata**       | All steps            | Memory (cond. logged)    | Console (dev only)       | Per-session      | Auto-freed                | 🟢 LOW      | `EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG` gate        |
+### High Priority
 
----
+1. **Live face capture and crop file cleanup needs verification**
+   - The app stores live capture/crop URI references in `verificationUserData.biometrics.images`.
+   - The face package performs some temporary-image cleanup internally, but the app-held live capture and preview crop URI lifetime should be verified on device.
+   - Add explicit deletion after proof generation/cancel if files are app-owned and no longer needed.
 
-## Detailed Findings
+2. **NID DG/SOD APDU extraction is not implemented**
+   - Types and adapter handoff can carry DG/SOD bytes.
+   - `readSigningCertDgAndSod()` currently returns certificates only.
+   - If future circuits require DG1/DG15/SOD, exact Iranian NID EF IDs/APDU sequences must be implemented and tested on physical cards.
 
-### ✅ Implemented Features
+3. **Sensitive canonical data remains until session end**
+   - This is required for proof generation, but cancellation/unmount cleanup should explicitly reset `verificationUserData` and delete app-owned files.
 
-1. **Passport NFC Reading (ICAO 9303)**
-   - **Status:** Fully implemented
-   - **Location:** `src/utils/e-document/passport-nfc-reader.ts`
-   - **Protocol:** ICAO 9303 Part 11, Basic Access Control (BAC)
-   - **Key derivation:** MRZ → SHA1(MRZ) → DES session keys → encrypted DG read
-   - **Files read:** DG1 (MRZ), DG2 (portrait), DG15 (AA public key), SOD (signature/cert chain)
+### Medium Priority
 
-2. **Face Liveness Detection**
-   - **Status:** Fully implemented
-   - **Location:** `src/pages/app/pages/document-scan/components/FaceLivenessStep.tsx`
-   - **SDK:** `@iland/passport-verification` + `react-native-vision-camera` + ML Kit face detector
-   - **Sequence:** Pre-computed challenge sequence; challenge evaluation per frame
-   - **Data retained:** Started/completed timestamps, challenge count (not video frames)
+1. **Legacy state still exists**
+   - `tempMRZ`, `tempEDoc`, `passportNfcDetails`, `passportMrzBarcode`, `nidVerificationResult`, and `nidProofInputAdapter` still exist for compatibility.
+   - Current code writes canonical data first and often clears these states, but future code should avoid adding new dependencies on them.
 
-3. **Face Comparison**
-   - **Status:** Fully implemented
-   - **Location:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx`
-   - **Model:** TensorFlow Lite via `@iland/passport-verification`
-   - **Inputs:** Portrait (from NFC DG2) vs. live face capture
-   - **Output:** Similarity score, passed/failed flag, threshold check
+2. **Certificate hex remains in canonical state until reset**
+   - NID proof generation needs parsed certificates via `EID`.
+   - After `EID` creation, raw cert hex may be redundant for proof generation but is still retained for debugging/handoff.
 
-4. **Proof Generation (Noir)**
-   - **Status:** Fully implemented
-   - **Location:** `src/api/modules/registration/variants/noir-epassport.ts`
-   - **Process:** EPassport + wallet private key → Noir circuit → ZK proof
-   - **Proof storage:** Serialized in `IdentityItem` → expo-secure-store
-
-### 🔄 Planned/Partial Features
-
-1. **NID Verification Flow**
-   - **Status:** Package exists; phase 1 (mock) ready, phase 2 (live NFC) planned
-   - **Location:** `packages/nid-verification/`
-   - **Phase 1:** Mock NFC reader + mock proof adapter
-   - **Phase 2:** Live MAV4/Pardis NFC reading + live proof generation (TBD)
-   - **Evidence fields:** OCR, manual, barcode, NFC sources tracked via `NidEvidenceField`
-
-2. **Iranian NID NFC Reader**
-   - **Status:** Partial; APDU command sequences defined
-   - **Location:** `src/utils/e-document/inid-nfc-reader.ts:56-80`
-   - **Reads:**
-     - Signing certificate (via APDU `SIGN_SELECT_*` sequence)
-     - Auth certificate (via APDU `AUTH_SELECT_*` sequence)
-     - CSN/CRN (via APDU `CM_GET_CPLC`, `CM_GET_TAG0101`)
-   - **Pardis shortcut:** Optimized path for faster reading
-   - **Status:** Code skeleton present; integration with flow not verified
-
-3. **NID Proof Adapter**
-   - **Status:** Type definitions ready; phase 1 (mock) implemented
-   - **Location:** `packages/nid-verification/src/adapters/nid-proof-input-adapter.ts`
-   - **Input:** `NidVerificationResult` → `NidProofInputAdapterData`
-   - **Modes:** `phase1-mock` (working), `phase2-nfc-live` (planned)
-   - **Data included:**
-     - Identity fields (national ID, name, birthdate, card number, expiry)
-     - Face checks (liveness, gaze, comparison results, similarity score)
-     - NFC artifacts (signing cert, auth cert hex)
-     - Mismatches and blocking errors
-
----
-
-## Security & Privacy Issues
-
-### 🔴 Critical Issues
-
-1. **Orphaned Live Face Images (HIGH RISK)**
-   - **Issue:** `FaceComparisonStep.tsx` calls `camera.current.takeSnapshot()` to capture live face, saves to disk, but **never deletes the file** after comparison.
-   - **Location:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx:~200+` (implementation detail)
-   - **Impact:** Disk accumulation of biometric data; potential recovery after app uninstall
-   - **Recommendation:** Implement `FileSystem.deleteAsync(liveImageUri)` after successful/failed comparison
-   - **Urgency:** IMMEDIATE
-
-2. **Private Key Lifetime**
-   - **Issue:** Wallet private key loaded at app start; never explicitly cleared or revoked
-   - **Location:** `src/store/modules/wallet/index.ts`
-   - **Impact:** Key remains in memory for entire session; no screen-lock trigger to clear
-   - **Recommendation:** Implement biometric re-auth + key re-derive on sensitive operations
-   - **Urgency:** HIGH (post-MVP)
-
-3. **No Explicit Revocation Flow for Identities**
-   - **Issue:** Revocation step is marked `//TODO` in the code
-   - **Location:** `src/pages/app/pages/document-scan/index.tsx:47`
-   - **Impact:** Users cannot invalidate compromised identity proofs
-   - **Recommendation:** Implement revocation workflow using challenge from smart contract
-   - **Urgency:** HIGH (must-have for production)
-
-### 🟡 Medium Issues
-
-1. **Face Crop Temporary Data Not Explicitly Cleared**
-   - **Issue:** `getCenteredFaceSquareCrop()` returns in-memory buffers that may not be garbage-collected immediately
-   - **Location:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx`
-   - **Impact:** Transient; frames auto-freed but timing unclear
-   - **Recommendation:** Explicit cleanup of crop buffers after comparison; use typed arrays for deterministic GC
-   - **Urgency:** MEDIUM
-
-2. **Context State Persists on Back Navigation**
-   - **Issue:** Temporary data (tempMRZ, tempEDoc, passportNfcDetails) are only cleared on **next scan**, not on back button
-   - **Location:** `src/pages/app/pages/document-scan/ScanProvider/index.tsx:512-530`
-   - **Impact:** User can back out of flow and sensitive data remains in React state; possible memory bloat if flow restarted many times
-   - **Recommendation:** Clear state on unmount or explicit back/cancel gesture
-   - **Urgency:** MEDIUM
-
-3. **Certificate Hex Strings Not Scrubbed**
-   - **Issue:** `NidNfcReadResult.signingCertHex` and `authCertHex` remain in context state until identity creation
-   - **Location:** `packages/nid-verification/src/types/index.ts:41-42`
-   - **Impact:** Certificates are sensitive PII; should be cleared after use
-   - **Recommendation:** Clear after proof generation; consider one-way hash instead of full cert
-   - **Urgency:** MEDIUM (NID phase 2)
-
-4. **No Encryption at Rest for SecureStore**
-   - **Issue:** `expo-secure-store` is used (OS-level keychain), but serialization format not specified
-   - **Location:** `src/store/modules/identity/Identity.ts:23-29` (SuperJSON)
-   - **Impact:** If keychain is compromised, full `IdentityItem` (including proof) is readable
-   - **Recommendation:** Encrypt proof layer additionally before storage; use `nacl.secretbox` or similar
-   - **Urgency:** MEDIUM (post-MVP)
-
-### 🟢 Low Issues
-
-1. **Debug Logging in Production**
-   - **Issue:** Diagnostic logging (identity-proof-diagnostics) remains enabled in prod; gates are minimal
-   - **Location:** `src/helpers/identity-proof-diagnostics.ts` (not fully read)
-   - **Impact:** Proof attempts and field mismatches logged; potential information disclosure
-   - **Recommendation:** Use feature flags or build-time stripping for debug logs
-   - **Urgency:** LOW (monitor in production)
-
-2. **No Watermarking or Spoofing Detection**
-   - **Issue:** Liveness and gaze challenges are standard; no anti-spoofing markers (e.g., holograms, timestamp nonces)
-   - **Location:** Sequence generation in `@iland/passport-verification`
-   - **Impact:** Low risk for this app (no high-value endpoint); liveness is sufficient for peer-to-peer voting
-   - **Recommendation:** Monitor for report abuse; consider multi-pass liveness if vote value increases
-   - **Urgency:** LOW
-
----
-
-## Data Flow Assumptions
-
-**Requires verification by code inspection / test:**
-
-1. Portrait images from NFC are stored **as file URIs**, not loaded into memory as base64 strings
-   - Assumption based on: `portrait?: { base64?: string; filePath?: string }` in `PassportNfcScanOutput`
-   - Verify: Check if `buildPortraitUri()` in `FaceComparisonStep.tsx` always returns a file path
-
-2. Camera frames in `useFrameProcessor()` are **not persisted** and auto-freed by worklets
-   - Assumption based on: `react-native-vision-camera` frame processor pattern
-   - Verify: Profile memory usage during liveness + gaze to confirm no frame buffer leaks
-
-3. EDocument serialization via SuperJSON **does not strip sensitive fields**
-   - Assumption based on: `serialize()` method serializes entire object
-   - Verify: Check if `EPassport` or `EID` classes have custom serializers that filter fields
-
-4. NID phase 2 live NFC reading **not yet integrated** into the main flow
-   - Assumption based on: `runMockNidProofGeneration()` and mock reader in context
-   - Verify: Search for active calls to live NFC in `ScanNfcStep` or NID components
-
-5. No cleanup of temporary files after flow completion or cancellation
-   - Assumption based on: `FileSystem.deleteAsync()` only called in `FileSystemUtil.deleteFile()` for logs
-   - Verify: Test cancel/back flow and check for orphaned files in app sandbox
-
----
-
-## Recommendations
-
-### Immediate (Before MVP)
-
-1. **Delete live face images after comparison**
-
-   ```typescript
-   // In FaceComparisonStep.tsx after comparison result
-   if (liveImageUri) {
-     await FileSystem.deleteAsync(liveImageUri).catch(() => {})
-   }
-   ```
-
-   **Priority:** CRITICAL  
-   **Effort:** 1 hour  
-   **Test:** Verify file deletion via Finder after comparison
-
-2. **Implement identity revocation flow**
-
-   ```typescript
-   // Complete the RevocationStep.tsx component
-   // Call getRevocationChallenge() from smart contract
-   // Generate revocation proof
-   // Submit to reissueIdentityViaNoir()
-   ```
-
-   **Priority:** HIGH  
-   **Effort:** 4-6 hours  
-   **Test:** End-to-end revocation + re-registration
-
-3. **Clear temporary state on screen unmount or cancel**
-   ```typescript
-   // In ScanProvider, add effect:
-   useEffect(() => {
-     return () => {
-       // Clear temp data on unmount
-       setTempMRZ(undefined)
-       setTempEDoc(undefined)
-       setPassportNfcDetails(undefined)
-     }
-   }, [])
-   ```
-   **Priority:** MEDIUM  
-   **Effort:** 1-2 hours  
-   **Test:** Back navigation + memory profiler
-
-### Short-term (Post-MVP)
-
-4. **Add encryption layer for proof storage**
-
-   ```typescript
-   // Use @libsodium/libsodium.js for secretbox encryption
-   const encrypted = await nacl.secretbox(proofJson, nonce, sharedSecret)
-   await setStorageItemAsync('identity_proof', encrypted)
-   ```
-
-   **Priority:** MEDIUM  
-   **Effort:** 3-4 hours  
-   **Blockers:** Nonce management, key derivation strategy
-
-5. **Implement NID phase 2 live NFC integration**
-   - Wire live NFC reader (`readSigningCertificate()`, `readAuthenticationCertificate()`) into `ScanNfcStep`
-   - Replace mock adapter with live proof generation
-   - Test on MAV4 and Pardis cards
-     **Priority:** HIGH (NID roadmap)  
-     **Effort:** 8-12 hours  
-     **Dependencies:** Card hardware availability
-
-6. **Audit debug logging in production**
-   - Disable or gate identity-proof-diagnostics in production builds
-   - Use build-time optimization to strip logs
-     **Priority:** LOW  
-     **Effort:** 2-3 hours  
-     **Test:** Build prod APK and verify no log output
-
-### Long-term (Hardening)
-
-7. **Add biometric re-auth for high-value operations**
-   - Prompt for Face ID / fingerprint before proof generation
-   - Re-derive private key from encrypted PIN + biometric seed
-     **Priority:** LOW  
-     **Effort:** 6-8 hours  
-     **Dependencies:** Biometric API stability
-
-8. **Implement certificate pinning for proof submission**
-   - Pin smart contract address and RPC endpoint
-   - Prevent MITM of proof registration
-     **Priority:** LOW  
-     **Effort:** 2-3 hours  
-     **Blockers:** Contract address finalization
+3. **Diagnostic logging must remain metadata-only**
+   - Existing diagnostics generally log presence/length/status, not raw bytes.
+   - Avoid adding logs for national ID, names, cert hex, DG bytes, image URIs, or proof inputs.
 
 ---
 
 ## Testing Checklist
 
-- [ ] **Memory profile:** Monitor RAM during face capture → comparison → deletion cycle
-- [ ] **File system audit:** Use `adb shell` to list `$APP_SANDBOX/files/` after verification flow
-- [ ] **Camera frame leak:** Enable logging in `FaceComparisonStep` and verify no duplicate captures
-- [ ] **Context cleanup:** React DevTools profiler to confirm temp state cleared on back navigation
-- [ ] **Secure store integrity:** Attempt to read raw keychain data (iOS: Keychain Access; Android: `adb shell`)
-- [ ] **Proof serialization:** Deserialize stored identity and verify no plaintext sensitive data
-- [ ] **NID barcode parsing:** Test with real Iranian ID card barcode samples
-- [ ] **NFC abort handling:** Interrupt NFC read mid-session and verify state cleanup
+- [ ] Passport happy path still reaches `GenerateProofStep` using `verificationUserData.document.passport.nfc.ePassport` when `tempEDoc` is cleared.
+- [ ] NID happy path reaches real `createIdentity()` after face comparison using `verificationUserData.document.nid.eID`.
+- [ ] NID with missing signing cert fails at `nidNfcResultToEID()` before face flow.
+- [ ] NID with missing auth cert fails at `nidNfcResultToEID()` before face flow.
+- [ ] NID with invalid cert hex fails with `NidNfcMappingError`.
+- [ ] Back/cancel from each verification step clears or abandons session state as expected.
+- [ ] Native passport `clearTemporaryData()` is callable on iOS and Android.
+- [ ] NID `clearInidNfcTemporaryData()` closes NFC after a successful read.
+- [ ] Face capture/crop files are deleted or confirmed to be package-managed temporary files.
+- [ ] `verificationUserData.evidence` records contain only keys/source/step/timestamps, no PII values.
+- [ ] `yarn test`, `yarn tsc --noEmit`, and package TS builds pass.
 
 ---
 
 ## References
 
-- **ICAO 9303 Part 11:** Machine-readable travel documents, Basic Access Control
-- **React Native Vision Camera:** Frame processing, face detection
-- **Noir ZK Circuits:** Noir proof generation and verification
-- **expo-secure-store:** Keychain integration (iOS) and KeyStore (Android)
-- **Jomhoor codebase:**
-  - `src/pages/app/pages/document-scan/ScanProvider/index.tsx` — Central state management
-  - `src/utils/e-document/` — Document model and NFC readers
-  - `src/api/modules/registration/` — Proof generation and smart contract integration
-  - `packages/passport-verification/` — Face and NFC verification SDK
-  - `packages/nid-verification/` — NID verification (planned)
-  - `src/store/modules/identity/` — Identity persistence
+- `src/pages/app/pages/document-scan/ScanProvider/index.tsx` - canonical verification context, proof handoff, state adapters
+- `src/pages/app/pages/document-scan/components/ScanNfcStep.tsx` - NID front/back/NFC flow host wiring
+- `src/pages/app/pages/document-scan/components/ScanPassportNfcStep.tsx` - passport NFC read and cleanup
+- `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx` - shared face comparison and NID proof trigger
+- `src/pages/app/pages/document-scan/adapters/nidNfcResultToEID.ts` - NID NFC certificate hex to `EID`
+- `src/pages/app/pages/document-scan/adapters/packageNfcResultToEPassport.ts` - passport NFC result to `EPassport`
+- `src/utils/e-document/inid-nfc-reader.ts` - Iranian NID NFC APDU helpers
+- `src/utils/e-document/passport-nfc-reader.ts` - passport NFC facade and cleanup
+- `packages/nid-verification/` - reusable NID verification flow/package
+- `packages/passport-verification/` - passport NFC, barcode, liveness, gaze, face comparison package
+- `src/api/modules/registration/variants/noir-eid.ts` - Noir EID proof strategy
+- `src/api/modules/registration/variants/noir-epassport.ts` - Noir passport proof strategy
 
 ---
 
-## Appendix: Data Category Legend
+## Status Legend
 
-| Status             | Meaning                                           |
-| ------------------ | ------------------------------------------------- |
-| ✅ Implemented     | Code exists and is actively used in the flow      |
-| 🔄 Planned/Partial | Package exists; integration in progress or mocked |
-| 📋 Proposed        | Described in types/docs but not implemented       |
-| ❌ Not implemented | Out of scope or deferred                          |
+| Status      | Meaning                                                                                |
+| ----------- | -------------------------------------------------------------------------------------- |
+| Implemented | Code exists and is currently wired into the flow                                       |
+| Partial     | Code/types exist, but hardware-specific or proof-specific implementation is incomplete |
+| Deferred    | Known requirement not implemented in this slice                                        |
 
-| Risk Level  | Threshold                                             |
-| ----------- | ----------------------------------------------------- |
-| 🟢 LOW      | No PII risk; standard technical debt                  |
-| 🟡 MEDIUM   | PII or credential risk; addressable with cleanup code |
-| 🔴 HIGH     | Biometric or private key risk; security-critical      |
-| 🔴 CRITICAL | Fundamental architecture flaw; blocks production      |
-
----
-
-**Audit completed:** 2026-05-30  
-**Auditor notes:** This audit focused on data _flow_ rather than _cryptographic correctness_. Proof validity and smart contract integration are assumed to be in-scope for a separate audit. NID phase 2 live NFC integration is blocked pending device availability.
+- **Audit updated:** 2026-05-30
+- **Auditor notes:** This audit reflects the current code flow after introducing canonical `verificationUserData` storage and the NID `EID` proof handoff. Cryptographic correctness, APDU completeness, and production privacy hardening remain separate validation tasks.
