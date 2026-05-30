@@ -26,6 +26,9 @@ export function toNidProofInputAdapterData(
     nfcArtifacts: {
       signingCertHex: result.nfc.signingCertHex,
       authCertHex: result.nfc.authCertHex,
+      dg1Bytes: result.nfc.dg1Bytes,
+      dg15Bytes: result.nfc.dg15Bytes,
+      sodBytes: result.nfc.sodBytes,
     },
     mismatches: result.mismatches ?? [],
     blockingErrors: result.blockingErrors ?? [],

@@ -203,6 +203,16 @@ class PassportVerificationModule: NSObject {
         resolve(nil)
     }
 
+    @objc(clearTemporaryData:rejecter:)
+    func clearTemporaryData(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        rejecter _: @escaping RCTPromiseRejectBlock
+    ) {
+        manager.disconnect()
+        resetOperationState()
+        resolve(nil)
+    }
+
     @objc
     static func requiresMainQueueSetup() -> Bool {
         true

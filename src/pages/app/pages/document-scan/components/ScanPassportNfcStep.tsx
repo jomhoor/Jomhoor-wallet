@@ -10,7 +10,11 @@ import {
 } from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
-import { readPassportScanOutput, stopPassportNfc } from '@/utils/e-document/passport-nfc-reader'
+import {
+  clearPassportNfcTemporaryData,
+  readPassportScanOutput,
+  stopPassportNfc,
+} from '@/utils/e-document/passport-nfc-reader'
 
 type ReadState = 'idle' | 'waiting' | 'reading' | 'error'
 
@@ -25,7 +29,8 @@ function formatDate(yymmdd: string): string {
 }
 
 export default function ScanPassportNfcStep() {
-  const { tempMRZ, setCurrentStep, setPassportNfcScanOutput } = useDocumentScanContext()
+  const { setCurrentStep, setPassportNfcScanOutput, tempMRZ, verificationUserData } =
+    useDocumentScanContext()
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -35,9 +40,15 @@ export default function ScanPassportNfcStep() {
   const [errorCode, setErrorCode] = useState<string>('')
   const readInFlightRef = useRef(false)
 
-  const docNumber = String(tempMRZ?.documentNumber ?? '')
-  const birthDate = String(tempMRZ?.birthDate ?? '')
-  const expiryDate = String(tempMRZ?.expirationDate ?? '')
+  const storedMrz = verificationUserData.document.passport.mrz
+  const mrzFields = tempMRZ ?? storedMrz?.fields
+  const docNumber = String(
+    mrzFields?.documentNumber ?? storedMrz?.credentials?.documentNumber ?? '',
+  )
+  const birthDate = String(mrzFields?.birthDate ?? storedMrz?.credentials?.dateOfBirthYYMMDD ?? '')
+  const expiryDate = String(
+    mrzFields?.expirationDate ?? storedMrz?.credentials?.expiryDateYYMMDD ?? '',
+  )
   const selectedBackend = resolvePassportNfcBackend()
   const debugEnabled =
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
@@ -46,7 +57,7 @@ export default function ScanPassportNfcStep() {
   const onReadPress = useCallback(async () => {
     if (readInFlightRef.current) return
 
-    if (!tempMRZ) {
+    if (!mrzFields && !storedMrz?.credentials) {
       setErrorMsg('MRZ data is missing. Please go back and scan MRZ first.')
       setErrorDetail('')
       setErrorCode('')
@@ -76,6 +87,7 @@ export default function ScanPassportNfcStep() {
       })
 
       setPassportNfcScanOutput(passportOutput)
+      await clearPassportNfcTemporaryData()
     } catch (e: unknown) {
       const mappedError = mapPassportNfcErrorToMessage(e, { debugEnabled })
       setErrorMsg(mappedError.primary)
@@ -85,7 +97,15 @@ export default function ScanPassportNfcStep() {
     } finally {
       readInFlightRef.current = false
     }
-  }, [tempMRZ, docNumber, birthDate, expiryDate, setPassportNfcScanOutput, debugEnabled])
+  }, [
+    mrzFields,
+    storedMrz?.credentials,
+    docNumber,
+    birthDate,
+    expiryDate,
+    setPassportNfcScanOutput,
+    debugEnabled,
+  ])
 
   useEffect(() => {
     return () => {
@@ -123,7 +143,7 @@ export default function ScanPassportNfcStep() {
       ) : null}
 
       {/* MRZ data card — always visible so user can verify */}
-      {tempMRZ && (
+      {mrzFields && (
         <View className='mb-4 rounded-xl bg-componentPrimary p-4'>
           <Text className='typography-subtitle4 mb-2 text-textPrimary'>Scanned MRZ Data</Text>
           <View className='gap-1'>
@@ -145,11 +165,11 @@ export default function ScanPassportNfcStep() {
                 {expiryDate ? formatDate(expiryDate) : '—'}
               </Text>
             </View>
-            {tempMRZ.firstName && (
+            {mrzFields.firstName && (
               <View className='flex-row justify-between'>
                 <Text className='typography-body3 text-textSecondary'>Name</Text>
                 <Text className='typography-subtitle5 text-textPrimary'>
-                  {String(tempMRZ.firstName ?? '')} {String(tempMRZ.lastName ?? '')}
+                  {String(mrzFields.firstName ?? '')} {String(mrzFields.lastName ?? '')}
                 </Text>
               </View>
             )}

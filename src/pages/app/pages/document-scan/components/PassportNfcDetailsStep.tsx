@@ -49,10 +49,16 @@ const buildPortraitUri = (details?: {
 export default function PassportNfcDetailsStep(): JSX.Element {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { passportNfcDetails, passportMrzBarcode, setCurrentStep } = useDocumentScanContext()
+  const { passportNfcDetails, passportMrzBarcode, setCurrentStep, verificationUserData } =
+    useDocumentScanContext()
+  const storedPassport = verificationUserData.document.passport
+  const reviewDetails = passportNfcDetails ?? storedPassport.nfc
 
-  const portraitUri = buildPortraitUri(passportNfcDetails)
-  const nidn = passportNfcDetails?.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn
+  const portraitUri = buildPortraitUri(reviewDetails)
+  const nidn =
+    reviewDetails?.normalized?.nidn ??
+    passportMrzBarcode?.barcode?.nidn ??
+    storedPassport.mrz?.parsedBarcode?.nidn
 
   return (
     <UiScreenScrollable
@@ -87,19 +93,19 @@ export default function PassportNfcDetailsStep(): JSX.Element {
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Name</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {passportNfcDetails?.normalized?.firstName ?? '—'}
+              {reviewDetails?.normalized?.firstName ?? '—'}
             </Text>
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Surname</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {passportNfcDetails?.normalized?.lastName ?? '—'}
+              {reviewDetails?.normalized?.lastName ?? '—'}
             </Text>
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Nationality</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {passportNfcDetails?.normalized?.nationality ?? '—'}
+              {reviewDetails?.normalized?.nationality ?? '—'}
             </Text>
           </View>
           <View className='flex-row justify-between gap-4'>
@@ -109,13 +115,13 @@ export default function PassportNfcDetailsStep(): JSX.Element {
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Expiry Date</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {formatDisplayDate(passportNfcDetails?.normalized?.expiryDate)}
+              {formatDisplayDate(reviewDetails?.normalized?.expiryDate)}
             </Text>
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Document #</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {maskDocumentIdentifier(passportNfcDetails?.normalized?.documentNumber)}
+              {maskDocumentIdentifier(reviewDetails?.normalized?.documentNumber)}
             </Text>
           </View>
         </View>

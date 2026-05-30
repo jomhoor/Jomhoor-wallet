@@ -10,16 +10,23 @@ import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } fro
 import { EID, EPassport } from '@/utils/e-document'
 
 export default function DocumentPreviewStep() {
-  const { tempEDoc, createIdentity, passportNfcDetails, passportMrzBarcode } =
+  const { createIdentity, passportMrzBarcode, passportNfcDetails, tempEDoc, verificationUserData } =
     useDocumentScanContext()
+  const storedPassport = verificationUserData.document.passport
+  const reviewEDoc = tempEDoc ?? storedPassport.nfc?.ePassport
+  const reviewPassportNfcDetails = passportNfcDetails ?? storedPassport.nfc
+  const reviewPassportBarcode = passportMrzBarcode ?? {
+    barcode: storedPassport.mrz?.parsedBarcode,
+  }
 
   const insets = useSafeAreaInsets()
 
-  if (tempEDoc instanceof EPassport) {
-    if (!tempEDoc?.personDetails) return null
+  if (reviewEDoc instanceof EPassport) {
+    if (!reviewEDoc?.personDetails) return null
 
-    const { firstName, lastName, passportImageRaw, ...restDetails } = tempEDoc.personDetails
-    const reviewNidn = passportNfcDetails?.normalized?.nidn ?? passportMrzBarcode?.barcode?.nidn
+    const { firstName, lastName, passportImageRaw, ...restDetails } = reviewEDoc.personDetails
+    const reviewNidn =
+      reviewPassportNfcDetails?.normalized?.nidn ?? reviewPassportBarcode?.barcode?.nidn
 
     return (
       <UiScreenScrollable
@@ -63,7 +70,7 @@ export default function DocumentPreviewStep() {
                   <View key={key} className='flex flex-row items-center justify-between gap-2'>
                     <Text className='typography-body3 capitalize text-textSecondary'>{key}</Text>
                     <Text className='typography-subtitle4 text-textPrimary'>
-                      {restDetails?.[key as keyof typeof tempEDoc.personDetails]}
+                      {restDetails?.[key as keyof typeof reviewEDoc.personDetails]}
                     </Text>
                   </View>
                 )
@@ -107,11 +114,11 @@ export default function DocumentPreviewStep() {
     )
   }
 
-  if (tempEDoc instanceof EID) {
-    if (!tempEDoc?.personDetails) {
+  if (reviewEDoc instanceof EID) {
+    if (!reviewEDoc?.personDetails) {
       return null
     }
-    const { firstName, lastName, expiryDate, ...restDetails } = tempEDoc.personDetails
+    const { firstName, lastName, expiryDate, ...restDetails } = reviewEDoc.personDetails
 
     return (
       <UiScreenScrollable

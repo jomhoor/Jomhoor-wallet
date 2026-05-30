@@ -40,6 +40,9 @@ export type NidNfcReadResult = {
   expiryDate?: NidEvidenceField<string>
   signingCertHex?: string
   authCertHex?: string
+  dg1Bytes?: Uint8Array
+  dg15Bytes?: Uint8Array
+  sodBytes?: Uint8Array
   debug?: Record<string, unknown>
 }
 
@@ -112,6 +115,9 @@ export type NidProofInputAdapterData = {
   nfcArtifacts: {
     signingCertHex?: string
     authCertHex?: string
+    dg1Bytes?: Uint8Array
+    dg15Bytes?: Uint8Array
+    sodBytes?: Uint8Array
   }
   mismatches: string[]
   blockingErrors: string[]

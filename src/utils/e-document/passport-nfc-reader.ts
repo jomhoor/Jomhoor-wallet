@@ -1032,3 +1032,7 @@ export function stopPassportNfc() {
     cancelPassportNfcSession(),
   ]).then(() => {})
 }
+
+export function clearPassportNfcTemporaryData() {
+  return stopPassportNfc()
+}

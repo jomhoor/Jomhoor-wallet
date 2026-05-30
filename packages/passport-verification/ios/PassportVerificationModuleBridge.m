@@ -38,4 +38,9 @@ RCT_EXTERN_METHOD(disconnect
                   rejecter
                   : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(clearTemporaryData
+                  : (RCTPromiseResolveBlock)resolve
+                  rejecter
+                  : (RCTPromiseRejectBlock)reject)
+
 @end

@@ -1,4 +1,6 @@
 import {
+  type NidBackScanResult,
+  type NidFrontScanResult,
   type NidNfcReadResult,
   NidVerificationFlow,
   type NidVerificationInitialData,
@@ -11,10 +13,12 @@ import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler } from '@/core'
+import { nidNfcResultToEID } from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import {
+  clearInidNfcTemporaryData,
   initNfc,
-  readSigningAndAuthCertificates,
+  readSigningCertDgAndSod,
   stopNfc,
 } from '@/utils/e-document/inid-nfc-reader'
 
@@ -35,7 +39,8 @@ export default function ScanNfcStep() {
     resetFaceVerification,
     setCurrentStep,
     setNidVerificationResult,
-    setPassportNfcDetails,
+    setTempEDoc,
+    setVerificationUserData,
     verificationUserData,
   } = useDocumentScanContext()
 
@@ -78,7 +83,8 @@ export default function ScanNfcStep() {
     const expectedNationalId = normalizeNationalId(input.expectedNationalId)
 
     try {
-      const { signingCert, authCert } = await readSigningAndAuthCertificates()
+      const { authCert, dg1Bytes, dg15Bytes, signingCert, sodBytes } =
+        await readSigningCertDgAndSod()
       const hasSigningCert = Boolean(signingCert)
       const hasAuthCert = Boolean(authCert)
       const status = hasSigningCert && hasAuthCert ? 'success' : 'failed'
@@ -94,6 +100,9 @@ export default function ScanNfcStep() {
           : undefined,
         signingCertHex: signingCert ?? undefined,
         authCertHex: authCert ?? undefined,
+        dg1Bytes,
+        dg15Bytes,
+        sodBytes,
         debug: {
           backend: 'inid-nfc-reader',
           hasAuthCert,
@@ -107,6 +116,94 @@ export default function ScanNfcStep() {
     }
   }, [])
 
+  const handleFrontStored = useCallback(
+    (front: NidFrontScanResult) => {
+      setVerificationUserData(previous => ({
+        ...previous,
+        document: {
+          ...previous.document,
+          nid: {
+            ...previous.document.nid,
+            front: {
+              capturedAt: Date.now(),
+              imageUri: front.frontImageUri,
+            },
+          },
+        },
+        evidence: [
+          ...previous.evidence,
+          {
+            keys: ['document.nid.front'],
+            source: 'camera',
+            step: 'nid-front-scan',
+            storedAt: Date.now(),
+          },
+        ],
+      }))
+    },
+    [setVerificationUserData],
+  )
+
+  const handleBackStored = useCallback(
+    (back: NidBackScanResult) => {
+      setVerificationUserData(previous => ({
+        ...previous,
+        document: {
+          ...previous.document,
+          nid: {
+            ...previous.document.nid,
+            back: {
+              barcode: back.barcode,
+              barcodeRaw: back.barcodeRaw,
+              nationalId: back.nationalId?.value,
+            },
+          },
+        },
+        evidence: [
+          ...previous.evidence,
+          {
+            keys: ['document.nid.back'],
+            source: 'barcode',
+            step: 'nid-back-barcode-scan',
+            storedAt: Date.now(),
+          },
+        ],
+      }))
+    },
+    [setVerificationUserData],
+  )
+
+  const handleNfcStored = useCallback(
+    async (nfc: NidNfcReadResult, result: NidVerificationResult) => {
+      setVerificationUserData(previous => ({
+        ...previous,
+        document: {
+          ...previous.document,
+          nid: {
+            ...previous.document.nid,
+            nfc,
+            verification: result,
+          },
+        },
+        evidence: [
+          ...previous.evidence,
+          {
+            keys: ['document.nid.nfc', 'document.nid.verification'],
+            source: 'nfc',
+            step: 'nid-nfc-read',
+            storedAt: Date.now(),
+          },
+        ],
+        session: {
+          ...previous.session,
+          status: result.verified ? 'ready-for-proof' : 'failed',
+        },
+      }))
+      await clearInidNfcTemporaryData()
+    },
+    [setVerificationUserData],
+  )
+
   const handleComplete = (result: NidVerificationResult) => {
     setNidVerificationResult(result)
     if (!result.verified) {
@@ -117,18 +214,16 @@ export default function ScanNfcStep() {
       return
     }
 
-    setPassportNfcDetails({
-      normalized: {
-        firstName: result.nfc.firstName?.value,
-        lastName: result.nfc.lastName?.value,
-        nidn: result.identity?.nationalId,
-      },
-      portrait: result.front.frontImageUri
-        ? {
-            filePath: result.front.frontImageUri,
-          }
-        : undefined,
-    })
+    try {
+      setTempEDoc(nidNfcResultToEID(result.nfc))
+    } catch (error) {
+      ErrorHandler.process(
+        error instanceof Error ? error : new Error('Failed to convert NID NFC data'),
+        'Could not prepare NID NFC data for proof generation.',
+      )
+      return
+    }
+
     resetFaceVerification()
     setCurrentStep(Steps.FaceLivenessStep)
   }
@@ -144,6 +239,7 @@ export default function ScanNfcStep() {
       <NidVerificationFlow
         initialData={nidInitialData}
         nfcReader={readLiveNidNfc}
+        onBackStored={handleBackStored}
         onComplete={handleComplete}
         onCancel={() => {
           navigation.navigate('App', { screen: 'Home' })
@@ -151,6 +247,8 @@ export default function ScanNfcStep() {
         onError={error => {
           ErrorHandler.processWithoutFeedback(error)
         }}
+        onFrontStored={handleFrontStored}
+        onNfcStored={handleNfcStored}
       />
     </View>
   )

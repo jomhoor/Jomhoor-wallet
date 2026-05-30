@@ -192,6 +192,11 @@ export async function stopNfc() {
   log('initNfc -> closed')
 }
 
+export async function clearInidNfcTemporaryData(): Promise<void> {
+  await NfcManager.cancelTechnologyRequest().catch(() => undefined)
+  await stopNfc().catch(() => undefined)
+}
+
 export async function readSigningAndAuthCertificates(onScanStarted?: () => void): Promise<{
   signingCert: string | null
   authCert: string | null
@@ -207,6 +212,21 @@ export async function readSigningAndAuthCertificates(onScanStarted?: () => void)
 
     return { signingCert, authCert }
   })
+}
+
+export async function readSigningCertDgAndSod(onScanStarted?: () => void): Promise<{
+  signingCert: string | null
+  authCert: string | null
+  dg1Bytes?: Uint8Array
+  dg15Bytes?: Uint8Array
+  sodBytes?: Uint8Array
+}> {
+  const { signingCert, authCert } = await readSigningAndAuthCertificates(onScanStarted)
+
+  return {
+    signingCert,
+    authCert,
+  }
 }
 
 /** Read Signing cert (handles Pardis & MAV4 automatically) */

@@ -14,6 +14,7 @@ type NativePassportModule = {
   readPassport?: (input: Record<string, unknown>) => Promise<unknown>
   probePassportChip?: (input: Record<string, unknown>) => Promise<unknown>
   cancelSession?: () => Promise<void>
+  clearTemporaryData?: () => Promise<void>
   disconnect?: () => Promise<void>
 }
 
@@ -171,4 +172,16 @@ export async function invokeNativeCancel(): Promise<void> {
   if (typeof loaded.module.disconnect === 'function') {
     await loaded.module.disconnect()
   }
+}
+
+export async function invokeNativeClearTemporaryData(): Promise<void> {
+  const loaded = loadPassportNativeModule()
+  if (!loaded.module) return
+
+  if (typeof loaded.module.clearTemporaryData === 'function') {
+    await loaded.module.clearTemporaryData()
+    return
+  }
+
+  await invokeNativeCancel()
 }

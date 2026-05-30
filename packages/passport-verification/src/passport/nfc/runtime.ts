@@ -2,6 +2,7 @@ import {
   getNativePlatform,
   getPassportVerificationNativeStatus,
   invokeNativeCancel,
+  invokeNativeClearTemporaryData,
   invokeNativeProbe,
   invokeNativeRead,
 } from '../../shared/native/passport-native-module'
@@ -312,6 +313,10 @@ export async function probePassportChip(
 
 export async function cancelPassportNfcSession(): Promise<void> {
   await invokeNativeCancel()
+}
+
+export async function clearPassportNfcTemporaryData(): Promise<void> {
+  await invokeNativeClearTemporaryData()
 }
 
 export { getPassportVerificationNativeStatus }

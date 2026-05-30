@@ -55,16 +55,24 @@ export default function FaceComparisonStep(): JSX.Element {
   const cameraRef = useRef<Camera>(null)
 
   const {
+    createIdentity,
     docType,
     faceVerification,
     nidVerificationResult,
     passportNfcDetails,
-    runMockNidProofGeneration,
     setCurrentStep,
     setFaceComparisonResult,
+    setNidProofInputAdapter,
     setNidVerificationResult,
+    setVerificationUserData,
+    verificationUserData,
   } = useDocumentScanContext()
   const isNidFlow = docType === DocType.ID
+  const storedBiometrics = verificationUserData.biometrics
+  const storedNidVerificationResult =
+    nidVerificationResult ?? verificationUserData.document.nid.verification
+  const storedPassportNfcDetails = passportNfcDetails ?? verificationUserData.document.passport.nfc
+  const storedNidFrontImageUri = verificationUserData.document.nid.front?.imageUri
 
   const [comparisonState, setComparisonState] = useState<ComparisonState>('initializing')
   const [cameraReady, setCameraReady] = useState(false)
@@ -78,8 +86,9 @@ export default function FaceComparisonStep(): JSX.Element {
   const successTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const portraitUri = useMemo(
-    () => buildPortraitUri(passportNfcDetails?.portrait),
-    [passportNfcDetails?.portrait],
+    () =>
+      isNidFlow ? storedNidFrontImageUri : buildPortraitUri(storedPassportNfcDetails?.portrait),
+    [isNidFlow, storedNidFrontImageUri, storedPassportNfcDetails?.portrait],
   )
 
   useEffect(() => {
@@ -94,8 +103,8 @@ export default function FaceComparisonStep(): JSX.Element {
       try {
         logFaceDebug('prepare-start', {
           hasPortraitUri: Boolean(portraitUri),
-          hasPortraitBase64: typeof passportNfcDetails?.portrait?.base64 === 'string',
-          hasPortraitFilePath: typeof passportNfcDetails?.portrait?.filePath === 'string',
+          hasPortraitBase64: typeof storedPassportNfcDetails?.portrait?.base64 === 'string',
+          hasPortraitFilePath: typeof storedPassportNfcDetails?.portrait?.filePath === 'string',
         })
         await preloadFaceComparisonModel()
         if (!mounted) return
@@ -136,8 +145,8 @@ export default function FaceComparisonStep(): JSX.Element {
     device,
     hasPermission,
     isNidFlow,
-    passportNfcDetails?.portrait?.base64,
-    passportNfcDetails?.portrait?.filePath,
+    storedPassportNfcDetails?.portrait?.base64,
+    storedPassportNfcDetails?.portrait?.filePath,
     portraitUri,
   ])
 
@@ -204,6 +213,19 @@ export default function FaceComparisonStep(): JSX.Element {
         referenceUri: preparedReferenceUri,
         liveUri: preparedLiveUri,
       })
+      setVerificationUserData(previous => ({
+        ...previous,
+        biometrics: {
+          ...previous.biometrics,
+          images: {
+            ...previous.biometrics.images,
+            liveCaptureUri: liveImageUri,
+            liveCropUri: preparedLiveUri,
+            referenceCropUri: preparedReferenceUri,
+            referenceUri: portraitUri,
+          },
+        },
+      }))
       setComparisonState('cropped')
     } catch (error) {
       const code = error instanceof Error ? error.name || error.message : 'unknown_error'
@@ -256,36 +278,48 @@ export default function FaceComparisonStep(): JSX.Element {
       }
 
       setFaceComparisonResult(result)
-      if (docType === DocType.ID && nidVerificationResult) {
+      if (docType === DocType.ID && storedNidVerificationResult) {
         const mergedFaceResult: NidVerificationResult = {
-          ...nidVerificationResult,
+          ...storedNidVerificationResult,
           verified: Boolean(
-            nidVerificationResult.verified &&
-              faceVerification.liveness?.passed &&
-              faceVerification.gaze?.passed &&
+            storedNidVerificationResult.verified &&
+              (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+              (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
               result.passed,
           ),
           finalDecision:
-            nidVerificationResult.verified &&
-            faceVerification.liveness?.passed &&
-            faceVerification.gaze?.passed &&
+            storedNidVerificationResult.verified &&
+            (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+            (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
             result.passed
               ? 'verified'
               : 'failed',
           face: {
             passed: Boolean(
-              faceVerification.liveness?.passed && faceVerification.gaze?.passed && result.passed,
+              (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+                (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
+                result.passed,
             ),
-            liveness: faceVerification.liveness ?? nidVerificationResult.face.liveness,
-            gaze: faceVerification.gaze ?? nidVerificationResult.face.gaze,
+            liveness:
+              faceVerification.liveness ??
+              storedBiometrics.liveness ??
+              storedNidVerificationResult.face.liveness,
+            gaze:
+              faceVerification.gaze ??
+              storedBiometrics.gaze ??
+              storedNidVerificationResult.face.gaze,
             comparison: result,
-            liveFaceImageUri: nidVerificationResult.face.liveFaceImageUri,
-            referenceFaceImageUri: nidVerificationResult.face.referenceFaceImageUri,
+            liveFaceImageUri:
+              storedBiometrics.images?.liveCaptureUri ??
+              storedNidVerificationResult.face.liveFaceImageUri,
+            referenceFaceImageUri:
+              storedBiometrics.images?.referenceCropUri ??
+              storedNidVerificationResult.face.referenceFaceImageUri,
           },
           debug: {
             mockedFace: false,
-            mockedNfc: nidVerificationResult.debug?.mockedNfc ?? false,
-            stepsCompleted: nidVerificationResult.debug?.stepsCompleted ?? [
+            mockedNfc: storedNidVerificationResult.debug?.mockedNfc ?? false,
+            stepsCompleted: storedNidVerificationResult.debug?.stepsCompleted ?? [
               'front-scan',
               'back-scan',
               'nfc-read',
@@ -294,8 +328,9 @@ export default function FaceComparisonStep(): JSX.Element {
         }
 
         setNidVerificationResult(mergedFaceResult)
+        setNidProofInputAdapter(toNidProofInputAdapterData(mergedFaceResult))
         setComparisonState('success')
-        await runMockNidProofGeneration(toNidProofInputAdapterData(mergedFaceResult))
+        await createIdentity()
         return
       }
       setComparisonState('success')

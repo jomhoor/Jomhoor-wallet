@@ -16,9 +16,12 @@ const STEP_ORDER: NidVerificationStep[] = ['front-scan', 'back-scan', 'nfc-read'
 export type UseNidVerificationOptions = {
   initialNationalId?: string
   initialData?: NidVerificationInitialData
+  onBackStored?: (value: NidBackScanResult) => Promise<void> | void
   onComplete: (result: NidVerificationResult) => void
   onError?: (error: Error) => void
   onCancel?: () => void
+  onFrontStored?: (value: NidFrontScanResult) => Promise<void> | void
+  onNfcStored?: (nfc: NidNfcReadResult, result: NidVerificationResult) => Promise<void> | void
   nfcReader?: NidNfcReader
 }
 
@@ -127,9 +130,12 @@ function buildBlockingErrors(params: {
 export function useNidVerification({
   initialNationalId,
   initialData,
+  onBackStored,
   onComplete,
   onError,
   onCancel,
+  onFrontStored,
+  onNfcStored,
   nfcReader,
 }: UseNidVerificationOptions) {
   const [currentStep, setCurrentStep] = useState<NidVerificationStep>(() =>
@@ -163,12 +169,15 @@ export function useNidVerification({
         return
       }
 
-      setFront({
+      const result = {
         frontImageUri,
-      })
+      }
+
+      setFront(result)
+      void onFrontStored?.(result)
       setCurrentStep('back-scan')
     },
-    [setError],
+    [onFrontStored, setError],
   )
 
   const submitBack = useCallback(
@@ -194,7 +203,7 @@ export function useNidVerification({
         return
       }
 
-      setBack({
+      const result = {
         barcodeRaw: resolvedRaw,
         barcode,
         nationalId: {
@@ -202,10 +211,13 @@ export function useNidVerification({
           source: 'barcode',
           confidence: 0.95,
         },
-      })
+      } satisfies NidBackScanResult
+
+      setBack(result)
+      void onBackStored?.(result)
       setCurrentStep('nfc-read')
     },
-    [initialNationalId, setError],
+    [initialNationalId, onBackStored, setError],
   )
 
   const readNfc = useCallback(async () => {
@@ -283,12 +295,13 @@ export function useNidVerification({
       }
 
       setPendingResult(phaseTwoHandoffResult)
+      await onNfcStored?.(result, phaseTwoHandoffResult)
     } catch (error) {
       setError(error instanceof Error ? error : new Error('Failed to read NFC.'))
     } finally {
       setBusy(false)
     }
-  }, [back, front, initialNationalId, safeNfcReader, setError])
+  }, [back, front, initialNationalId, onNfcStored, safeNfcReader, setError])
 
   const completeAfterNfc = useCallback(() => {
     if (!pendingResult) {

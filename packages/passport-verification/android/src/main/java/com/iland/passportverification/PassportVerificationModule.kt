@@ -255,6 +255,13 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  @ReactMethod
+  fun clearTemporaryData(promise: Promise) {
+    logInfo(event = "clearTemporaryData invoked")
+    cancelActiveRead()
+    promise.resolve(null)
+  }
+
   private val readerCallback = NfcAdapter.ReaderCallback { tag ->
     val activeSession = synchronized(stateLock) {
       val activeConfig = pendingConfig
