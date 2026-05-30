@@ -57,6 +57,8 @@ type DocumentScanContext = {
   currentStep: Steps
   setCurrentStep: (step: Steps) => void
 
+  verificationUserData: VerificationUserData
+
   creatingIdentityStep: GenProofSteps
   nidVerificationResult?: NidVerificationResult
   setNidVerificationResult: (value?: NidVerificationResult) => void
@@ -143,12 +145,109 @@ type DocumentScanContext = {
   }
 }
 
+export type VerificationSessionStatus =
+  | 'collecting'
+  | 'ready-for-proof'
+  | 'proofing'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+
+export type VerificationEvidenceSource =
+  | 'camera'
+  | 'barcode'
+  | 'nfc'
+  | 'manual'
+  | 'derived'
+  | 'proof'
+
+export type VerificationEvidenceRecord = {
+  step: string
+  source: VerificationEvidenceSource
+  storedAt: number
+  keys: string[]
+}
+
+export type VerificationUserData = {
+  session: {
+    id: string
+    startedAt: number
+    docType?: DocType
+    selectedPassportCountry?: string
+    status: VerificationSessionStatus
+  }
+  document: {
+    passport: {
+      mrz?: {
+        fields?: FieldRecords
+        credentials?: PassportCredentials
+        rawBarcode?: string
+        parsedBarcode?: {
+          raw?: string
+          nidn?: string
+          fields?: Record<string, unknown>
+        }
+      }
+      nfc?: {
+        normalized?: PassportNfcScanOutput['normalized']
+        files?: PassportNfcReadResult['files']
+        portrait?: {
+          base64?: string
+          filePath?: string
+        }
+        ePassport?: EPassport
+        backend?: PassportNfcReadResult['backend']
+        finalStatus?: PassportNfcReadResult['finalStatus']
+        nativeSessionId?: string
+      }
+    }
+    nid: {
+      front?: {
+        imageUri?: string
+        capturedAt?: number
+      }
+      back?: {
+        barcodeRaw?: string
+        barcode?: NidVerificationResult['back']['barcode']
+        nationalId?: string
+      }
+      nfc?: NidVerificationResult['nfc'] & {
+        nativeSessionId?: string
+      }
+      verification?: NidVerificationResult
+      proofInput?: NidProofInputAdapterData
+    }
+  }
+  biometrics: {
+    liveness?: LivenessResult
+    gaze?: GazeChallengeResult
+    comparison?: FaceComparisonResult
+    images?: {
+      referenceUri?: string
+      liveCaptureUri?: string
+      referenceCropUri?: string
+      liveCropUri?: string
+    }
+  }
+  proof: {
+    creatingIdentityStep?: GenProofSteps
+    identity?: IdentityItem
+    error?: {
+      code?: string
+      message: string
+    }
+  }
+  evidence: VerificationEvidenceRecord[]
+}
+
 const documentScanContext = createContext<DocumentScanContext>({
   currentStep: Steps.SelectDocTypeStep,
 
   setCurrentStep: () => {
     throw new Error('setCurrentStep not implemented')
   },
+
+  verificationUserData: createInitialVerificationUserData(),
 
   creatingIdentityStep: GenProofSteps.DownloadCircuit,
   nidVerificationResult: undefined,
@@ -226,6 +325,28 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms)
   })
 
+function createVerificationSessionId(): string {
+  return `verification-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function createInitialVerificationUserData(docType?: DocType): VerificationUserData {
+  return {
+    session: {
+      id: createVerificationSessionId(),
+      startedAt: Date.now(),
+      docType,
+      status: 'collecting',
+    },
+    document: {
+      passport: {},
+      nid: {},
+    },
+    biometrics: {},
+    proof: {},
+    evidence: [],
+  }
+}
+
 function getInitialStep(docType?: DocType): Steps {
   if (docType === DocType.PASSPORT) return Steps.SelectPassportCountryStep
   if (docType === DocType.ID) return Steps.ScanNfcStep
@@ -286,6 +407,9 @@ export function ScanContextProvider({
 
   const [currentStep, setCurrentStep] = useState<Steps>(getInitialStep(docType))
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
+  const [verificationUserData] = useState<VerificationUserData>(() =>
+    createInitialVerificationUserData(docType),
+  )
 
   const [selectedDocType, setSelectedDocType] = useState(docType)
   const [passportCountryCode, setPassportCountryCode] = useState<string>()
@@ -760,6 +884,8 @@ export function ScanContextProvider({
 
         currentStep,
         setCurrentStep,
+
+        verificationUserData,
 
         creatingIdentityStep,
         nidVerificationResult,

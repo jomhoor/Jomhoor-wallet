@@ -14,6 +14,7 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 2. **NID Verification** (🔄 Planned/Partial) — reads Iranian National ID cards via NFC + face verification
 
 **Key Findings:**
+
 - Sensitive data (face images, NFC raw bytes, certificates) is held in **React context state** during the flow
 - Portrait images are stored **optionally on disk** via file URIs (not base64 in memory)
 - Intermediate data is **reset on step transitions** but **persists in state** if the user goes back
@@ -27,11 +28,11 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 1. Document Images
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Front image (NID)** | Camera via OCR | Memory (URI) | Per-session | None | Debug only | Until step reset | On next scan | **MEDIUM** |
-| **Back image (NID)** | Camera via barcode | Memory (URI) | Per-session | None | Debug only | Until step reset | On next scan | **MEDIUM** |
-| **MRZ scan (passport)** | Camera barcode | Memory (URI) | Per-session | No | Diagnostic | Until barcode parsed | Auto-cleared | **LOW** |
+| Data                    | Source             | Storage      | Persistence | Network | Logging    | Lifetime             | Cleanup      | Risk       |
+| ----------------------- | ------------------ | ------------ | ----------- | ------- | ---------- | -------------------- | ------------ | ---------- |
+| **Front image (NID)**   | Camera via OCR     | Memory (URI) | Per-session | None    | Debug only | Until step reset     | On next scan | **MEDIUM** |
+| **Back image (NID)**    | Camera via barcode | Memory (URI) | Per-session | None    | Debug only | Until step reset     | On next scan | **MEDIUM** |
+| **MRZ scan (passport)** | Camera barcode     | Memory (URI) | Per-session | No      | Diagnostic | Until barcode parsed | Auto-cleared | **LOW**    |
 
 **Assumptions:** Front/back images for NID are stored as file URIs (paths), not base64 in memory. Full verification of cleanup timing needed.
 
@@ -39,12 +40,12 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 2. MRZ Data
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Parsed MRZ fields** | Barcode reader | Context state | Per-session | No | Diagnostic logged | Until manual reset or next scan | Manual reset required | **MEDIUM** |
-| **MRZ raw string** | OCR or barcode | Temp variable | Per-session | No | Debug only | During read op | Auto-freed | **LOW** |
-| **Document number** | MRZ | Context + secure store | Persistent | Via proof data | Diagnostic | Until revoked | On revocation | **HIGH** |
-| **DOB, expiry** | MRZ | Context + secure store | Persistent | Via proof data | Diagnostic | Until revoked | On revocation | **MEDIUM** |
+| Data                  | Source         | Storage                | Persistence | Network        | Logging           | Lifetime                        | Cleanup               | Risk       |
+| --------------------- | -------------- | ---------------------- | ----------- | -------------- | ----------------- | ------------------------------- | --------------------- | ---------- |
+| **Parsed MRZ fields** | Barcode reader | Context state          | Per-session | No             | Diagnostic logged | Until manual reset or next scan | Manual reset required | **MEDIUM** |
+| **MRZ raw string**    | OCR or barcode | Temp variable          | Per-session | No             | Debug only        | During read op                  | Auto-freed            | **LOW**    |
+| **Document number**   | MRZ            | Context + secure store | Persistent  | Via proof data | Diagnostic        | Until revoked                   | On revocation         | **HIGH**   |
+| **DOB, expiry**       | MRZ            | Context + secure store | Persistent  | Via proof data | Diagnostic        | Until revoked                   | On revocation         | **MEDIUM** |
 
 **Location:** `ScanProvider.tsx:tempMRZ` state  
 **Logged:** `setTempMrz()` at `ScanProvider/index.tsx:532-545`
@@ -53,11 +54,11 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 3. Barcode Data
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Barcode raw** | Camera OCR | Context state | Per-session | No | Diagnostic | Until next scan | Manual reset | **MEDIUM** |
-| **Parsed barcode** | `parseNidBarcode()` | Context + state | Per-session | No | Diagnostic | Until next scan | Manual reset | **MEDIUM** |
-| **NIDN from barcode** | Barcode parser | Context (passportMrzBarcode) | Per-session | Via proof data | Diagnostic | Until identity created | On identity creation | **MEDIUM** |
+| Data                  | Source              | Storage                      | Persistence | Network        | Logging    | Lifetime               | Cleanup              | Risk       |
+| --------------------- | ------------------- | ---------------------------- | ----------- | -------------- | ---------- | ---------------------- | -------------------- | ---------- |
+| **Barcode raw**       | Camera OCR          | Context state                | Per-session | No             | Diagnostic | Until next scan        | Manual reset         | **MEDIUM** |
+| **Parsed barcode**    | `parseNidBarcode()` | Context + state              | Per-session | No             | Diagnostic | Until next scan        | Manual reset         | **MEDIUM** |
+| **NIDN from barcode** | Barcode parser      | Context (passportMrzBarcode) | Per-session | Via proof data | Diagnostic | Until identity created | On identity creation | **MEDIUM** |
 
 **Location:** `ScanProvider.tsx:passportMrzBarcode`  
 **Parser:** `packages/nid-verification/src/barcode/index.ts`
@@ -66,10 +67,10 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 4. OCR/Manual Input
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **OCR-extracted fields** | Camera vision | Memory (NID flow) | Per-session | No | Diagnostic | Until step complete | On next scan | **MEDIUM** |
-| **Manual entry** | User keyboard | Memory | Per-session | No | Diagnostic | Until step complete | On reset | **LOW** |
+| Data                     | Source        | Storage           | Persistence | Network | Logging    | Lifetime            | Cleanup      | Risk       |
+| ------------------------ | ------------- | ----------------- | ----------- | ------- | ---------- | ------------------- | ------------ | ---------- |
+| **OCR-extracted fields** | Camera vision | Memory (NID flow) | Per-session | No      | Diagnostic | Until step complete | On next scan | **MEDIUM** |
+| **Manual entry**         | User keyboard | Memory            | Per-session | No      | Diagnostic | Until step complete | On reset     | **LOW**    |
 
 **NID Flow:** OCR results stored in `NidFrontScanResult` with `NidEvidenceField` (source + confidence)  
 **Location:** `packages/nid-verification/src/types/index.ts:16-22`
@@ -80,24 +81,24 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 #### NFC Raw Bytes
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **NFC session keys (BAC)** | Derived from MRZ | Memory (crypto context) | None | No | None | During NFC read | Auto-freed | **HIGH** |
-| **DG1 raw bytes** | NFC chip | EDocument object | Persistent (in proof) | Via proof | Diagnostic (summary) | Until revoked | On revocation | **MEDIUM** |
-| **DG2 raw bytes (face)** | NFC chip | EDocument object | Persistent | Via proof | Diagnostic (summary) | Until revoked | On revocation | **MEDIUM** |
-| **DG15 raw bytes (AA key)** | NFC chip | EDocument object | Persistent | Via proof | Diagnostic (summary) | Until revoked | On revocation | **LOW** |
-| **SOD bytes (signature)** | NFC chip | EDocument object | Persistent | Via proof | Diagnostic (summary) | Until revoked | On revocation | **LOW** |
+| Data                        | Source           | Storage                 | Persistence           | Network   | Logging              | Lifetime        | Cleanup       | Risk       |
+| --------------------------- | ---------------- | ----------------------- | --------------------- | --------- | -------------------- | --------------- | ------------- | ---------- |
+| **NFC session keys (BAC)**  | Derived from MRZ | Memory (crypto context) | None                  | No        | None                 | During NFC read | Auto-freed    | **HIGH**   |
+| **DG1 raw bytes**           | NFC chip         | EDocument object        | Persistent (in proof) | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **MEDIUM** |
+| **DG2 raw bytes (face)**    | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **MEDIUM** |
+| **DG15 raw bytes (AA key)** | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **LOW**    |
+| **SOD bytes (signature)**   | NFC chip         | EDocument object        | Persistent            | Via proof | Diagnostic (summary) | Until revoked   | On revocation | **LOW**    |
 
 **NFC Protocol:** ICAO 9303 Part 11 Basic Access Control (BAC)  
 **Implementation:** `src/utils/e-document/passport-nfc-reader.ts:49-150` (crypto operations)
 
 #### NFC Parsed Fields
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Normalized passport fields** | NFC DG1 parse | Context state | Per-session | No | Diagnostic | Until identity created | Auto-cleared on creation | **MEDIUM** |
-| **NID fields (from NFC)** | NFC APDU | `NidNfcReadResult` | Per-session | No | Diagnostic + debug | Until identity created | Manual cleanup | **MEDIUM** |
-| **CSN / CRN (card serial)** | NFC CPLC | `NidNfcReadResult` | Per-session | No | Debug | Until identity created | Manual cleanup | **LOW** |
+| Data                           | Source        | Storage            | Persistence | Network | Logging            | Lifetime               | Cleanup                  | Risk       |
+| ------------------------------ | ------------- | ------------------ | ----------- | ------- | ------------------ | ---------------------- | ------------------------ | ---------- |
+| **Normalized passport fields** | NFC DG1 parse | Context state      | Per-session | No      | Diagnostic         | Until identity created | Auto-cleared on creation | **MEDIUM** |
+| **NID fields (from NFC)**      | NFC APDU      | `NidNfcReadResult` | Per-session | No      | Diagnostic + debug | Until identity created | Manual cleanup           | **MEDIUM** |
+| **CSN / CRN (card serial)**    | NFC CPLC      | `NidNfcReadResult` | Per-session | No      | Debug              | Until identity created | Manual cleanup           | **LOW**    |
 
 **Passport location:** `ScanProvider.tsx:passportNfcDetails`  
 **NID location:** `packages/nid-verification/src/types/index.ts:31-44`
@@ -106,12 +107,12 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 6. Certificates and Signing Material
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **CSCA certificates (passport SOD)** | NFC DG15 | EDocument.sod | Persistent | Via proof circuit | Diagnostic (tree built) | Until revoked | On revocation | **MEDIUM** |
-| **AA signature** | NFC DG15 | EDocument.aaSignature | Persistent | Via proof | Diagnostic | Until revoked | On revocation | **LOW** |
-| **Signing cert (NID)** | NFC APDU | `NidNfcReadResult.signingCertHex` | Per-session | No | Debug | Until identity created | Manual cleanup | **MEDIUM** |
-| **Auth cert (NID)** | NFC APDU | `NidNfcReadResult.authCertHex` | Per-session | No | Debug | Until identity created | Manual cleanup | **MEDIUM** |
+| Data                                 | Source   | Storage                           | Persistence | Network           | Logging                 | Lifetime               | Cleanup        | Risk       |
+| ------------------------------------ | -------- | --------------------------------- | ----------- | ----------------- | ----------------------- | ---------------------- | -------------- | ---------- |
+| **CSCA certificates (passport SOD)** | NFC DG15 | EDocument.sod                     | Persistent  | Via proof circuit | Diagnostic (tree built) | Until revoked          | On revocation  | **MEDIUM** |
+| **AA signature**                     | NFC DG15 | EDocument.aaSignature             | Persistent  | Via proof         | Diagnostic              | Until revoked          | On revocation  | **LOW**    |
+| **Signing cert (NID)**               | NFC APDU | `NidNfcReadResult.signingCertHex` | Per-session | No                | Debug                   | Until identity created | Manual cleanup | **MEDIUM** |
+| **Auth cert (NID)**                  | NFC APDU | `NidNfcReadResult.authCertHex`    | Per-session | No                | Debug                   | Until identity created | Manual cleanup | **MEDIUM** |
 
 **CSCA processing:** `src/api/modules/registration/strategy.ts:1-150` (cert tree building)  
 **Certificate extraction:** `src/utils/e-document/inid-nfc-reader.ts:56-80` (APDU commands)
@@ -120,12 +121,12 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 7. Liveness Result
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Liveness passed flag** | Face detector + sequence eval | Context state | Per-session | No | Diagnostic | Until face reset | On face reset | **LOW** |
-| **Challenge sequence** | Pre-computed sequence | Memory (useRef) | Per-session | No | None | Until component unmount | Auto-freed | **LOW** |
-| **Challenge count** | Sequence evaluator | Context state | Per-session | No | Diagnostic | Until face reset | On face reset | **LOW** |
-| **Started/completed timestamps** | Date.now() | LivenessResult | Per-session | No | Diagnostic | Until face reset | On face reset | **LOW** |
+| Data                             | Source                        | Storage         | Persistence | Network | Logging    | Lifetime                | Cleanup       | Risk    |
+| -------------------------------- | ----------------------------- | --------------- | ----------- | ------- | ---------- | ----------------------- | ------------- | ------- |
+| **Liveness passed flag**         | Face detector + sequence eval | Context state   | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
+| **Challenge sequence**           | Pre-computed sequence         | Memory (useRef) | Per-session | No      | None       | Until component unmount | Auto-freed    | **LOW** |
+| **Challenge count**              | Sequence evaluator            | Context state   | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
+| **Started/completed timestamps** | Date.now()                    | LivenessResult  | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
 
 **Location:** `src/pages/app/pages/document-scan/components/FaceLivenessStep.tsx:27-50`  
 **Logged:** `ScanProvider/index.tsx:694-708`
@@ -134,10 +135,10 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 8. Gaze Challenge Result
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Gaze passed flag** | Face detector + challenge evaluation | Context state | Per-session | No | Diagnostic | Until face reset | On face reset | **LOW** |
-| **Challenge targets + responses** | In-memory references | useRef | Per-session | No | None | Until component unmount | Auto-freed | **LOW** |
+| Data                              | Source                               | Storage       | Persistence | Network | Logging    | Lifetime                | Cleanup       | Risk    |
+| --------------------------------- | ------------------------------------ | ------------- | ----------- | ------- | ---------- | ----------------------- | ------------- | ------- |
+| **Gaze passed flag**              | Face detector + challenge evaluation | Context state | Per-session | No      | Diagnostic | Until face reset        | On face reset | **LOW** |
+| **Challenge targets + responses** | In-memory references                 | useRef        | Per-session | No      | None       | Until component unmount | Auto-freed    | **LOW** |
 
 **Location:** `src/pages/app/pages/document-scan/components/GazeChallengeStep.tsx` (not fully read)
 
@@ -145,13 +146,13 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 9. Face Images and Crops
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Portrait from NFC (DG2)** | NFC DG2 data | Context + file URI | Persistent | Via proof | Diagnostic | Until identity created | On revocation | **MEDIUM** |
-| **Live face frames** | Camera frame processor | Memory (frame buffer) | None | No | None | Single frame | Auto-freed | **LOW** |
-| **Captured live face** | `takeSnapshot()` | File system URI | Per-session | No | Conditional | Until comparison complete | **NOT CLEARED** ⚠️ | **HIGH** |
-| **Face crop (reference)** | `getCenteredFaceSquareCrop()` | Memory | Per-session | No | Debug | During comparison | Auto-freed | **MEDIUM** |
-| **Face crop (live)** | `getCenteredFaceSquareCrop()` | Memory | Per-session | No | Debug | During comparison | Auto-freed | **MEDIUM** |
+| Data                        | Source                        | Storage               | Persistence | Network   | Logging     | Lifetime                  | Cleanup            | Risk       |
+| --------------------------- | ----------------------------- | --------------------- | ----------- | --------- | ----------- | ------------------------- | ------------------ | ---------- |
+| **Portrait from NFC (DG2)** | NFC DG2 data                  | Context + file URI    | Persistent  | Via proof | Diagnostic  | Until identity created    | On revocation      | **MEDIUM** |
+| **Live face frames**        | Camera frame processor        | Memory (frame buffer) | None        | No        | None        | Single frame              | Auto-freed         | **LOW**    |
+| **Captured live face**      | `takeSnapshot()`              | File system URI       | Per-session | No        | Conditional | Until comparison complete | **NOT CLEARED** ⚠️ | **HIGH**   |
+| **Face crop (reference)**   | `getCenteredFaceSquareCrop()` | Memory                | Per-session | No        | Debug       | During comparison         | Auto-freed         | **MEDIUM** |
+| **Face crop (live)**        | `getCenteredFaceSquareCrop()` | Memory                | Per-session | No        | Debug       | During comparison         | Auto-freed         | **MEDIUM** |
 
 **Portrait handling:** `src/pages/app/pages/document-scan/adapters/extractPackageNfcDisplayDetails.ts:59-87`  
 **Face comparison:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx:100+` (captures camera image)  
@@ -161,11 +162,11 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 10. Face Embeddings / Model Inputs
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Face detection landmarks** | Vision camera ML detector | Memory (frame context) | None | No | None | Single frame | Auto-freed | **LOW** |
-| **Face comparison model output** | TensorFlow Lite model | Memory | Per-session | No | Debug | During comparison | Auto-freed | **LOW** |
-| **Embedding vectors** | Not extracted (direct comparison) | N/A | N/A | N/A | N/A | N/A | N/A | **N/A** |
+| Data                             | Source                            | Storage                | Persistence | Network | Logging | Lifetime          | Cleanup    | Risk    |
+| -------------------------------- | --------------------------------- | ---------------------- | ----------- | ------- | ------- | ----------------- | ---------- | ------- |
+| **Face detection landmarks**     | Vision camera ML detector         | Memory (frame context) | None        | No      | None    | Single frame      | Auto-freed | **LOW** |
+| **Face comparison model output** | TensorFlow Lite model             | Memory                 | Per-session | No      | Debug   | During comparison | Auto-freed | **LOW** |
+| **Embedding vectors**            | Not extracted (direct comparison) | N/A                    | N/A         | N/A     | N/A     | N/A               | N/A        | **N/A** |
 
 **Implementation:** Uses `compareFaces()` from `@iland/passport-verification` (preloaded model)  
 **Location:** `src/pages/app/pages/document-scan/components/FaceComparisonStep.tsx:7-8, 100`
@@ -174,11 +175,11 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 11. Face Comparison / Likeness Result
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Similarity score** | Face model output | Context state | Per-session | No | Diagnostic | Until face reset | On face reset | **MEDIUM** |
-| **Comparison passed flag** | Score vs threshold | Context state | Per-session | No | Diagnostic | Until face reset | On face reset | **LOW** |
-| **Threshold value** | Constant DEFAULT_FACE_COMPARISON_THRESHOLD | Memory | Per-session | No | None | Until app close | Auto-freed | **LOW** |
+| Data                       | Source                                     | Storage       | Persistence | Network | Logging    | Lifetime         | Cleanup       | Risk       |
+| -------------------------- | ------------------------------------------ | ------------- | ----------- | ------- | ---------- | ---------------- | ------------- | ---------- |
+| **Similarity score**       | Face model output                          | Context state | Per-session | No      | Diagnostic | Until face reset | On face reset | **MEDIUM** |
+| **Comparison passed flag** | Score vs threshold                         | Context state | Per-session | No      | Diagnostic | Until face reset | On face reset | **LOW**    |
+| **Threshold value**        | Constant DEFAULT_FACE_COMPARISON_THRESHOLD | Memory        | Per-session | No      | None       | Until app close  | Auto-freed    | **LOW**    |
 
 **Location:** `ScanProvider/index.tsx:faceVerification.comparison`  
 **Logged:** `ScanProvider/index.tsx:717-735`
@@ -187,12 +188,12 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 12. Proof Input and Generated Proof
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **Proof input (passport)** | EPassport + wallet PK | Memory | Per-session | No | Diagnostic | During proof generation | Auto-freed | **MEDIUM** |
-| **Proof input (NID)** | `NidProofInputAdapterData` | Context state | Per-session | No | Diagnostic | Until identity created | On identity creation | **MEDIUM** |
-| **Generated Noir proof** | Noir circuit execution | Memory | Per-session | No | Diagnostic (partial) | During generation | Auto-freed after storage | **MEDIUM** |
-| **Proof JSON** | Noir circuit output | Memory + secure storage | Persistent | Via smart contract | Diagnostic | Until revoked | On revocation | **HIGH** |
+| Data                       | Source                     | Storage                 | Persistence | Network            | Logging              | Lifetime                | Cleanup                  | Risk       |
+| -------------------------- | -------------------------- | ----------------------- | ----------- | ------------------ | -------------------- | ----------------------- | ------------------------ | ---------- |
+| **Proof input (passport)** | EPassport + wallet PK      | Memory                  | Per-session | No                 | Diagnostic           | During proof generation | Auto-freed               | **MEDIUM** |
+| **Proof input (NID)**      | `NidProofInputAdapterData` | Context state           | Per-session | No                 | Diagnostic           | Until identity created  | On identity creation     | **MEDIUM** |
+| **Generated Noir proof**   | Noir circuit execution     | Memory                  | Per-session | No                 | Diagnostic (partial) | During generation       | Auto-freed after storage | **MEDIUM** |
+| **Proof JSON**             | Noir circuit output        | Memory + secure storage | Persistent  | Via smart contract | Diagnostic           | Until revoked           | On revocation            | **HIGH**   |
 
 **Proof generation:** `src/api/modules/registration/variants/noir-epassport.ts:23-100`  
 **NID adapter:** `packages/nid-verification/src/adapters/nid-proof-input-adapter.ts`
@@ -201,12 +202,12 @@ The Jomhoor app implements a multi-step identity verification pipeline that coll
 
 ### 13. Wallet / Credential / Identity Output
 
-| Data | Source | Storage | Persistence | Network | Logging | Lifetime | Cleanup | Risk |
-|------|--------|---------|-------------|---------|---------|----------|---------|------|
-| **IdentityItem (serialized)** | Proof + document data | Secure storage (expo-secure-store) | Persistent | No local network | Diagnostic | Until revoked | On revocation | **CRITICAL** |
-| **Document (EPassport/EID)** | NFC read result | Within IdentityItem | Persistent | No | Diagnostic | Until revoked | On revocation | **CRITICAL** |
-| **Registration proof** | Noir/Circom ZK proof | Within IdentityItem | Persistent | On blockchain submit | Diagnostic | Until revoked | On revocation | **CRITICAL** |
-| **Private key** | Wallet module | Secure storage | Persistent | No | None | Entire session | Never (revoke wallet?) | **CRITICAL** |
+| Data                          | Source                | Storage                            | Persistence | Network              | Logging    | Lifetime       | Cleanup                | Risk         |
+| ----------------------------- | --------------------- | ---------------------------------- | ----------- | -------------------- | ---------- | -------------- | ---------------------- | ------------ |
+| **IdentityItem (serialized)** | Proof + document data | Secure storage (expo-secure-store) | Persistent  | No local network     | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
+| **Document (EPassport/EID)**  | NFC read result       | Within IdentityItem                | Persistent  | No                   | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
+| **Registration proof**        | Noir/Circom ZK proof  | Within IdentityItem                | Persistent  | On blockchain submit | Diagnostic | Until revoked  | On revocation          | **CRITICAL** |
+| **Private key**               | Wallet module         | Secure storage                     | Persistent  | No                   | None       | Entire session | Never (revoke wallet?) | **CRITICAL** |
 
 **Storage location:** `src/store/modules/identity/Identity.ts:23-29` (serialization)  
 **Secure store:** `src/core/secure-store.ts:30-48`
@@ -223,31 +224,31 @@ graph TD
     B --> C["ScanMrzStep"]
     C --> C1["MRZ barcode detected"]
     C1 --> D["ScanPassportNfcStep"]
-    
+
     D --> D1["NFC session initiated"]
     D1 --> D2["BAC derived from MRZ"]
     D2 --> D3["DG1, DG2, DG15, SOD read"]
     D3 --> D4["EPassport object created"]
     D4 --> E["PassportNfcDetailsStep"]
-    
+
     E --> F["FaceLivenessStep"]
     F --> F1["Camera frames processed"]
     F1 --> F2["Liveness challenges evaluated"]
     F2 --> G["GazeChallengeStep"]
-    
+
     G --> G1["Gaze targets tracked"]
     G1 --> H["FaceComparisonStep"]
     H --> H1["DG2 portrait extracted"]
     H1 --> H2["Live face captured"]
     H2 --> H3["Faces compared via TF model"]
     H3 --> I["DocumentPreviewStep"]
-    
+
     I --> J["GenerateProofStep"]
     J --> J1["Download Noir circuit"]
     J1 --> J2["Generate proof from EPassport+PK"]
     J2 --> J3["Register on-chain"]
     J3 --> K["Identity stored in secure storage"]
-    
+
     style A fill:#e1f5ff
     style K fill:#c8e6c9
     style D3 fill:#ffe0b2
@@ -260,26 +261,26 @@ graph TD
 graph TD
     A["User selects ID Card"] --> B["SelectDocTypeStep (ID)"]
     B --> C["ScanNfcStep (MAV4/Pardis)"]
-    
+
     C --> C1["IsoDep session started"]
     C1 --> C2["APDU: Select AID / File"]
     C2 --> C3["APDU: Read signing cert"]
     C3 --> C4["APDU: Read auth cert"]
     C4 --> C5["APDU: Read CSN/CRN"]
     C5 --> D["NidNfcReadResult built"]
-    
+
     D --> E["Face verification same as passport"]
     E --> F["NidVerificationResult combined"]
-    
+
     F --> G{Phase?}
     G -->|Phase 1 mock| G1["Mock proof adapter"]
     G1 --> H["GenerateProofStep"]
     G -->|Phase 2 live| G2["Live NFC cert extraction"]
     G2 --> H
-    
+
     H --> I["Noir proof generated"]
     I --> J["Identity stored"]
-    
+
     style B fill:#e1f5ff
     style C1 fill:#fff9c4
     style F fill:#f8bbd0
@@ -294,17 +295,17 @@ graph LR
     A["MRZ scan"] -->|tempMRZ| B["Context state"]
     B -->|user steps back| B
     B -->|next scan| C["Cleared"]
-    
+
     D["NFC read"] -->|tempEDoc| E["Context + EDocument"]
     E -->|user navigates| E
     E -->|createIdentity| F["SecureStore"]
     F -->|persists| G["Long-term storage"]
-    
+
     H["Face capture"] -->|File URI| I["Disk temp location"]
     I -->|comparison| J["Model inference"]
     J -->|result stored| K["Context state"]
     K -->|NOT deleted| X["⚠️ Orphaned file"]
-    
+
     style X fill:#ffcdd2
     style F fill:#c8e6c9
     style G fill:#a5d6a7
@@ -314,21 +315,21 @@ graph LR
 
 ## Risk Analysis Table
 
-| Data Type | Source | Stored Where | Shared With | Lifetime | Cleanup | Risk Level | Notes |
-|-----------|--------|--------------|-------------|----------|---------|------------|-------|
-| **MRZ/doc number** | Barcode OCR | Context state | SecureStore on create | Per-session | Manual reset on next scan | 🟡 MEDIUM | No automatic cleanup if user abandons flow |
-| **Portrait (DG2)** | NFC chip | EDocument + file URI | SecureStore + blockchain | Persistent | Revocation flow | 🟡 MEDIUM | Standard ICAO data; encrypted by proof |
-| **Face capture (live)** | Camera snapshot | File system | Memory (comparison) | Per-session | **MISSING** ⚠️ | 🔴 HIGH | File created but never deleted after comparison |
-| **Liveness data** | Challenge evaluation | Context state | None | Per-session | Face reset | 🟢 LOW | Timestamps only; no video stored |
-| **Gaze data** | Detector output | Context state | None | Per-session | Face reset | 🟢 LOW | Tracking points not stored |
-| **BAC session keys** | MRZ-derived crypto | Memory | None | During NFC read | Auto-freed | 🟢 LOW | Crypto context garbage-collected |
-| **Proof (Noir)** | Circuit execution | SecureStore + blockchain | Smart contract | Persistent | Revocation | 🟡 MEDIUM | ZK-protected; non-interactive |
-| **Private key (wallet)** | Wallet module | SecureStore | None (prove internally) | Session lifetime | Never | 🔴 CRITICAL | Should be revocation-aware |
-| **Identity item** | Proof + document | SecureStore | None (local app) | Persistent | Revocation | 🔴 CRITICAL | Serialized with SuperJSON; no encryption specified |
-| **NID barcode** | Back card scan | Context state | Memory (proof adapter) | Per-session | Manual cleanup | 🟡 MEDIUM | Parsed into `NidProofInputAdapterData` |
-| **NID signing cert** | NFC chip (MAV4) | Context state | None | Per-session | Manual cleanup | 🟡 MEDIUM | Phase 2: embedded in proof |
-| **NID auth cert** | NFC chip (MAV4) | Context state | None | Per-session | Manual cleanup | 🟡 MEDIUM | Phase 2: embedded in proof |
-| **Debug metadata** | All steps | Memory (cond. logged) | Console (dev only) | Per-session | Auto-freed | 🟢 LOW | `EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG` gate |
+| Data Type                | Source               | Stored Where             | Shared With              | Lifetime         | Cleanup                   | Risk Level  | Notes                                              |
+| ------------------------ | -------------------- | ------------------------ | ------------------------ | ---------------- | ------------------------- | ----------- | -------------------------------------------------- |
+| **MRZ/doc number**       | Barcode OCR          | Context state            | SecureStore on create    | Per-session      | Manual reset on next scan | 🟡 MEDIUM   | No automatic cleanup if user abandons flow         |
+| **Portrait (DG2)**       | NFC chip             | EDocument + file URI     | SecureStore + blockchain | Persistent       | Revocation flow           | 🟡 MEDIUM   | Standard ICAO data; encrypted by proof             |
+| **Face capture (live)**  | Camera snapshot      | File system              | Memory (comparison)      | Per-session      | **MISSING** ⚠️            | 🔴 HIGH     | File created but never deleted after comparison    |
+| **Liveness data**        | Challenge evaluation | Context state            | None                     | Per-session      | Face reset                | 🟢 LOW      | Timestamps only; no video stored                   |
+| **Gaze data**            | Detector output      | Context state            | None                     | Per-session      | Face reset                | 🟢 LOW      | Tracking points not stored                         |
+| **BAC session keys**     | MRZ-derived crypto   | Memory                   | None                     | During NFC read  | Auto-freed                | 🟢 LOW      | Crypto context garbage-collected                   |
+| **Proof (Noir)**         | Circuit execution    | SecureStore + blockchain | Smart contract           | Persistent       | Revocation                | 🟡 MEDIUM   | ZK-protected; non-interactive                      |
+| **Private key (wallet)** | Wallet module        | SecureStore              | None (prove internally)  | Session lifetime | Never                     | 🔴 CRITICAL | Should be revocation-aware                         |
+| **Identity item**        | Proof + document     | SecureStore              | None (local app)         | Persistent       | Revocation                | 🔴 CRITICAL | Serialized with SuperJSON; no encryption specified |
+| **NID barcode**          | Back card scan       | Context state            | Memory (proof adapter)   | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Parsed into `NidProofInputAdapterData`             |
+| **NID signing cert**     | NFC chip (MAV4)      | Context state            | None                     | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Phase 2: embedded in proof                         |
+| **NID auth cert**        | NFC chip (MAV4)      | Context state            | None                     | Per-session      | Manual cleanup            | 🟡 MEDIUM   | Phase 2: embedded in proof                         |
+| **Debug metadata**       | All steps            | Memory (cond. logged)    | Console (dev only)       | Per-session      | Auto-freed                | 🟢 LOW      | `EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG` gate        |
 
 ---
 
@@ -499,23 +500,27 @@ graph LR
 ### Immediate (Before MVP)
 
 1. **Delete live face images after comparison**
+
    ```typescript
    // In FaceComparisonStep.tsx after comparison result
    if (liveImageUri) {
      await FileSystem.deleteAsync(liveImageUri).catch(() => {})
    }
    ```
+
    **Priority:** CRITICAL  
    **Effort:** 1 hour  
    **Test:** Verify file deletion via Finder after comparison
 
 2. **Implement identity revocation flow**
+
    ```typescript
    // Complete the RevocationStep.tsx component
    // Call getRevocationChallenge() from smart contract
    // Generate revocation proof
    // Submit to reissueIdentityViaNoir()
    ```
+
    **Priority:** HIGH  
    **Effort:** 4-6 hours  
    **Test:** End-to-end revocation + re-registration
@@ -539,11 +544,13 @@ graph LR
 ### Short-term (Post-MVP)
 
 4. **Add encryption layer for proof storage**
+
    ```typescript
    // Use @libsodium/libsodium.js for secretbox encryption
    const encrypted = await nacl.secretbox(proofJson, nonce, sharedSecret)
    await setStorageItemAsync('identity_proof', encrypted)
    ```
+
    **Priority:** MEDIUM  
    **Effort:** 3-4 hours  
    **Blockers:** Nonce management, key derivation strategy
@@ -552,32 +559,32 @@ graph LR
    - Wire live NFC reader (`readSigningCertificate()`, `readAuthenticationCertificate()`) into `ScanNfcStep`
    - Replace mock adapter with live proof generation
    - Test on MAV4 and Pardis cards
-   **Priority:** HIGH (NID roadmap)  
-   **Effort:** 8-12 hours  
-   **Dependencies:** Card hardware availability
+     **Priority:** HIGH (NID roadmap)  
+     **Effort:** 8-12 hours  
+     **Dependencies:** Card hardware availability
 
 6. **Audit debug logging in production**
    - Disable or gate identity-proof-diagnostics in production builds
    - Use build-time optimization to strip logs
-   **Priority:** LOW  
-   **Effort:** 2-3 hours  
-   **Test:** Build prod APK and verify no log output
+     **Priority:** LOW  
+     **Effort:** 2-3 hours  
+     **Test:** Build prod APK and verify no log output
 
 ### Long-term (Hardening)
 
 7. **Add biometric re-auth for high-value operations**
    - Prompt for Face ID / fingerprint before proof generation
    - Re-derive private key from encrypted PIN + biometric seed
-   **Priority:** LOW  
-   **Effort:** 6-8 hours  
-   **Dependencies:** Biometric API stability
+     **Priority:** LOW  
+     **Effort:** 6-8 hours  
+     **Dependencies:** Biometric API stability
 
 8. **Implement certificate pinning for proof submission**
    - Pin smart contract address and RPC endpoint
    - Prevent MITM of proof registration
-   **Priority:** LOW  
-   **Effort:** 2-3 hours  
-   **Blockers:** Contract address finalization
+     **Priority:** LOW  
+     **Effort:** 2-3 hours  
+     **Blockers:** Contract address finalization
 
 ---
 
@@ -612,21 +619,21 @@ graph LR
 
 ## Appendix: Data Category Legend
 
-| Status | Meaning |
-|--------|---------|
-| ✅ Implemented | Code exists and is actively used in the flow |
+| Status             | Meaning                                           |
+| ------------------ | ------------------------------------------------- |
+| ✅ Implemented     | Code exists and is actively used in the flow      |
 | 🔄 Planned/Partial | Package exists; integration in progress or mocked |
-| 📋 Proposed | Described in types/docs but not implemented |
-| ❌ Not implemented | Out of scope or deferred |
+| 📋 Proposed        | Described in types/docs but not implemented       |
+| ❌ Not implemented | Out of scope or deferred                          |
 
-| Risk Level | Threshold |
-|------------|-----------|
-| 🟢 LOW | No PII risk; standard technical debt |
-| 🟡 MEDIUM | PII or credential risk; addressable with cleanup code |
-| 🔴 HIGH | Biometric or private key risk; security-critical |
-| 🔴 CRITICAL | Fundamental architecture flaw; blocks production |
+| Risk Level  | Threshold                                             |
+| ----------- | ----------------------------------------------------- |
+| 🟢 LOW      | No PII risk; standard technical debt                  |
+| 🟡 MEDIUM   | PII or credential risk; addressable with cleanup code |
+| 🔴 HIGH     | Biometric or private key risk; security-critical      |
+| 🔴 CRITICAL | Fundamental architecture flaw; blocks production      |
 
 ---
 
 **Audit completed:** 2026-05-30  
-**Auditor notes:** This audit focused on data *flow* rather than *cryptographic correctness*. Proof validity and smart contract integration are assumed to be in-scope for a separate audit. NID phase 2 live NFC integration is blocked pending device availability.
+**Auditor notes:** This audit focused on data _flow_ rather than _cryptographic correctness_. Proof validity and smart contract integration are assumed to be in-scope for a separate audit. NID phase 2 live NFC integration is blocked pending device availability.
