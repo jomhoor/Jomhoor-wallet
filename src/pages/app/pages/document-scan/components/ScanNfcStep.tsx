@@ -225,7 +225,7 @@ export default function ScanNfcStep() {
     }
 
     resetFaceVerification()
-    setCurrentStep(Steps.FaceLivenessStep)
+    setCurrentStep(Steps.FaceGazeStep)
   }
 
   return (

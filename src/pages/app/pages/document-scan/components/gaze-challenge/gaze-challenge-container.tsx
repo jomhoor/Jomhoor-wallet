@@ -1,7 +1,10 @@
 import {
+  buildLivenessResult,
   buildUnifiedGazeChallengeResult,
+  type ChallengeDefinition,
   type ChallengeSample,
   createHeadPoseMirrorValidationState,
+  evaluateLivenessChallenge,
   evaluateUnifiedGazeSample,
   GAZE_CHALLENGE_MODE,
   generateUnifiedGazeWaypoints,
@@ -33,14 +36,17 @@ import {
 } from 'react-native-vision-camera-face-detector'
 import { Worklets } from 'react-native-worklets-core'
 
+import { createRequiredFaceLivenessSequence } from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
+import { DocType } from '@/utils/e-document'
 
 import { GazeChallengeComponentDot } from './gaze-challenge-dot'
 import { GazeChallengeComponentFace } from './gaze-challenge-face'
 import { GazeChallengeComponentSmartFace } from './gaze-challenge-smart-face'
 
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
+type FaceChallengePhase = 'liveness' | 'gaze'
 type LivenessGuideMode = 'headPoseOverlay' | 'dot' | 'smartFace'
 
 const ENABLE_GAZE_DIAGNOSTICS = false
@@ -49,6 +55,7 @@ const CAMERA_STARTUP_DELAY_MS = 250
 const WAYPOINT_ANIMATION_MS = 380
 const WAYPOINT_SETTLE_MS = 220
 const MAX_PROGRESS_DELTA_MS = 250
+const LIVENESS_STEP_DEBOUNCE_MS = 450
 
 type GazeDetectorFace = {
   yawAngle?: number
@@ -56,7 +63,10 @@ type GazeDetectorFace = {
   headEulerAngleX?: number
   headEulerAngleY?: number
   headEulerAngleZ?: number
+  leftEyeOpenProbability?: number
   rollAngle?: number
+  rightEyeOpenProbability?: number
+  smilingProbability?: number
 }
 
 function toHeadPose(face: GazeDetectorFace): HeadPose {
@@ -133,12 +143,19 @@ function logGazeDiagnostics(tag: string, payload: string) {
   console.log(`[${tag.padEnd(8, ' ')} ${timestamp}] ${payload}`)
 }
 
+function resolveFaceVerificationBackStep(docType: DocType | undefined): Steps {
+  if (docType === DocType.PASSPORT) return Steps.PassportNfcDetailsStep
+  if (docType === DocType.ID) return Steps.ScanNfcStep
+  return Steps.SelectDocTypeStep
+}
+
 export default function GazeChallengeContainer(): JSX.Element {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const isFocused = useIsFocused()
   const { width, height } = useWindowDimensions()
-  const { setCurrentStep, setFaceGazeResult } = useDocumentScanContext()
+  const { docType, setCurrentStep, setFaceGazeResult, setFaceLivenessResult } =
+    useDocumentScanContext()
 
   const challengeConfig = useMemo(() => getDefaultUnifiedChallengeConfig(), [])
   const guideMode: LivenessGuideMode = getGuideModeForConfiguration()
@@ -147,15 +164,23 @@ export default function GazeChallengeContainer(): JSX.Element {
   const device = useCameraDevice('front')
 
   const [gazeState, setGazeState] = useState<GazeState>('idle')
+  const [challengePhase, setChallengePhase] = useState<FaceChallengePhase>('liveness')
   const [faceDetected, setFaceDetected] = useState(false)
+  const [livenessChallengeIndex, setLivenessChallengeIndex] = useState(0)
   const [multipleFaces, setMultipleFaces] = useState(false)
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0)
   const [latestScorePercent, setLatestScorePercent] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
   const [mirrorModeLabel, setMirrorModeLabel] = useState<HeadPoseMirrorMode>('unknown')
 
+  const challengePhaseRef = useRef<FaceChallengePhase>('liveness')
   const runningRef = useRef(false)
   const finishedRef = useRef(false)
+  const livenessChallengeIndexRef = useRef(0)
+  const livenessConfidenceRef = useRef<Partial<Record<ChallengeDefinition['key'], number>>>({})
+  const livenessSequenceRef = useRef<ChallengeDefinition[]>(createRequiredFaceLivenessSequence())
+  const livenessStartedAtRef = useRef(0)
+  const livenessStepPassedRef = useRef(false)
   const startedAtRef = useRef(0)
   const waypointsRef = useRef<Waypoint[]>([])
   const samplesRef = useRef<ChallengeSample[]>([])
@@ -219,27 +244,34 @@ export default function GazeChallengeContainer(): JSX.Element {
     }
   }, [])
 
-  const totalTargets = waypointsRef.current.length
+  const gazeTargetCount = waypointsRef.current.length
+  const livenessTargetCount = livenessSequenceRef.current.length
+  const totalTargets = challengePhase === 'liveness' ? livenessTargetCount : gazeTargetCount
   const activeWaypoint = waypointsRef.current[currentWaypointIndex]
+  const activeLivenessChallenge = livenessSequenceRef.current[livenessChallengeIndex]
   const isCameraActive = Boolean(isFocused && hasPermission && device && cameraReady)
 
   const statusText = useMemo(() => {
-    if (!hasPermission) return 'Camera permission is required for gaze challenge.'
+    if (!hasPermission) return 'Camera permission is required for face verification.'
     if (!device) return 'Front camera is not available on this device.'
     if (gazeState === 'running') {
       if (multipleFaces) return 'Only one face should be visible in the camera.'
       if (!faceDetected) return 'Keep your face centered in the frame.'
+      if (challengePhase === 'liveness') return 'Complete the liveness prompt.'
       return 'Match the guide face pose.'
     }
-    if (gazeState === 'success') return 'Gaze challenge completed.'
-    if (gazeState === 'failed') return 'Gaze challenge did not pass. Please retry.'
+    if (gazeState === 'success') return 'Face verification completed.'
+    if (gazeState === 'failed') return 'Face verification did not pass. Please retry.'
     return faceDetected ? 'Face detected. Start when ready.' : 'Position your face in view.'
-  }, [device, faceDetected, gazeState, hasPermission, multipleFaces])
+  }, [challengePhase, device, faceDetected, gazeState, hasPermission, multipleFaces])
 
   const promptText = useMemo(() => {
-    if (gazeState !== 'running') return 'You will follow face pose prompts.'
+    if (gazeState !== 'running') return 'You will complete blink, smile, and face pose prompts.'
+    if (challengePhase === 'liveness') {
+      return activeLivenessChallenge?.prompt ?? 'Follow the liveness prompt.'
+    }
     return getPromptForWaypoint(activeWaypoint)
-  }, [activeWaypoint, gazeState])
+  }, [activeLivenessChallenge?.prompt, activeWaypoint, challengePhase, gazeState])
 
   const finalizeChallenge = (passed: boolean, failureReason?: string) => {
     if (finishedRef.current) return
@@ -267,6 +299,7 @@ export default function GazeChallengeContainer(): JSX.Element {
       ...result,
       debug: {
         ...result.debug,
+        livenessMerged: true,
         mirrorMode: mirrorModeRef.current,
         mirrorValidationSamples: mirrorValidationRef.current.sampleCount,
         failureReason,
@@ -321,6 +354,20 @@ export default function GazeChallengeContainer(): JSX.Element {
     moveGuideToWaypoint(waypoint)
   }
 
+  const startGazeWaypointChallenge = () => {
+    startedAtRef.current = Date.now()
+    challengePhaseRef.current = 'gaze'
+    setChallengePhase('gaze')
+    setCurrentWaypointIndex(0)
+    currentWaypointProgressRef.current = {
+      stableMs: 0,
+      elapsedMs: 0,
+      completed: false,
+      timedOut: false,
+    }
+    moveToWaypoint(0)
+  }
+
   const startGazeChallenge = () => {
     const waypoints = generateUnifiedGazeWaypoints(
       { width, height },
@@ -349,9 +396,17 @@ export default function GazeChallengeContainer(): JSX.Element {
     samplesRef.current = []
     runningRef.current = true
     finishedRef.current = false
-    startedAtRef.current = Date.now()
+    startedAtRef.current = 0
+    livenessChallengeIndexRef.current = 0
+    livenessConfidenceRef.current = {}
+    livenessSequenceRef.current = createRequiredFaceLivenessSequence()
+    livenessStartedAtRef.current = Date.now()
+    livenessStepPassedRef.current = false
     setLatestScorePercent(0)
+    challengePhaseRef.current = 'liveness'
+    setChallengePhase('liveness')
     setCurrentWaypointIndex(0)
+    setLivenessChallengeIndex(0)
     setMirrorModeLabel('unknown')
 
     mirrorValidationRef.current = createHeadPoseMirrorValidationState()
@@ -367,7 +422,53 @@ export default function GazeChallengeContainer(): JSX.Element {
 
     setGazeState('running')
 
-    moveToWaypoint(0)
+    if (livenessSequenceRef.current.length === 0) {
+      startGazeWaypointChallenge()
+    }
+  }
+
+  const processLivenessChallenge = (face: GazeDetectorFace) => {
+    const activeChallenge = livenessSequenceRef.current[livenessChallengeIndexRef.current]
+    if (!activeChallenge) {
+      startGazeWaypointChallenge()
+      return
+    }
+
+    const evaluation = evaluateLivenessChallenge(activeChallenge, face)
+    if (!evaluation.passed || livenessStepPassedRef.current) {
+      return
+    }
+
+    livenessStepPassedRef.current = true
+    livenessConfidenceRef.current = {
+      ...livenessConfidenceRef.current,
+      ...(typeof evaluation.confidence === 'number'
+        ? { [activeChallenge.key]: evaluation.confidence }
+        : {}),
+    }
+
+    setTimeout(() => {
+      if (!runningRef.current || finishedRef.current) return
+
+      livenessStepPassedRef.current = false
+      const nextIndex = livenessChallengeIndexRef.current + 1
+      livenessChallengeIndexRef.current = nextIndex
+
+      if (nextIndex >= livenessSequenceRef.current.length) {
+        const result = buildLivenessResult({
+          sequence: livenessSequenceRef.current,
+          confidenceByKey: livenessConfidenceRef.current,
+          startedAt: livenessStartedAtRef.current,
+          completedAt: Date.now(),
+        })
+
+        setFaceLivenessResult(result)
+        startGazeWaypointChallenge()
+        return
+      }
+
+      setLivenessChallengeIndex(nextIndex)
+    }, LIVENESS_STEP_DEBOUNCE_MS)
   }
 
   const pushProgress = (matched: boolean, now: number) => {
@@ -406,6 +507,13 @@ export default function GazeChallengeContainer(): JSX.Element {
     setMultipleFaces(faces.length > 1)
 
     if (!runningRef.current || finishedRef.current) return
+
+    if (challengePhaseRef.current === 'liveness') {
+      if (hasSingleFace) {
+        processLivenessChallenge(faces[0])
+      }
+      return
+    }
 
     const active = waypointsRef.current[currentWaypointIndex]
     if (!active) return
@@ -513,11 +621,11 @@ export default function GazeChallengeContainer(): JSX.Element {
 
       {guideMode === 'dot' && (
         <GazeChallengeComponentDot
-          isRunning={gazeState === 'running'}
+          isRunning={gazeState === 'running' && challengePhase === 'gaze'}
           waypointIndex={currentWaypointIndex}
           waypoints={waypointsRef.current}
           latestScorePercent={latestScorePercent}
-          totalTargets={totalTargets}
+          totalTargets={gazeTargetCount}
           faceDetected={faceDetected}
           multipleFaces={multipleFaces}
           mirrorMode={mirrorModeRef.current === 'unknown' ? undefined : mirrorModeRef.current}
@@ -525,7 +633,7 @@ export default function GazeChallengeContainer(): JSX.Element {
           screenHeight={height}
           onStart={startGazeChallenge}
           onRetry={startGazeChallenge}
-          onExit={() => setCurrentStep(Steps.FaceLivenessStep)}
+          onExit={() => setCurrentStep(resolveFaceVerificationBackStep(docType))}
           dotX={dotX}
           dotY={dotY}
         />
@@ -533,11 +641,11 @@ export default function GazeChallengeContainer(): JSX.Element {
 
       {guideMode === 'headPoseOverlay' && (
         <GazeChallengeComponentFace
-          isRunning={gazeState === 'running'}
+          isRunning={gazeState === 'running' && challengePhase === 'gaze'}
           waypointIndex={currentWaypointIndex}
           waypoints={waypointsRef.current}
           latestScorePercent={latestScorePercent}
-          totalTargets={totalTargets}
+          totalTargets={gazeTargetCount}
           faceDetected={faceDetected}
           multipleFaces={multipleFaces}
           mirrorMode={mirrorModeRef.current === 'unknown' ? undefined : mirrorModeRef.current}
@@ -545,7 +653,7 @@ export default function GazeChallengeContainer(): JSX.Element {
           screenHeight={height}
           onStart={startGazeChallenge}
           onRetry={startGazeChallenge}
-          onExit={() => setCurrentStep(Steps.FaceLivenessStep)}
+          onExit={() => setCurrentStep(resolveFaceVerificationBackStep(docType))}
           guideYaw={guideYaw}
           guidePitch={guidePitch}
           challengeMaxYawDeg={challengeConfig.maxYawDeg}
@@ -555,11 +663,11 @@ export default function GazeChallengeContainer(): JSX.Element {
 
       {guideMode === 'smartFace' && (
         <GazeChallengeComponentSmartFace
-          isRunning={gazeState === 'running'}
+          isRunning={gazeState === 'running' && challengePhase === 'gaze'}
           waypointIndex={currentWaypointIndex}
           waypoints={waypointsRef.current}
           latestScorePercent={latestScorePercent}
-          totalTargets={totalTargets}
+          totalTargets={gazeTargetCount}
           faceDetected={faceDetected}
           multipleFaces={multipleFaces}
           mirrorMode={mirrorModeRef.current === 'unknown' ? undefined : mirrorModeRef.current}
@@ -567,7 +675,7 @@ export default function GazeChallengeContainer(): JSX.Element {
           screenHeight={height}
           onStart={startGazeChallenge}
           onRetry={startGazeChallenge}
-          onExit={() => setCurrentStep(Steps.FaceLivenessStep)}
+          onExit={() => setCurrentStep(resolveFaceVerificationBackStep(docType))}
           guideYaw={guideYaw}
           guidePitch={guidePitch}
           challengeMaxYawDeg={challengeConfig.maxYawDeg}
@@ -577,7 +685,7 @@ export default function GazeChallengeContainer(): JSX.Element {
 
       <View className='flex-1 bg-black/45 p-6'>
         <View className='flex-row items-center'>
-          <Text className='typography-h5 text-white'>Gaze Challenge</Text>
+          <Text className='typography-h5 text-white'>Face Verification</Text>
           <View className='flex-1' />
           <Pressable onPress={() => navigation.navigate('App', { screen: 'Home' })}>
             <View className='h-10 w-10 items-center justify-center rounded-full bg-white/15'>
@@ -591,10 +699,15 @@ export default function GazeChallengeContainer(): JSX.Element {
           <Text className='typography-body4 mt-2 text-white/80'>{promptText}</Text>
           {gazeState === 'running' ? (
             <Text className='typography-body4 mt-2 text-white/80'>
-              Target {Math.min(currentWaypointIndex + 1, totalTargets)} of {totalTargets}
+              {challengePhase === 'liveness' ? 'Check' : 'Target'}{' '}
+              {Math.min(
+                (challengePhase === 'liveness' ? livenessChallengeIndex : currentWaypointIndex) + 1,
+                totalTargets,
+              )}{' '}
+              of {totalTargets}
             </Text>
           ) : null}
-          {gazeState === 'running' ? (
+          {gazeState === 'running' && challengePhase === 'gaze' ? (
             <Text className='typography-body4 mt-2 text-white/70'>
               Mirror mode: {normalizeMirrorModeLabel(mirrorModeLabel)}
             </Text>
@@ -608,15 +721,15 @@ export default function GazeChallengeContainer(): JSX.Element {
 
         <View className='mt-auto gap-3'>
           <UiButton
-            title={gazeState === 'failed' ? 'Retry Gaze Challenge' : 'Start Gaze Challenge'}
+            title={gazeState === 'failed' ? 'Retry Face Verification' : 'Start Face Verification'}
             onPress={startGazeChallenge}
             className='w-full'
             disabled={!hasPermission || !device || multipleFaces}
           />
           <UiButton
-            title='Back to Liveness'
+            title='Back'
             variant='outlined'
-            onPress={() => setCurrentStep(Steps.FaceLivenessStep)}
+            onPress={() => setCurrentStep(resolveFaceVerificationBackStep(docType))}
             className='w-full'
             disabled={gazeState === 'running'}
           />

@@ -1,3 +1,4 @@
+export { createRequiredFaceLivenessSequence } from './createRequiredFaceLivenessSequence'
 export {
   extractPackageNfcDisplayDetails,
   type PassportNfcDisplayDetails,

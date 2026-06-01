@@ -129,8 +129,8 @@ export default function PassportNfcDetailsStep(): JSX.Element {
 
       <View className='mt-6 gap-3'>
         <UiButton
-          title='Continue to Liveness'
-          onPress={() => setCurrentStep(Steps.FaceLivenessStep)}
+          title='Continue to Face Verification'
+          onPress={() => setCurrentStep(Steps.FaceGazeStep)}
           className='w-full'
         />
         <UiButton
