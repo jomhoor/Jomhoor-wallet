@@ -36,7 +36,10 @@ import {
 } from 'react-native-vision-camera-face-detector'
 import { Worklets } from 'react-native-worklets-core'
 
-import { createRequiredFaceLivenessSequence } from '@/pages/app/pages/document-scan/adapters'
+import {
+  appendFinalCenterCaptureWaypoint,
+  createRequiredFaceLivenessSequence,
+} from '@/pages/app/pages/document-scan/adapters'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { UiButton, UiIcon } from '@/ui'
 import { DocType } from '@/utils/e-document'
@@ -149,13 +152,22 @@ function resolveFaceVerificationBackStep(docType: DocType | undefined): Steps {
   return Steps.SelectDocTypeStep
 }
 
+function normalizePhotoUri(path: string): string {
+  return path.startsWith('file://') ? path : `file://${path}`
+}
+
 export default function GazeChallengeContainer(): JSX.Element {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const isFocused = useIsFocused()
   const { width, height } = useWindowDimensions()
-  const { docType, setCurrentStep, setFaceGazeResult, setFaceLivenessResult } =
-    useDocumentScanContext()
+  const {
+    docType,
+    setCurrentStep,
+    setFaceGazeResult,
+    setFaceLivenessResult,
+    setVerificationUserData,
+  } = useDocumentScanContext()
 
   const challengeConfig = useMemo(() => getDefaultUnifiedChallengeConfig(), [])
   const guideMode: LivenessGuideMode = getGuideModeForConfiguration()
@@ -171,9 +183,14 @@ export default function GazeChallengeContainer(): JSX.Element {
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0)
   const [latestScorePercent, setLatestScorePercent] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
+  const [capturingFinalPhoto, setCapturingFinalPhoto] = useState(false)
   const [mirrorModeLabel, setMirrorModeLabel] = useState<HeadPoseMirrorMode>('unknown')
 
+  const cameraRef = useRef<VisionCamera>(null)
   const challengePhaseRef = useRef<FaceChallengePhase>('liveness')
+  const captureInFlightRef = useRef(false)
+  const finalCaptureWaypointIndexRef = useRef<number | null>(null)
+  const liveCaptureUriRef = useRef<string | null>(null)
   const runningRef = useRef(false)
   const finishedRef = useRef(false)
   const livenessChallengeIndexRef = useRef(0)
@@ -255,6 +272,7 @@ export default function GazeChallengeContainer(): JSX.Element {
     if (!hasPermission) return 'Camera permission is required for face verification.'
     if (!device) return 'Front camera is not available on this device.'
     if (gazeState === 'running') {
+      if (capturingFinalPhoto) return 'Capturing a clear face photo.'
       if (multipleFaces) return 'Only one face should be visible in the camera.'
       if (!faceDetected) return 'Keep your face centered in the frame.'
       if (challengePhase === 'liveness') return 'Complete the liveness prompt.'
@@ -263,15 +281,30 @@ export default function GazeChallengeContainer(): JSX.Element {
     if (gazeState === 'success') return 'Face verification completed.'
     if (gazeState === 'failed') return 'Face verification did not pass. Please retry.'
     return faceDetected ? 'Face detected. Start when ready.' : 'Position your face in view.'
-  }, [challengePhase, device, faceDetected, gazeState, hasPermission, multipleFaces])
+  }, [
+    capturingFinalPhoto,
+    challengePhase,
+    device,
+    faceDetected,
+    gazeState,
+    hasPermission,
+    multipleFaces,
+  ])
 
   const promptText = useMemo(() => {
     if (gazeState !== 'running') return 'You will complete blink, smile, and face pose prompts.'
+    if (capturingFinalPhoto) return 'Hold still while we capture your comparison photo.'
     if (challengePhase === 'liveness') {
       return activeLivenessChallenge?.prompt ?? 'Follow the liveness prompt.'
     }
     return getPromptForWaypoint(activeWaypoint)
-  }, [activeLivenessChallenge?.prompt, activeWaypoint, challengePhase, gazeState])
+  }, [
+    activeLivenessChallenge?.prompt,
+    activeWaypoint,
+    capturingFinalPhoto,
+    challengePhase,
+    gazeState,
+  ])
 
   const finalizeChallenge = (passed: boolean, failureReason?: string) => {
     if (finishedRef.current) return
@@ -299,6 +332,7 @@ export default function GazeChallengeContainer(): JSX.Element {
       ...result,
       debug: {
         ...result.debug,
+        finalCenterCapture: Boolean(liveCaptureUriRef.current),
         livenessMerged: true,
         mirrorMode: mirrorModeRef.current,
         mirrorValidationSamples: mirrorValidationRef.current.sampleCount,
@@ -308,11 +342,13 @@ export default function GazeChallengeContainer(): JSX.Element {
     })
 
     if (passed) {
+      setCapturingFinalPhoto(false)
       setGazeState('success')
       setCurrentStep(Steps.FaceComparisonStep)
       return
     }
 
+    setCapturingFinalPhoto(false)
     setGazeState('failed')
   }
 
@@ -369,14 +405,17 @@ export default function GazeChallengeContainer(): JSX.Element {
   }
 
   const startGazeChallenge = () => {
-    const waypoints = generateUnifiedGazeWaypoints(
-      { width, height },
-      {
-        waypointCount: challengeConfig.waypointCount,
-      },
+    const generatedWaypoints = generateUnifiedGazeWaypoints(
+      { height, width },
+      { waypointCount: challengeConfig.waypointCount },
+    )
+    const waypoints = appendFinalCenterCaptureWaypoint(
+      generatedWaypoints,
+      challengeConfig.minHoldMs,
     )
 
     waypointsRef.current = waypoints
+    finalCaptureWaypointIndexRef.current = generatedWaypoints.length
     const waypointLogPayload = waypoints
       .map(waypoint => {
         const normalizedYaw = waypoint.targetYawDeg / challengeConfig.maxYawDeg
@@ -402,7 +441,10 @@ export default function GazeChallengeContainer(): JSX.Element {
     livenessSequenceRef.current = createRequiredFaceLivenessSequence()
     livenessStartedAtRef.current = Date.now()
     livenessStepPassedRef.current = false
+    captureInFlightRef.current = false
+    liveCaptureUriRef.current = null
     setLatestScorePercent(0)
+    setCapturingFinalPhoto(false)
     challengePhaseRef.current = 'liveness'
     setChallengePhase('liveness')
     setCurrentWaypointIndex(0)
@@ -471,6 +513,56 @@ export default function GazeChallengeContainer(): JSX.Element {
     }, LIVENESS_STEP_DEBOUNCE_MS)
   }
 
+  const captureFinalFacePhoto = async () => {
+    if (captureInFlightRef.current || liveCaptureUriRef.current) return
+
+    captureInFlightRef.current = true
+    setCapturingFinalPhoto(true)
+
+    try {
+      const photo = await cameraRef.current?.takePhoto()
+      if (!photo?.path) {
+        finalizeChallenge(false, 'final_capture_unavailable')
+        return
+      }
+
+      const liveCaptureUri = normalizePhotoUri(photo.path)
+      liveCaptureUriRef.current = liveCaptureUri
+      setVerificationUserData(previous => ({
+        ...previous,
+        biometrics: {
+          ...previous.biometrics,
+          images: {
+            ...previous.biometrics.images,
+            liveCaptureUri,
+            liveCropUri: undefined,
+            referenceCropUri: undefined,
+          },
+        },
+        evidence: [
+          ...previous.evidence,
+          {
+            keys: ['biometrics.images.liveCaptureUri'],
+            source: 'camera',
+            step: 'face-final-center-capture',
+            storedAt: Date.now(),
+          },
+        ],
+      }))
+
+      finalizeChallenge(true)
+    } catch (error) {
+      logGazeDiagnostics(
+        'CAPTURE',
+        error instanceof Error ? error.message : 'final center capture failed',
+      )
+      finalizeChallenge(false, 'final_capture_failed')
+    } finally {
+      captureInFlightRef.current = false
+      setCapturingFinalPhoto(false)
+    }
+  }
+
   const pushProgress = (matched: boolean, now: number) => {
     const deltaMs = Math.min(
       Math.max(now - lastProgressTickAtRef.current, 0),
@@ -492,6 +584,10 @@ export default function GazeChallengeContainer(): JSX.Element {
     }
 
     if (next.completed) {
+      if (currentWaypointIndex === finalCaptureWaypointIndexRef.current) {
+        void captureFinalFacePhoto()
+        return
+      }
       moveToWaypoint(currentWaypointIndex + 1)
     }
   }
@@ -607,11 +703,13 @@ export default function GazeChallengeContainer(): JSX.Element {
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1'>
       {isCameraActive && device ? (
         <VisionCamera
+          ref={cameraRef}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           device={device}
           isActive={isCameraActive}
           frameProcessor={frameProcessor}
           pixelFormat='yuv'
+          photo
         />
       ) : (
         <View className='absolute inset-0 items-center justify-center bg-backgroundPrimary'>

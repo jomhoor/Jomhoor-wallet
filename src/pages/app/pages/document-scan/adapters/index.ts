@@ -1,3 +1,4 @@
+export { appendFinalCenterCaptureWaypoint } from './appendFinalCenterCaptureWaypoint'
 export { createRequiredFaceLivenessSequence } from './createRequiredFaceLivenessSequence'
 export {
   extractPackageNfcDisplayDetails,

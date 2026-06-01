@@ -59,11 +59,8 @@ Quick verification after archive:
 - Add privacy policy document at `https://jomhoor.org/app/privacy.html`, including "User privacy choices".
 -
 
-
-
 # Next release
 
 - App map
 - support other types of NIDC
 - Support more countries
-

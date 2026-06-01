@@ -20,7 +20,7 @@ const TURN_THRESHOLD = 15
 const LIVENESS_CHALLENGES: ChallengeDefinition[] = [
   {
     key: 'blink',
-    prompt: 'Blink your eyes',
+    prompt: ' 😌 Blink your eyes',
     evaluate: face => {
       const left = face.leftEyeOpenProbability ?? 1
       const right = face.rightEyeOpenProbability ?? 1
@@ -32,7 +32,7 @@ const LIVENESS_CHALLENGES: ChallengeDefinition[] = [
   },
   {
     key: 'smile',
-    prompt: 'Smile',
+    prompt: '🙂 Smile',
     evaluate: face => {
       const smile = face.smilingProbability ?? 0
 
