@@ -48,6 +48,7 @@ Quick verification after archive:
 - [x] Include proof gen required data
 - [x] Add a back button to selecet document page
 - [ ] Refactor face verification - one livness screen - automate likeness
+- [ ] Improve MRZ reading - remove reading area limitation.
 
 # Backlog
 

@@ -17,7 +17,7 @@ import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/S
 import { UiButton, UiIcon } from '@/ui'
 import { DocType } from '@/utils/e-document'
 
-type ComparisonState = 'loading-model' | 'preparing-images' | 'comparing' | 'failed' | 'success'
+type ComparisonState = 'initializing' | 'ready' | 'capturing' | 'cropped' | 'failed' | 'success'
 
 function isFaceDebugEnabled(): boolean {
   return __DEV__ && process.env.EXPO_PUBLIC_DOCUMENT_SCAN_FACE_DEBUG === 'enabled'
@@ -42,26 +42,6 @@ const buildPortraitUri = (portrait?: {
   }
 
   return portrait.filePath.startsWith('file://') ? portrait.filePath : `file://${portrait.filePath}`
-}
-
-function getComparisonStatusText(params: {
-  errorMessage: string | null
-  isNidFlow: boolean
-  state: ComparisonState
-}): string {
-  if (params.state === 'loading-model') return 'Preparing face model...'
-  if (params.state === 'preparing-images') {
-    return params.isNidFlow
-      ? 'Preparing NID card face and captured live face...'
-      : 'Preparing passport portrait and captured live face...'
-  }
-  if (params.state === 'comparing') {
-    return params.isNidFlow
-      ? 'Comparing live face with NID front image face crop...'
-      : 'Comparing live face with passport portrait...'
-  }
-  if (params.state === 'success') return 'Face comparison passed.'
-  return params.errorMessage ?? 'Face comparison did not pass.'
 }
 
 export default function FaceComparisonStep(): JSX.Element {
@@ -89,14 +69,14 @@ export default function FaceComparisonStep(): JSX.Element {
   const storedNidFrontImageUri = verificationUserData.document.nid.front?.imageUri
   const liveCaptureUri = storedBiometrics.images?.liveCaptureUri
 
-  const [comparisonState, setComparisonState] = useState<ComparisonState>('loading-model')
+  const [comparisonState, setComparisonState] = useState<ComparisonState>('initializing')
+  const [isBusy, setIsBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [comparisonResult, setComparisonResult] = useState<FaceComparisonResult | null>(null)
   const [croppedPreviewUris, setCroppedPreviewUris] = useState<{
     referenceUri: string
     liveUri: string
   } | null>(null)
-  const comparisonRunKeyRef = useRef<string | null>(null)
   const successTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const portraitUri = useMemo(
@@ -104,6 +84,63 @@ export default function FaceComparisonStep(): JSX.Element {
       isNidFlow ? storedNidFrontImageUri : buildPortraitUri(storedPassportNfcDetails?.portrait),
     [isNidFlow, storedNidFrontImageUri, storedPassportNfcDetails?.portrait],
   )
+
+  useEffect(() => {
+    let mounted = true
+    const prepare = async () => {
+      try {
+        logFaceDebug('prepare-start', {
+          hasPortraitUri: Boolean(portraitUri),
+          hasPortraitBase64: typeof storedPassportNfcDetails?.portrait?.base64 === 'string',
+          hasPortraitFilePath: typeof storedPassportNfcDetails?.portrait?.filePath === 'string',
+        })
+        await preloadFaceComparisonModel()
+        if (!mounted) return
+
+        if (!portraitUri) {
+          setComparisonState('failed')
+          setErrorMessage(
+            isNidFlow
+              ? 'NID front image was not found. Retry front capture and NFC.'
+              : 'Passport portrait was not found. You can retry NFC or continue to preview.',
+          )
+          return
+        }
+
+        if (!liveCaptureUri) {
+          setComparisonState('failed')
+          setErrorMessage('Live face photo was not captured. Retry face verification.')
+          return
+        }
+
+        setComparisonState('ready')
+        logFaceDebug('prepare-ready', {
+          hasLiveCaptureUri: true,
+        })
+      } catch (error) {
+        if (!mounted) return
+        setComparisonState('failed')
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        setErrorMessage(
+          `Face model is unavailable on this build. Error: ${errorMessage}. Please retry.`,
+        )
+        // eslint-disable-next-line no-console
+        console.log('[FaceComparisonStep] Model preload failed:', error)
+        logFaceDebug('prepare-failed', { error: errorMessage })
+      }
+    }
+
+    void prepare()
+    return () => {
+      mounted = false
+    }
+  }, [
+    isNidFlow,
+    liveCaptureUri,
+    storedPassportNfcDetails?.portrait?.base64,
+    storedPassportNfcDetails?.portrait?.filePath,
+    portraitUri,
+  ])
 
   useEffect(() => {
     return () => {
@@ -114,223 +151,200 @@ export default function FaceComparisonStep(): JSX.Element {
     }
   }, [])
 
-  useEffect(() => {
-    let mounted = true
-    const runKey = `${portraitUri ?? 'missing-reference'}:${liveCaptureUri ?? 'missing-live'}`
+  const handleCaptureAndPrepare = async () => {
+    if (isBusy) return
+    if (!liveCaptureUri || !portraitUri) return
 
-    const runComparison = async () => {
-      if (!portraitUri) {
+    logFaceDebug('capture-start', {
+      hasLiveCaptureUri: true,
+      hasPortraitUri: Boolean(portraitUri),
+    })
+    setIsBusy(true)
+    setErrorMessage(null)
+    setComparisonResult(null)
+    setCroppedPreviewUris(null)
+    setComparisonState('capturing')
+
+    try {
+      const liveImageUri = liveCaptureUri
+      logFaceDebug('capture-complete', {
+        liveImageUriKind: liveImageUri.startsWith('file://') ? 'file-uri' : 'other',
+      })
+
+      const [preparedReferenceUri, preparedLiveUri] = await Promise.all([
+        getCenteredFaceSquareCrop(portraitUri),
+        getCenteredFaceSquareCrop(liveImageUri),
+      ])
+
+      logFaceDebug('crop-preview-ready', {
+        preparedReferenceUriKind: preparedReferenceUri.startsWith('file://') ? 'file-uri' : 'other',
+        preparedLiveUriKind: preparedLiveUri.startsWith('file://') ? 'file-uri' : 'other',
+      })
+
+      setCroppedPreviewUris({
+        referenceUri: preparedReferenceUri,
+        liveUri: preparedLiveUri,
+      })
+      setVerificationUserData(previous => ({
+        ...previous,
+        biometrics: {
+          ...previous.biometrics,
+          images: {
+            ...previous.biometrics.images,
+            liveCaptureUri: liveImageUri,
+            liveCropUri: preparedLiveUri,
+            referenceCropUri: preparedReferenceUri,
+            referenceUri: portraitUri,
+          },
+        },
+      }))
+      setComparisonState('cropped')
+    } catch (error) {
+      const code = error instanceof Error ? error.name || error.message : 'unknown_error'
+      const message = error instanceof Error ? error.message : 'unknown_error'
+      logFaceDebug('prepare-error', {
+        code,
+        message,
+      })
+      setComparisonState('failed')
+      if (code === 'FACE_NOT_DETECTED') {
+        setErrorMessage('No face detected. Keep your face centered and retry.')
+      } else if (code === 'MULTIPLE_FACES_DETECTED') {
+        setErrorMessage('Multiple faces detected. Ensure only one face is in frame and retry.')
+      } else {
+        setErrorMessage('Face preparation failed. Please retry.')
+      }
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const handleComparePrepared = async () => {
+    if (isBusy) return
+    if (!croppedPreviewUris) return
+
+    setIsBusy(true)
+    setErrorMessage(null)
+    setComparisonState('capturing')
+
+    try {
+      const result = await compareFaces({
+        liveImageUri: croppedPreviewUris.liveUri,
+        referenceImage: { uri: croppedPreviewUris.referenceUri },
+        threshold: DEFAULT_FACE_COMPARISON_THRESHOLD,
+        modelName: 'mobilefacenet',
+        alreadyPreprocessed: true,
+      })
+      logFaceDebug('compare-result', {
+        passed: result.passed,
+        similarity: result.similarity,
+        threshold: result.threshold,
+      })
+
+      setComparisonResult(result)
+
+      if (!result.passed) {
         setComparisonState('failed')
+        setErrorMessage('Face match confidence is too low. Retry with better lighting and framing.')
+        return
+      }
+
+      setFaceComparisonResult(result)
+      if (docType === DocType.ID && storedNidVerificationResult) {
+        const mergedFaceResult: NidVerificationResult = {
+          ...storedNidVerificationResult,
+          verified: Boolean(
+            storedNidVerificationResult.verified &&
+              (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+              (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
+              result.passed,
+          ),
+          finalDecision:
+            storedNidVerificationResult.verified &&
+            (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+            (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
+            result.passed
+              ? 'verified'
+              : 'failed',
+          face: {
+            passed: Boolean(
+              (faceVerification.liveness?.passed ?? storedBiometrics.liveness?.passed) &&
+                (faceVerification.gaze?.passed ?? storedBiometrics.gaze?.passed) &&
+                result.passed,
+            ),
+            liveness:
+              faceVerification.liveness ??
+              storedBiometrics.liveness ??
+              storedNidVerificationResult.face.liveness,
+            gaze:
+              faceVerification.gaze ??
+              storedBiometrics.gaze ??
+              storedNidVerificationResult.face.gaze,
+            comparison: result,
+            liveFaceImageUri:
+              storedBiometrics.images?.liveCaptureUri ??
+              storedNidVerificationResult.face.liveFaceImageUri,
+            referenceFaceImageUri:
+              storedBiometrics.images?.referenceCropUri ??
+              storedNidVerificationResult.face.referenceFaceImageUri,
+          },
+          debug: {
+            mockedFace: false,
+            mockedNfc: storedNidVerificationResult.debug?.mockedNfc ?? false,
+            stepsCompleted: storedNidVerificationResult.debug?.stepsCompleted ?? [
+              'front-scan',
+              'back-scan',
+              'nfc-read',
+            ],
+          },
+        }
+
+        setNidVerificationResult(mergedFaceResult)
+        setNidProofInputAdapter(toNidProofInputAdapterData(mergedFaceResult))
+        setComparisonState('success')
+        await createIdentity()
+        return
+      }
+      setComparisonState('success')
+      successTransitionTimeoutRef.current = setTimeout(() => {
+        setCurrentStep(Steps.DocumentPreviewStep)
+      }, 2000)
+    } catch (error) {
+      const code = error instanceof Error ? error.name || error.message : 'unknown_error'
+      const message = error instanceof Error ? error.message : 'unknown_error'
+      logFaceDebug('compare-error', {
+        code,
+        message,
+      })
+      setComparisonState('failed')
+      if (code === 'REFERENCE_IMAGE_UNAVAILABLE') {
         setErrorMessage(
           isNidFlow
-            ? 'NID front image was not found. Retry front capture and NFC.'
-            : 'Passport portrait was not found. Please retry NFC read.',
+            ? 'NID front image is missing. Retry front capture and NFC read.'
+            : 'Passport portrait is missing. Please retry NFC read.',
         )
-        return
+      } else if (code === 'LIVE_IMAGE_UNAVAILABLE') {
+        setErrorMessage('Live capture failed. Please retry.')
+      } else if (code === 'FACE_NOT_DETECTED') {
+        setErrorMessage('No face detected. Keep your face centered and retry.')
+      } else if (code === 'MULTIPLE_FACES_DETECTED') {
+        setErrorMessage('Multiple faces detected. Ensure only one face is in frame and retry.')
+      } else {
+        setErrorMessage(
+          isFaceDebugEnabled()
+            ? `Face comparison failed (${code}). Please retry.`
+            : 'Face comparison failed. Please retry.',
+        )
       }
-
-      if (!liveCaptureUri) {
-        setComparisonState('failed')
-        setErrorMessage('Live face photo was not captured. Retry face verification.')
-        return
-      }
-
-      if (comparisonRunKeyRef.current === runKey) return
-      comparisonRunKeyRef.current = runKey
-
-      try {
-        setComparisonState('loading-model')
-        setErrorMessage(null)
-        setComparisonResult(null)
-        setCroppedPreviewUris(null)
-
-        logFaceDebug('prepare-start', {
-          hasLiveCaptureUri: true,
-          hasPortraitBase64: typeof storedPassportNfcDetails?.portrait?.base64 === 'string',
-          hasPortraitFilePath: typeof storedPassportNfcDetails?.portrait?.filePath === 'string',
-          hasPortraitUri: true,
-        })
-
-        await preloadFaceComparisonModel()
-        if (!mounted) return
-
-        setComparisonState('preparing-images')
-        const [preparedReferenceUri, preparedLiveUri] = await Promise.all([
-          getCenteredFaceSquareCrop(portraitUri),
-          getCenteredFaceSquareCrop(liveCaptureUri),
-        ])
-        if (!mounted) return
-
-        setCroppedPreviewUris({
-          liveUri: preparedLiveUri,
-          referenceUri: preparedReferenceUri,
-        })
-        setVerificationUserData(previous => ({
-          ...previous,
-          biometrics: {
-            ...previous.biometrics,
-            images: {
-              ...previous.biometrics.images,
-              liveCaptureUri,
-              liveCropUri: preparedLiveUri,
-              referenceCropUri: preparedReferenceUri,
-              referenceUri: portraitUri,
-            },
-          },
-          evidence: [
-            ...previous.evidence,
-            {
-              keys: [
-                'biometrics.images.referenceUri',
-                'biometrics.images.referenceCropUri',
-                'biometrics.images.liveCropUri',
-              ],
-              source: 'camera',
-              step: 'face-comparison-prepare',
-              storedAt: Date.now(),
-            },
-          ],
-        }))
-
-        setComparisonState('comparing')
-        const result = await compareFaces({
-          liveImageUri: preparedLiveUri,
-          referenceImage: { uri: preparedReferenceUri },
-          threshold: DEFAULT_FACE_COMPARISON_THRESHOLD,
-          modelName: 'mobilefacenet',
-          alreadyPreprocessed: true,
-        })
-        if (!mounted) return
-
-        logFaceDebug('compare-result', {
-          passed: result.passed,
-          similarity: result.similarity,
-          threshold: result.threshold,
-        })
-
-        setComparisonResult(result)
-
-        if (!result.passed) {
-          setComparisonState('failed')
-          setErrorMessage(
-            'Face match confidence is too low. Retry with better lighting and framing.',
-          )
-          return
-        }
-
-        setFaceComparisonResult(result)
-        if (docType === DocType.ID) {
-          if (!storedNidVerificationResult) {
-            setComparisonState('failed')
-            setErrorMessage('NID verification data is missing. Retry NID verification.')
-            return
-          }
-
-          const livenessResult =
-            faceVerification.liveness ??
-            storedBiometrics.liveness ??
-            storedNidVerificationResult.face.liveness
-          const gazeResult =
-            faceVerification.gaze ?? storedBiometrics.gaze ?? storedNidVerificationResult.face.gaze
-          const facePassed = Boolean(livenessResult?.passed && gazeResult?.passed && result.passed)
-          const verified = Boolean(storedNidVerificationResult.verified && facePassed)
-          const mergedFaceResult: NidVerificationResult = {
-            ...storedNidVerificationResult,
-            verified,
-            finalDecision: verified ? 'verified' : 'failed',
-            face: {
-              passed: facePassed,
-              liveness: livenessResult,
-              gaze: gazeResult,
-              comparison: result,
-              liveFaceImageUri: liveCaptureUri,
-              referenceFaceImageUri: preparedReferenceUri,
-            },
-            debug: {
-              mockedFace: false,
-              mockedNfc: storedNidVerificationResult.debug?.mockedNfc ?? false,
-              stepsCompleted: storedNidVerificationResult.debug?.stepsCompleted ?? [
-                'front-scan',
-                'back-scan',
-                'nfc-read',
-              ],
-            },
-          }
-
-          setNidVerificationResult(mergedFaceResult)
-          setNidProofInputAdapter(toNidProofInputAdapterData(mergedFaceResult))
-          setComparisonState('success')
-          await createIdentity()
-          return
-        }
-
-        setComparisonState('success')
-        successTransitionTimeoutRef.current = setTimeout(() => {
-          setCurrentStep(Steps.DocumentPreviewStep)
-        }, 2000)
-      } catch (error) {
-        if (!mounted) return
-        const code = error instanceof Error ? error.name || error.message : 'unknown_error'
-        const message = error instanceof Error ? error.message : 'unknown_error'
-        logFaceDebug('compare-error', {
-          code,
-          message,
-        })
-        setComparisonState('failed')
-        if (code === 'REFERENCE_IMAGE_UNAVAILABLE') {
-          setErrorMessage(
-            isNidFlow
-              ? 'NID front image is missing. Retry front capture and NFC read.'
-              : 'Passport portrait is missing. Please retry NFC read.',
-          )
-        } else if (code === 'LIVE_IMAGE_UNAVAILABLE') {
-          setErrorMessage('Live capture failed. Please retry face verification.')
-        } else if (code === 'FACE_NOT_DETECTED') {
-          setErrorMessage('No face detected. Retry face verification with your face centered.')
-        } else if (code === 'MULTIPLE_FACES_DETECTED') {
-          setErrorMessage('Multiple faces detected. Ensure only one face is in frame and retry.')
-        } else {
-          setErrorMessage(
-            isFaceDebugEnabled()
-              ? `Face comparison failed (${code}). Please retry.`
-              : 'Face comparison failed. Please retry.',
-          )
-        }
-      }
+    } finally {
+      setIsBusy(false)
     }
-
-    void runComparison()
-    return () => {
-      mounted = false
-    }
-  }, [
-    createIdentity,
-    docType,
-    faceVerification.gaze,
-    faceVerification.liveness,
-    isNidFlow,
-    liveCaptureUri,
-    portraitUri,
-    setCurrentStep,
-    setFaceComparisonResult,
-    setNidProofInputAdapter,
-    setNidVerificationResult,
-    setVerificationUserData,
-    storedBiometrics.gaze,
-    storedBiometrics.liveness,
-    storedNidVerificationResult,
-    storedPassportNfcDetails?.portrait?.base64,
-    storedPassportNfcDetails?.portrait?.filePath,
-  ])
+  }
 
   const similarityPercent =
     comparisonResult && typeof comparisonResult.similarity === 'number'
       ? Math.round(comparisonResult.similarity * 100)
       : null
-  const isBusy =
-    comparisonState === 'loading-model' ||
-    comparisonState === 'preparing-images' ||
-    comparisonState === 'comparing'
 
   return (
     <View style={{ paddingTop: insets.top, paddingBottom: insets.bottom }} className='flex-1 p-6'>
@@ -351,8 +365,9 @@ export default function FaceComparisonStep(): JSX.Element {
       </View>
 
       <Text className='typography-body3 mt-3 text-textSecondary'>
-        We captured your live face at the final centered waypoint and are comparing it
-        automatically.
+        {isNidFlow
+          ? 'Prepare the captured live face and compare it with the cropped face from NID front image.'
+          : 'Prepare the captured live face, preview both 112x112 cropped faces, then run comparison.'}
       </Text>
 
       <View className='mt-6 rounded-xl bg-componentPrimary p-4'>
@@ -390,14 +405,24 @@ export default function FaceComparisonStep(): JSX.Element {
         ) : null}
 
         <Text className='typography-body3 text-textPrimary'>
-          {getComparisonStatusText({
-            errorMessage,
-            isNidFlow,
-            state: comparisonState,
-          })}
+          {comparisonState === 'initializing'
+            ? 'Preparing face model...'
+            : comparisonState === 'capturing'
+              ? isNidFlow
+                ? 'Comparing live face with NID front image face crop...'
+                : 'Comparing live face with passport portrait...'
+              : comparisonState === 'cropped'
+                ? 'Cropped previews ready. Review them, then compare.'
+                : comparisonState === 'success'
+                  ? 'Face comparison passed.'
+                  : comparisonState === 'failed'
+                    ? (errorMessage ?? 'Face comparison did not pass.')
+                    : 'Align your face and capture when ready.'}
         </Text>
 
-        {isBusy ? <ActivityIndicator className='mt-3 color-primaryMain' /> : null}
+        {comparisonState === 'initializing' || comparisonState === 'capturing' ? (
+          <ActivityIndicator className='mt-3 color-primaryMain' />
+        ) : null}
 
         {similarityPercent !== null ? (
           <Text className='typography-body4 mt-2 text-textSecondary'>
@@ -408,10 +433,21 @@ export default function FaceComparisonStep(): JSX.Element {
 
       <View className='mt-auto gap-3'>
         <UiButton
-          title='Retry Face Verification'
+          title={comparisonState === 'cropped' ? 'Compare Cropped Faces' : 'Prepare Captured Face'}
+          onPress={comparisonState === 'cropped' ? handleComparePrepared : handleCaptureAndPrepare}
+          className='w-full'
+          disabled={
+            comparisonState === 'initializing' ||
+            comparisonState === 'capturing' ||
+            comparisonState === 'success' ||
+            !portraitUri ||
+            !liveCaptureUri
+          }
+        />
+        <UiButton
+          title='Retry'
           variant='outlined'
           onPress={() => {
-            comparisonRunKeyRef.current = null
             setComparisonResult(null)
             setCroppedPreviewUris(null)
             setErrorMessage(null)
@@ -419,27 +455,25 @@ export default function FaceComparisonStep(): JSX.Element {
               clearTimeout(successTransitionTimeoutRef.current)
               successTransitionTimeoutRef.current = null
             }
-            setCurrentStep(Steps.FaceGazeStep)
+            setComparisonState(portraitUri && liveCaptureUri ? 'ready' : 'failed')
           }}
           className='w-full'
-          disabled={isBusy || comparisonState === 'success'}
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
         />
         <UiButton
-          title='Back to Face Verification'
+          title='Back to Gaze Challenge'
           variant='outlined'
           onPress={() => setCurrentStep(Steps.FaceGazeStep)}
           className='w-full'
-          disabled={isBusy || comparisonState === 'success'}
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
         />
-        {!isNidFlow ? (
-          <UiButton
-            title='Skip to Document Preview'
-            variant='outlined'
-            onPress={() => setCurrentStep(Steps.DocumentPreviewStep)}
-            className='w-full'
-            disabled={isBusy || comparisonState === 'success'}
-          />
-        ) : null}
+        <UiButton
+          title='Skip to Document Preview'
+          variant='outlined'
+          onPress={() => setCurrentStep(Steps.DocumentPreviewStep)}
+          className='w-full'
+          disabled={comparisonState === 'capturing' || comparisonState === 'success'}
+        />
       </View>
     </View>
   )
