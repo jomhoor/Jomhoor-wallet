@@ -81,8 +81,6 @@ const BARCODE_CODE_TYPES = [
 ] as const
 
 const SCAN_FPS = 2
-const TOP_SAFE_REGION_RATIO = 0.5
-const BOTTOM_SAFE_REGION_START_RATIO = 0.5
 type ScanPhase = 'barcode' | 'mrz'
 
 const loadVisionCameraModule = (): VisionCameraModule | null => {
@@ -142,97 +140,6 @@ const toBarcodePayload = (
   }
 }
 
-const getLineCenterY = (lineFrame: unknown): number | null => {
-  'worklet'
-  if (!lineFrame || typeof lineFrame !== 'object') return null
-  const maybeFrame = lineFrame as { y?: number; height?: number }
-  if (!Number.isFinite(maybeFrame.y) || !Number.isFinite(maybeFrame.height)) return null
-  const safeY = Number(maybeFrame.y)
-  const safeHeight = Number(maybeFrame.height)
-  return safeY + safeHeight / 2
-}
-
-const extractBottomRegionText = (recognitionData: unknown, frameHeight: number): string => {
-  'worklet'
-  if (!Array.isArray(recognitionData) || !Number.isFinite(frameHeight)) return ''
-
-  const minCenterY = frameHeight * BOTTOM_SAFE_REGION_START_RATIO
-  const matchedLines: Array<{ text: string; y: number }> = []
-
-  recognitionData.forEach(entry => {
-    if (!entry || typeof entry !== 'object') return
-    const blocks = Array.isArray((entry as { blocks?: unknown[] }).blocks)
-      ? ((entry as { blocks: unknown[] }).blocks ?? [])
-      : []
-
-    blocks.forEach(block => {
-      if (!block || typeof block !== 'object') return
-      const lines = Array.isArray((block as { lines?: unknown[] }).lines)
-        ? ((block as { lines: unknown[] }).lines ?? [])
-        : []
-
-      lines.forEach(line => {
-        if (!line || typeof line !== 'object') return
-        const lineText =
-          typeof (line as { lineText?: unknown }).lineText === 'string'
-            ? String((line as { lineText?: unknown }).lineText).trim()
-            : ''
-        const lineFrame = (line as { lineFrame?: unknown }).lineFrame
-        const centerY = getLineCenterY(lineFrame)
-        if (!lineText || centerY === null || !Number.isFinite(centerY) || centerY < minCenterY)
-          return
-        const y =
-          lineFrame &&
-          typeof lineFrame === 'object' &&
-          Number.isFinite((lineFrame as { y?: number }).y)
-            ? Number((lineFrame as { y?: number }).y)
-            : centerY
-        matchedLines.push({ text: lineText, y })
-      })
-    })
-  })
-
-  if (matchedLines.length === 0) return ''
-
-  return matchedLines
-    .sort((left, right) => left.y - right.y)
-    .map(line => line.text)
-    .join('\n')
-}
-
-const getCodeCenterY = (code: Record<string, unknown>): number | null => {
-  const frame = code.frame
-  if (frame && typeof frame === 'object') {
-    const frameY = (frame as { y?: number }).y
-    const frameHeight = (frame as { height?: number }).height
-    if (Number.isFinite(frameY) && Number.isFinite(frameHeight)) {
-      return Number(frameY) + Number(frameHeight) / 2
-    }
-  }
-
-  const corners = Array.isArray(code.corners) ? code.corners : []
-  if (corners.length === 0) return null
-  const ys = corners
-    .map(entry => (entry && typeof entry === 'object' ? (entry as { y?: number }).y : undefined))
-    .filter(value => Number.isFinite(value)) as number[]
-  if (ys.length === 0) return null
-
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-  return minY + (maxY - minY) / 2
-}
-
-const isCodeInsideTopRegion = (
-  code: Record<string, unknown>,
-  scannerFrame?: { height?: number },
-): boolean => {
-  const centerY = getCodeCenterY(code)
-  if (centerY === null || !Number.isFinite(centerY) || !Number.isFinite(scannerFrame?.height)) {
-    return true
-  }
-  return centerY <= Number(scannerFrame?.height) * TOP_SAFE_REGION_RATIO
-}
-
 export function PassportMrzBarcodeScanScreen({
   onDetected,
   onCancel,
@@ -257,7 +164,7 @@ export function PassportMrzBarcodeScanScreen({
   const { scanText } = useTextRecognitionHook({ language: 'latin' })
 
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState)
-  const [statusMessage, setStatusMessage] = useState('Scan barcode in the top area to continue.')
+  const [statusMessage, setStatusMessage] = useState('Scan barcode to continue.')
   const [scanPhase, setScanPhase] = useState<ScanPhase>('barcode')
   const [mrzResult, setMrzResult] = useState<PassportMrzScanResult>()
   const [barcodeResult, setBarcodeResult] = useState<ParsedNidBarcode>()
@@ -299,13 +206,11 @@ export function PassportMrzBarcodeScanScreen({
   }, [onDetected])
 
   const handleDetectedText = useCallback(
-    (payload: { fullText: string; bottomRegionText: string }) => {
+    (payload: { fullText: string }) => {
       if (scanPhase !== 'mrz') return
       if (hasCompletedRef.current || mrzResultRef.current) return
 
-      const nextMrz =
-        createPassportMrzScanResult(payload.bottomRegionText) ||
-        createPassportMrzScanResult(payload.fullText)
+      const nextMrz = createPassportMrzScanResult(payload.fullText)
       if (!nextMrz) return
 
       mrzResultRef.current = nextMrz
@@ -313,7 +218,7 @@ export function PassportMrzBarcodeScanScreen({
       setStatusMessage(
         barcodeResultRef.current?.nidn
           ? 'MRZ and barcode detected. Finalizing...'
-          : 'MRZ detected. Keep scanning barcode at the top area.',
+          : 'MRZ detected. Keep scanning barcode.',
       )
       completeIfReady()
     },
@@ -323,8 +228,8 @@ export function PassportMrzBarcodeScanScreen({
   const runOnDetectedText = useMemo(() => {
     const createRunOnJS =
       workletsModule?.Worklets?.createRunOnJS ??
-      ((fn: (payload: { fullText: string; bottomRegionText: string }) => void) => fn)
-    return createRunOnJS((payload: { fullText: string; bottomRegionText: string }) => {
+      ((fn: (payload: { fullText: string }) => void) => fn)
+    return createRunOnJS((payload: { fullText: string }) => {
       handleDetectedText(payload)
     })
   }, [handleDetectedText, workletsModule?.Worklets?.createRunOnJS])
@@ -362,7 +267,6 @@ export function PassportMrzBarcodeScanScreen({
 
         runOnDetectedText({
           fullText,
-          bottomRegionText: extractBottomRegionText(recognizedData, Number(frame.height ?? 0)),
         })
       })
     },
@@ -370,17 +274,17 @@ export function PassportMrzBarcodeScanScreen({
   )
 
   const handleCodeScanned = useCallback(
-    (codes: Array<Record<string, unknown>>, scannerFrame: { height?: number }) => {
+    (codes: Array<Record<string, unknown>>) => {
       if (scanPhase !== 'barcode') return
       if (hasCompletedRef.current || barcodeResultRef.current?.nidn) return
       const detectedCodes = Array.isArray(codes) ? codes : []
 
-      const firstTopCode = detectedCodes.find(entry => {
+      const firstCode = detectedCodes.find(entry => {
         const value = typeof entry.value === 'string' ? entry.value.trim() : ''
-        return value.length > 0 && isCodeInsideTopRegion(entry, scannerFrame)
+        return value.length > 0
       })
 
-      const rawValue = typeof firstTopCode?.value === 'string' ? firstTopCode.value.trim() : ''
+      const rawValue = typeof firstCode?.value === 'string' ? firstCode.value.trim() : ''
       if (!rawValue) return
 
       const parsed = parseNidBarcode(rawValue)
@@ -389,7 +293,7 @@ export function PassportMrzBarcodeScanScreen({
       barcodeResultRef.current = parsed
       setBarcodeResult(parsed)
       setScanPhase('mrz')
-      setStatusMessage('Barcode detected. Keep scanning MRZ at the bottom area.')
+      setStatusMessage('Barcode detected. Keep the MRZ visible in the camera.')
       completeIfReady()
     },
     [completeIfReady, scanPhase],
