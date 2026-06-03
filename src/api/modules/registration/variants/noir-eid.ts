@@ -76,6 +76,7 @@ export class NoirEIDRegistration extends RegistrationStrategy {
 
     const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
       eDocument.authCertificate,
+      slaveMaster,
     )
 
     console.log('[NoirEID] slaveCertSmtProof.existence:', slaveCertSmtProof.existence)
@@ -96,6 +97,7 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       // Re-fetch the proof after registration to get the updated SMT proof
       const updatedProof = await RegistrationStrategy.getSlaveCertSmtProof(
         eDocument.authCertificate,
+        slaveMaster,
       )
       console.log('[NoirEID] After registration - existence:', updatedProof.existence)
       console.log('[NoirEID] After registration - root:', updatedProof.root)

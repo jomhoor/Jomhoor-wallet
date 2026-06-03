@@ -252,6 +252,12 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
         return 3
       }
 
+      // RSA-3072 + SHA-1 passport profile used by Iranian passports.
+      // This maps to the Noir circuit family registerIdentity_6_160_*.
+      if (unpaddedModulusHex.length === 768 && hashAlgLen === 20) {
+        return 6
+      }
+
       return 0
     }
 

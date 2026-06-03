@@ -76,3 +76,17 @@ Refactor facial comparison workflow:
 ### Gaze challenge
 
 Throughout the gaze challenge there MUST be exactly 1 face in view - no less no more.
+
+### Document Verification
+
+Implement an NFC tool to log all of the raw data available on the chip to a file to be shared with the development team to add support for different kinds of passport.
+This can be a menu item added to settings page -> dev screen with buttons to execute critical tasks.
+
+**Buttons**
+
+- NFC probe: calles native NFC probe and collects all of the data in a file provided to user to save/share.
+
+### Map
+
+Add Map to the home screen.
+Reuse the map screen and data schema from iLand.

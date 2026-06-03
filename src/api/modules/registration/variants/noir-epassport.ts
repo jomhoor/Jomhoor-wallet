@@ -160,12 +160,17 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       })
 
       stage = 'passport-slave-proof-fetch'
-      const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(slaveCertificate)
+      const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
+        slaveCertificate,
+        slaveMaster,
+      )
       logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:received', {
         existence: slaveCertSmtProof.existence,
         siblingsLength: slaveCertSmtProof.siblings.length,
         rootLength: String(slaveCertSmtProof.root).length,
       })
+
+      let currentSlaveCertSmtProof = slaveCertSmtProof
 
       if (!slaveCertSmtProof.existence) {
         stage = 'register-certificate-api'
@@ -174,6 +179,24 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         })
         await RegistrationStrategy.registerCertificate(CSCACertBytes, slaveCertificate, slaveMaster)
         logIdentityDiagnostic('IdentityProof', 'registerCertificate:success')
+
+        stage = 'passport-slave-proof-refetch'
+        currentSlaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
+          slaveCertificate,
+          slaveMaster,
+        )
+        logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:refetched', {
+          existence: currentSlaveCertSmtProof.existence,
+          siblingsLength: currentSlaveCertSmtProof.siblings.length,
+          rootLength: String(currentSlaveCertSmtProof.root).length,
+        })
+      }
+
+      stage = 'passport-slave-proof-validate'
+      if (!currentSlaveCertSmtProof.existence) {
+        throw new TypeError(
+          'Slave certificate inclusion proof is still missing after registration lookup',
+        )
       }
 
       stage = 'registration-circuit-prepare'
@@ -186,8 +209,8 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       stage = 'proof-generate'
       const registrationProof = await circuit.prove({
         skIdentity,
-        icaoRoot: BigInt(slaveCertSmtProof.root),
-        inclusionBranches: slaveCertSmtProof.siblings.map(el => BigInt(el)),
+        icaoRoot: BigInt(currentSlaveCertSmtProof.root),
+        inclusionBranches: currentSlaveCertSmtProof.siblings.map(el => BigInt(el)),
       })
       logIdentityDiagnostic('IdentityProof', 'proof-generated', {
         publicSignalsCount: registrationProof.pub_signals?.length ?? 0,
@@ -224,7 +247,7 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         stage = 'register-call-data-build'
         const registerCallData = await this.buildRegisterCallData(
           identityItem,
-          slaveCertSmtProof,
+          currentSlaveCertSmtProof,
           false,
         )
 

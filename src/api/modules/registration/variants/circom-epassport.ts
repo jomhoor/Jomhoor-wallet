@@ -111,6 +111,7 @@ export class CircomEPassportRegistration extends RegistrationStrategy {
 
     const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
       eDocument.sod.slaveCertificate,
+      slaveMaster,
     )
 
     if (!slaveCertSmtProof.existence) {

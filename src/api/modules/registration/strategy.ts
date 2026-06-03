@@ -23,11 +23,13 @@ import { AsnConvert } from '@peculiar/asn1-schema'
 import { Certificate } from '@peculiar/asn1-x509'
 import { AxiosError } from 'axios'
 import {
+  Contract,
   encodeBytes32String,
   getBytes,
   JsonRpcProvider,
   keccak256,
   toBeArray,
+  toBigInt,
   zeroPadValue,
 } from 'ethers'
 import { Asset } from 'expo-asset'
@@ -35,6 +37,11 @@ import * as FileSystem from 'expo-file-system'
 import { FieldRecords } from 'mrz'
 
 import { RARIMO_CHAINS } from '@/api/modules/rarimo/constants'
+import {
+  PassportRegistrationProfile,
+  PassportRegistrationPublicKeyAlgorithm,
+  resolvePassportRegistrationPath,
+} from '@/api/modules/registration/passport-registration-path'
 import { relayerRegister } from '@/api/modules/registration/relayer'
 import { Config } from '@/config'
 import { createPoseidonSMTContract } from '@/helpers/contracts'
@@ -43,7 +50,6 @@ import {
   logIdentityDiagnostic,
   logIdentityDiagnosticError,
 } from '@/helpers/identity-proof-diagnostics'
-import { CertificateAlreadyRegisteredError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
 import { Registration__factory } from '@/types/contracts/factories/Registration__factory'
 import { SparseMerkleTree } from '@/types/contracts/PoseidonSMT'
@@ -51,13 +57,23 @@ import { Registration2 } from '@/types/contracts/Registration'
 import { StateKeeper } from '@/types/contracts/StateKeeper'
 import { EDocument } from '@/utils/e-document/e-document'
 import { ExtendedCertificate } from '@/utils/e-document/extended-cert'
-import { getPublicKeyFromEcParameters } from '@/utils/e-document/helpers/crypto'
+import { getPublicKeyFromEcParameters, hashPacked } from '@/utils/e-document/helpers/crypto'
 import { extractPubKey } from '@/utils/e-document/helpers/misc'
 import { ECDSA_ALGO_PREFIX, Sod } from '@/utils/e-document/sod'
 
 export type PassportInfo = {
   passportInfo_: StateKeeper.PassportInfoStructOutput
   identityInfo_: StateKeeper.IdentityInfoStructOutput
+}
+
+type CertificateDispatcherSelection = {
+  dispatcherName: string
+  publicKeyAlgorithm: 'RSA' | 'ECDSA'
+  publicKeySizeBits: number
+  pathId: string
+  pathDescription: string
+  dataSizeClass: string
+  masterPublicExponent: number | null
 }
 
 export abstract class RegistrationStrategy {
@@ -89,13 +105,350 @@ export abstract class RegistrationStrategy {
     )
   }
 
-  public static getSlaveCertSmtProof = async (cert: ExtendedCertificate) => {
+  private static buildSlaveCertProofLookupCandidates(
+    cert: ExtendedCertificate,
+  ): Array<{ key: string; source: string }> {
+    const candidates: Array<{ key: string; source: string }> = []
+    const pushCandidate = (keyBytes: Uint8Array | string, source: string) => {
+      try {
+        candidates.push({
+          key: zeroPadValue(keyBytes, 32),
+          source,
+        })
+      } catch {
+        // no-op: skip malformed candidate
+      }
+    }
+
+    pushCandidate(cert.slaveCertificateIndex, 'slave-certificate-index')
+
+    if (
+      cert.certificate.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm.includes(id_pkcs_1)
+    ) {
+      const rsaPubKey = AsnConvert.parse(
+        cert.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey,
+        RSAPublicKey,
+      )
+      const modulusBytes = new Uint8Array(rsaPubKey.modulus)
+      const unpaddedModulus = modulusBytes[0] === 0x00 ? modulusBytes.subarray(1) : modulusBytes
+      const exponentBytes = new Uint8Array(rsaPubKey.publicExponent)
+      const rsaPublicKeyDer = new Uint8Array(AsnConvert.serialize(rsaPubKey))
+      const subjectPublicKeyBytes = new Uint8Array(
+        cert.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey,
+      )
+
+      if (unpaddedModulus.length >= 5 * 24) {
+        pushCandidate(hashPacked(unpaddedModulus), 'rsa-modulus-unpadded')
+      }
+
+      const paddedModulus =
+        modulusBytes[0] === 0x00
+          ? modulusBytes
+          : new Uint8Array([0x00, ...Array.from(unpaddedModulus)])
+      if (paddedModulus.length >= 5 * 24) {
+        pushCandidate(hashPacked(paddedModulus), 'rsa-modulus-asn1-padded')
+      }
+
+      // Some dispatcher implementations derive certificate key from RSA public key
+      // structures that also include exponent bytes, not just modulus.
+      const modulusPlusExponent = new Uint8Array([
+        ...Array.from(unpaddedModulus),
+        ...Array.from(exponentBytes),
+      ])
+      if (modulusPlusExponent.length >= 5 * 24) {
+        pushCandidate(hashPacked(modulusPlusExponent), 'rsa-modulus-plus-exponent')
+      }
+
+      if (rsaPublicKeyDer.length >= 5 * 24) {
+        pushCandidate(hashPacked(rsaPublicKeyDer), 'rsa-public-key-der')
+      }
+
+      if (subjectPublicKeyBytes.length >= 5 * 24) {
+        pushCandidate(hashPacked(subjectPublicKeyBytes), 'rsa-subject-public-key-bitstring')
+      }
+    }
+
+    const deduped = new Map<string, { key: string; source: string }>()
+    candidates.forEach(candidate => {
+      if (!deduped.has(candidate.key)) {
+        deduped.set(candidate.key, candidate)
+      }
+    })
+
+    return Array.from(deduped.values())
+  }
+
+  private static resolveCertificateDispatcherSelection(params: {
+    cert: ExtendedCertificate
+    masterCert: Certificate
+  }): CertificateDispatcherSelection {
+    const { cert, masterCert } = params
+    const masterSubjPubKeyAlg = masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm
+
+    if (masterSubjPubKeyAlg.includes(id_pkcs_1)) {
+      const bits = (() => {
+        const pubKey = extractPubKey(cert.certificate.tbsCertificate.subjectPublicKeyInfo)
+
+        if (pubKey instanceof RSAPublicKey) {
+          const pubKeyModulusBytes = new Uint8Array(pubKey.modulus)
+
+          const unpaddedRsaPubKey =
+            pubKeyModulusBytes[0] === 0x00 ? pubKeyModulusBytes.subarray(1) : pubKeyModulusBytes
+
+          return unpaddedRsaPubKey.byteLength * 8
+        }
+
+        const rawPoint = new Uint8Array([...toBeArray(pubKey.px), ...toBeArray(pubKey.py)])
+
+        return rawPoint.byteLength * 8
+      })()
+
+      let dispatcherName = `C_RSA`
+
+      const circuitHashAlgorithmDecision = RegistrationStrategy.getCircuitHashAlgorithm({
+        cert,
+        publicKeyAlgorithm: 'RSA',
+        publicKeySizeBits: bits,
+      })
+      const circuitHashAlgorithm = circuitHashAlgorithmDecision.hashAlgorithm
+
+      if (circuitHashAlgorithm) {
+        dispatcherName += `_${circuitHashAlgorithm}`
+      }
+
+      dispatcherName += `_${bits}`
+
+      const masterRsaPubKey = extractPubKey(masterCert.tbsCertificate.subjectPublicKeyInfo)
+      if (masterRsaPubKey instanceof RSAPublicKey) {
+        const masterExponent = Number(toBigInt(new Uint8Array(masterRsaPubKey.publicExponent)))
+        if (Number.isFinite(masterExponent) && masterExponent > 0 && masterExponent !== 65537) {
+          dispatcherName += `_${masterExponent}`
+        }
+
+        return {
+          dispatcherName,
+          publicKeyAlgorithm: 'RSA',
+          publicKeySizeBits: bits,
+          pathId: circuitHashAlgorithmDecision.pathId,
+          pathDescription: circuitHashAlgorithmDecision.pathDescription,
+          dataSizeClass: circuitHashAlgorithmDecision.dataSizeClass,
+          masterPublicExponent: masterExponent,
+        }
+      }
+
+      return {
+        dispatcherName,
+        publicKeyAlgorithm: 'RSA',
+        publicKeySizeBits: bits,
+        pathId: circuitHashAlgorithmDecision.pathId,
+        pathDescription: circuitHashAlgorithmDecision.pathDescription,
+        dataSizeClass: circuitHashAlgorithmDecision.dataSizeClass,
+        masterPublicExponent: null,
+      }
+    }
+
+    if (masterSubjPubKeyAlg.includes(ECDSA_ALGO_PREFIX)) {
+      if (!masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
+        throw new TypeError('Master ECDSA public key does not have parameters')
+      }
+
+      if (!cert.certificate.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
+        throw new TypeError('Slave ECDSA public key does not have parameters')
+      }
+
+      const masterEcParameters = AsnConvert.parse(
+        masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
+        ECParameters,
+      )
+
+      const slaveEcParameters = AsnConvert.parse(
+        cert.certificate.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
+        ECParameters,
+      )
+
+      const [, , masterCertCurveName] = getPublicKeyFromEcParameters(
+        masterEcParameters,
+        new Uint8Array(masterCert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey),
+      )
+
+      const [slaveCertPubKey] = getPublicKeyFromEcParameters(
+        slaveEcParameters,
+        new Uint8Array(cert.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey),
+      )
+
+      const pubKeyBytes = new Uint8Array([
+        ...toBeArray(slaveCertPubKey.px),
+        ...toBeArray(slaveCertPubKey.py),
+      ])
+
+      const bits = pubKeyBytes.length * 8
+
+      let dispatcherName = `C_ECDSA_${masterCertCurveName}`
+
+      const circuitHashAlgorithmDecision = RegistrationStrategy.getCircuitHashAlgorithm({
+        cert,
+        publicKeyAlgorithm: 'ECDSA',
+        publicKeySizeBits: bits,
+      })
+      const circuitHashAlgorithm = circuitHashAlgorithmDecision.hashAlgorithm
+
+      if (circuitHashAlgorithm) {
+        dispatcherName += `_${circuitHashAlgorithm}`
+      }
+
+      dispatcherName += `_${bits}`
+
+      return {
+        dispatcherName,
+        publicKeyAlgorithm: 'ECDSA',
+        publicKeySizeBits: bits,
+        pathId: circuitHashAlgorithmDecision.pathId,
+        pathDescription: circuitHashAlgorithmDecision.pathDescription,
+        dataSizeClass: circuitHashAlgorithmDecision.dataSizeClass,
+        masterPublicExponent: null,
+      }
+    }
+
+    throw new Error(`unsupported public key type: ${masterSubjPubKeyAlg}`)
+  }
+
+  private static async getDispatcherDerivedProofCandidate(params: {
+    cert: ExtendedCertificate
+    masterCert: Certificate
+  }): Promise<{ source: string; key: string; proof: SparseMerkleTree.ProofStructOutput } | null> {
+    const { cert, masterCert } = params
+    const dispatcherSelection = RegistrationStrategy.resolveCertificateDispatcherSelection({
+      cert,
+      masterCert,
+    })
+
+    const dispatcherAddress = await RegistrationStrategy.getCertificateDispatcherAddress(
+      dispatcherSelection.dispatcherName,
+    )
+
+    if (dispatcherAddress === '0x0000000000000000000000000000000000000000') {
+      return null
+    }
+
+    const dispatcherContract = new Contract(
+      dispatcherAddress,
+      [
+        'function getCertificatePublicKey(bytes,uint256) view returns (bytes)',
+        'function getCertificateKey(bytes) view returns (uint256)',
+      ],
+      RegistrationStrategy.rmoEvmJsonRpcProvider,
+    )
+
+    const signedAttributes = new Uint8Array(AsnConvert.serialize(cert.certificate.tbsCertificate))
+    const certificatePublicKey = await dispatcherContract.getCertificatePublicKey(
+      signedAttributes,
+      cert.slaveCertPubKeyOffset,
+    )
+    const certificateKey = await dispatcherContract.getCertificateKey(certificatePublicKey)
+    const keyAsBytes32 = zeroPadValue(toBeArray(certificateKey), 32)
+    const proof =
+      await RegistrationStrategy.certPoseidonSMTContract.contractInstance.getProof(keyAsBytes32)
+
+    return {
+      source: `dispatcher-derived:${dispatcherSelection.dispatcherName}`,
+      key: keyAsBytes32,
+      proof,
+    }
+  }
+
+  public static getSlaveCertSmtProof = async (
+    cert: ExtendedCertificate,
+    masterCert?: Certificate,
+  ) => {
+    const candidates = RegistrationStrategy.buildSlaveCertProofLookupCandidates(cert)
+    const probeResults: Array<{ source: string; existence: boolean }> = []
+    let fallbackProof: SparseMerkleTree.ProofStructOutput | null = null
+
+    for (const candidate of candidates) {
+      const proof = await RegistrationStrategy.certPoseidonSMTContract.contractInstance.getProof(
+        candidate.key,
+      )
+
+      probeResults.push({
+        source: candidate.source,
+        existence: proof.existence,
+      })
+
+      if (!fallbackProof) {
+        fallbackProof = proof
+      }
+
+      if (proof.existence) {
+        logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:inclusion-proof-found', {
+          source: candidate.source,
+          probeResults,
+        })
+
+        if (candidate.source !== 'slave-certificate-index') {
+          logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:alternate-key-selected', {
+            source: candidate.source,
+            probeResults,
+          })
+        }
+
+        return proof
+      }
+    }
+
+    if (masterCert) {
+      try {
+        const dispatcherDerivedCandidate =
+          await RegistrationStrategy.getDispatcherDerivedProofCandidate({
+            cert,
+            masterCert,
+          })
+
+        if (dispatcherDerivedCandidate) {
+          probeResults.push({
+            source: dispatcherDerivedCandidate.source,
+            existence: dispatcherDerivedCandidate.proof.existence,
+          })
+
+          if (dispatcherDerivedCandidate.proof.existence) {
+            logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:inclusion-proof-found', {
+              source: dispatcherDerivedCandidate.source,
+              probeResults,
+            })
+            logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:alternate-key-selected', {
+              source: dispatcherDerivedCandidate.source,
+              probeResults,
+            })
+
+            return dispatcherDerivedCandidate.proof
+          }
+        }
+      } catch (error) {
+        logIdentityDiagnosticError({
+          domain: 'IdentityProof',
+          event: 'slaveCertSmtProof:dispatcher-derived-candidate-failed',
+          stage: 'slave-proof-dispatcher-derived-key',
+          classification: 'UNKNOWN_IDENTITY_CREATION_FAILURE',
+          error,
+          context: {
+            candidateSources: candidates.map(candidate => candidate.source),
+          },
+        })
+      }
+    }
+
+    logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:no-inclusion-proof', {
+      candidateCount: probeResults.length,
+      probeResults,
+    })
+
+    if (fallbackProof) return fallbackProof
+
     return RegistrationStrategy.certPoseidonSMTContract.contractInstance.getProof(
       zeroPadValue(cert.slaveCertificateIndex, 32),
     )
   }
 
-  public static getCircuitHashAlgorithm(certificate: Certificate): string {
+  public static getDefaultCircuitHashAlgorithm(certificate: Certificate): string {
     switch (certificate.signatureAlgorithm.algorithm) {
       case id_sha1WithRSAEncryption:
       case id_ecdsaWithSHA1:
@@ -133,14 +486,8 @@ export abstract class RegistrationStrategy {
         }
 
         throw new Error('Unsupported RSASSA-PSS parameters')
-      // WORKAROUND (March 2026): Rarimo mainnet has SHA1↔SHA256 RSA signers swapped.
-      // C_RSA_SHA1_2048 dispatcher's signer actually does SHA256 verification.
-      // C_RSA_2048 dispatcher's signer actually does SHA1 verification.
-      // So for sha256WithRSAEncryption we return 'SHA1' to hit the SHA256 signer.
-      // TODO: Remove this workaround once Rarimo fixes the signer assignment.
-      // See: check-all-dispatchers.js and verify-dispatcher-swap.js for on-chain proof.
       case id_sha256WithRSAEncryption:
-        return 'SHA1'
+        return ''
       case id_ecdsaWithSHA256:
         return 'SHA2'
       case id_sha384WithRSAEncryption:
@@ -152,6 +499,131 @@ export abstract class RegistrationStrategy {
       default:
         return ''
     }
+  }
+
+  private static buildPassportRegistrationProfile(params: {
+    cert: ExtendedCertificate
+    publicKeyAlgorithm: PassportRegistrationPublicKeyAlgorithm
+    publicKeySizeBits: number
+  }): PassportRegistrationProfile {
+    return {
+      chainId: String(Config.RMO_CHAIN_ID),
+      publicKeyAlgorithm: params.publicKeyAlgorithm,
+      publicKeySizeBits: params.publicKeySizeBits,
+      signatureAlgorithmOid: params.cert.certificate.signatureAlgorithm.algorithm,
+    }
+  }
+
+  public static getCircuitHashAlgorithm(params: {
+    cert: ExtendedCertificate
+    publicKeyAlgorithm: PassportRegistrationPublicKeyAlgorithm
+    publicKeySizeBits: number
+  }): {
+    hashAlgorithm: string
+    pathId: string
+    pathDescription: string
+    dataSizeClass: string
+  } {
+    const profile = RegistrationStrategy.buildPassportRegistrationProfile(params)
+    const pathDecision = resolvePassportRegistrationPath(profile)
+    const defaultHashAlgorithm = RegistrationStrategy.getDefaultCircuitHashAlgorithm(
+      params.cert.certificate,
+    )
+    const resolvedHashAlgorithm =
+      pathDecision.dispatcherHashAlgorithmOverride ?? defaultHashAlgorithm
+
+    return {
+      hashAlgorithm: resolvedHashAlgorithm,
+      pathId: pathDecision.pathId,
+      pathDescription: pathDecision.description,
+      dataSizeClass: pathDecision.dataSizeClass,
+    }
+  }
+
+  private static async getCertificateDispatcherAddress(dispatcherName: string): Promise<string> {
+    const contract = new Contract(
+      Config.REGISTRATION_CONTRACT_ADDRESS,
+      ['function certificateDispatchers(bytes32) view returns (address)'],
+      RegistrationStrategy.rmoEvmJsonRpcProvider,
+    )
+    const dispatcherTypeHash = keccak256(Buffer.from(dispatcherName, 'utf-8'))
+
+    return contract.certificateDispatchers(dispatcherTypeHash)
+  }
+
+  private static extractRelayerErrors(axiosError: AxiosError): string[] {
+    const responseData = axiosError.response?.data
+
+    if (!responseData || typeof responseData !== 'object') {
+      return []
+    }
+
+    const errors = (responseData as { errors?: unknown }).errors
+
+    if (!Array.isArray(errors)) {
+      return []
+    }
+
+    return errors
+      .map(entry => {
+        if (!entry || typeof entry !== 'object') return null
+
+        const asRecord = entry as { title?: unknown; status?: unknown; detail?: unknown }
+        const title = typeof asRecord.title === 'string' ? asRecord.title : 'RelayerError'
+        const status = typeof asRecord.status === 'string' ? asRecord.status : ''
+        const detail = typeof asRecord.detail === 'string' ? asRecord.detail : ''
+
+        return [title, status && `status=${status}`, detail].filter(Boolean).join(' | ')
+      })
+      .filter((value): value is string => Boolean(value))
+  }
+
+  private static extractEvmRevertDetails(error: unknown): string[] {
+    if (!error || typeof error !== 'object') return []
+
+    const raw = error as {
+      shortMessage?: unknown
+      reason?: unknown
+      data?: unknown
+      errorName?: unknown
+      code?: unknown
+      message?: unknown
+    }
+
+    const details: string[] = []
+    const maybePush = (value: unknown, label?: string) => {
+      if (typeof value !== 'string' || !value.trim()) return
+      details.push(label ? `${label}: ${value}` : value)
+    }
+
+    maybePush(raw.shortMessage, 'shortMessage')
+    maybePush(raw.reason, 'reason')
+    maybePush(raw.errorName, 'errorName')
+    maybePush(raw.code, 'code')
+    maybePush(raw.message, 'message')
+
+    if (typeof raw.data === 'string') {
+      maybePush(raw.data, 'revertData')
+      try {
+        const parsed = RegistrationStrategy.registrationContractInterface.parseError(raw.data)
+        if (parsed?.name) {
+          details.push(`decodedError: ${parsed.name}`)
+        }
+      } catch {
+        // no-op: not a known custom error in this ABI
+      }
+    }
+
+    return Array.from(new Set(details))
+  }
+
+  private static isCertificateAlreadyRegisteredError(error: unknown): boolean {
+    const normalized = JSON.stringify(error).toLowerCase()
+
+    return (
+      normalized.includes('the key already exists') ||
+      normalized.includes('sparsemerkletree: the key already exists')
+    )
   }
 
   public static buildRegisterCertCallData = async (
@@ -173,91 +645,43 @@ export abstract class RegistrationStrategy {
       throw new TypeError('failed to generate inclusion proof')
     }
 
-    const dispatcherName = (() => {
-      const masterSubjPubKeyAlg = masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm
+    const dispatcherSelection = RegistrationStrategy.resolveCertificateDispatcherSelection({
+      cert,
+      masterCert,
+    })
 
-      if (masterSubjPubKeyAlg.includes(id_pkcs_1)) {
-        const bits = (() => {
-          const pubKey = extractPubKey(cert.certificate.tbsCertificate.subjectPublicKeyInfo)
+    const dispatcherAddress = await RegistrationStrategy.getCertificateDispatcherAddress(
+      dispatcherSelection.dispatcherName,
+    )
+    const hasDispatcher = dispatcherAddress !== '0x0000000000000000000000000000000000000000'
 
-          if (pubKey instanceof RSAPublicKey) {
-            const pubKeyModulusBytes = new Uint8Array(pubKey.modulus)
+    logIdentityDiagnostic(
+      'IdentityProof',
+      'RegistrationStrategy.registerCertificate:dispatcher-selected',
+      {
+        dispatcherName: dispatcherSelection.dispatcherName,
+        dispatcherAddress,
+        hasDispatcher,
+        pathId: dispatcherSelection.pathId,
+        pathDescription: dispatcherSelection.pathDescription,
+        dataSizeClass: dispatcherSelection.dataSizeClass,
+        chainId: String(Config.RMO_CHAIN_ID),
+        signatureAlgorithmOid: cert.certificate.signatureAlgorithm.algorithm,
+        publicKeyAlgorithm: dispatcherSelection.publicKeyAlgorithm,
+        publicKeySizeBits: dispatcherSelection.publicKeySizeBits,
+        masterPublicExponent: dispatcherSelection.masterPublicExponent,
+      },
+    )
 
-            const unpaddedRsaPubKey =
-              pubKeyModulusBytes[0] === 0x00 ? pubKeyModulusBytes.subarray(1) : pubKeyModulusBytes
+    if (!hasDispatcher) {
+      throw new Error(
+        `No certificate dispatcher for ${dispatcherSelection.dispatcherName} on chain ${String(Config.RMO_CHAIN_ID)}`,
+      )
+    }
 
-            return unpaddedRsaPubKey.byteLength * 8
-          }
-
-          const rawPoint = new Uint8Array([...toBeArray(pubKey.px), ...toBeArray(pubKey.py)])
-
-          return rawPoint.byteLength * 8
-        })()
-
-        let dispatcherName = `C_RSA`
-
-        const circuitHashAlgorithm = RegistrationStrategy.getCircuitHashAlgorithm(cert.certificate)
-        if (circuitHashAlgorithm) {
-          dispatcherName += `_${circuitHashAlgorithm}`
-        }
-
-        dispatcherName += `_${bits}`
-
-        return dispatcherName
-      }
-
-      if (masterSubjPubKeyAlg.includes(ECDSA_ALGO_PREFIX)) {
-        if (!masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
-          throw new TypeError('Master ECDSA public key does not have parameters')
-        }
-
-        if (!cert.certificate.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
-          throw new TypeError('Slave ECDSA public key does not have parameters')
-        }
-
-        const masterEcParameters = AsnConvert.parse(
-          masterCert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
-          ECParameters,
-        )
-
-        const slaveEcParameters = AsnConvert.parse(
-          cert.certificate.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
-          ECParameters,
-        )
-
-        const [, , masterCertCurveName] = getPublicKeyFromEcParameters(
-          masterEcParameters,
-          new Uint8Array(masterCert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey),
-        )
-
-        const [slaveCertPubKey] = getPublicKeyFromEcParameters(
-          slaveEcParameters,
-          new Uint8Array(cert.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey),
-        )
-
-        const pubKeyBytes = new Uint8Array([
-          ...toBeArray(slaveCertPubKey.px),
-          ...toBeArray(slaveCertPubKey.py),
-        ])
-
-        const bits = pubKeyBytes.length * 8
-
-        let dispatcherName = `C_ECDSA_${masterCertCurveName}`
-
-        const circuitHashAlgorithm = RegistrationStrategy.getCircuitHashAlgorithm(cert.certificate)
-        if (circuitHashAlgorithm) {
-          dispatcherName += `_${circuitHashAlgorithm}`
-        }
-
-        dispatcherName += `_${bits}`
-
-        return dispatcherName
-      }
-
-      throw new Error(`unsupported public key type: ${masterSubjPubKeyAlg}`)
-    })()
-
-    const dispatcherHash = getBytes(keccak256(Buffer.from(dispatcherName, 'utf-8')))
+    const dispatcherHash = getBytes(
+      keccak256(Buffer.from(dispatcherSelection.dispatcherName, 'utf-8')),
+    )
 
     const certificate: Registration2.CertificateStruct = {
       dataType: dispatcherHash,
@@ -302,6 +726,16 @@ export abstract class RegistrationStrategy {
         },
       )
 
+      stage = 'register-certificate-preflight-call'
+      await RegistrationStrategy.rmoEvmJsonRpcProvider.call({
+        to: Config.REGISTRATION_CONTRACT_ADDRESS,
+        data: callData,
+      })
+      logIdentityDiagnostic(
+        'IdentityProof',
+        'RegistrationStrategy.registerCertificate:preflight-call-success',
+      )
+
       stage = 'register-certificate-relayer-request'
       const { data } = await relayerRegister(callData, Config.REGISTRATION_CONTRACT_ADDRESS)
       logIdentityDiagnostic(
@@ -325,15 +759,14 @@ export abstract class RegistrationStrategy {
       )
     } catch (error) {
       const axiosError = error as AxiosError
-
-      const stringifiedError = JSON.stringify(axiosError.response?.data)
-
-      if (
-        stringifiedError?.includes('the key already exists') &&
-        // TODO: remove once contracts got fixed
-        stringifiedError?.includes('code = Unknown desc = execution reverted')
-      ) {
-        throw new CertificateAlreadyRegisteredError()
+      const relayerErrorDetails = RegistrationStrategy.extractRelayerErrors(axiosError)
+      const evmRevertDetails = RegistrationStrategy.extractEvmRevertDetails(error)
+      if (RegistrationStrategy.isCertificateAlreadyRegisteredError(error)) {
+        logIdentityDiagnostic(
+          'IdentityProof',
+          'RegistrationStrategy.registerCertificate:already-registered',
+        )
+        return
       }
 
       const classification = classifyIdentityCreationError({
@@ -348,6 +781,8 @@ export abstract class RegistrationStrategy {
         error: axiosError,
         context: {
           cscaCertificateCount: CSCABytes.length,
+          relayerErrorDetails,
+          evmRevertDetails,
         },
       })
 
@@ -398,6 +833,8 @@ export abstract class RegistrationStrategy {
       await tx.wait()
       logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:transaction-confirmed')
     } catch (error) {
+      const relayerErrorDetails =
+        error instanceof AxiosError ? RegistrationStrategy.extractRelayerErrors(error) : []
       const classification = classifyIdentityCreationError({
         stage,
         error,
@@ -410,6 +847,7 @@ export abstract class RegistrationStrategy {
         error,
         context: {
           callDataLength: registerCallData.length,
+          relayerErrorDetails,
         },
       })
 

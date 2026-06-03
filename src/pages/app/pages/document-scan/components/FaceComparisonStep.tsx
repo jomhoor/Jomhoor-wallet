@@ -8,7 +8,7 @@ import {
 } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/core'
 import { Image } from 'expo-image'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -151,7 +151,7 @@ export default function FaceComparisonStep(): JSX.Element {
     }
   }, [])
 
-  const handleCaptureAndPrepare = async () => {
+  const handleCaptureAndPrepare = useCallback(async () => {
     if (isBusy) return
     if (!liveCaptureUri || !portraitUri) return
 
@@ -217,7 +217,13 @@ export default function FaceComparisonStep(): JSX.Element {
     } finally {
       setIsBusy(false)
     }
-  }
+  }, [isBusy, liveCaptureUri, portraitUri, setVerificationUserData])
+
+  useEffect(() => {
+    if (comparisonState === 'ready' && !isBusy) {
+      void handleCaptureAndPrepare()
+    }
+  }, [comparisonState, isBusy, handleCaptureAndPrepare])
 
   const handleComparePrepared = async () => {
     if (isBusy) return
@@ -433,16 +439,10 @@ export default function FaceComparisonStep(): JSX.Element {
 
       <View className='mt-auto gap-3'>
         <UiButton
-          title={comparisonState === 'cropped' ? 'Compare Cropped Faces' : 'Prepare Captured Face'}
-          onPress={comparisonState === 'cropped' ? handleComparePrepared : handleCaptureAndPrepare}
+          title='Compare Cropped Faces'
+          onPress={handleComparePrepared}
           className='w-full'
-          disabled={
-            comparisonState === 'initializing' ||
-            comparisonState === 'capturing' ||
-            comparisonState === 'success' ||
-            !portraitUri ||
-            !liveCaptureUri
-          }
+          disabled={comparisonState !== 'cropped' || isBusy || comparisonState === 'success'}
         />
         <UiButton
           title='Retry'

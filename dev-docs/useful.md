@@ -47,11 +47,15 @@ Quick verification after archive:
 - [x] Flow chart data flow User-data schema
 - [x] Include proof gen required data
 - [x] Add a back button to selecet document page
-- [ ] Refactor face verification - one livness screen - automate likeness
-- [ ] Improve MRZ reading - remove reading area limitation.
+- [x] Refactor face verification - one livness screen - automate likeness
+- [x] Improve MRZ reading - remove reading area limitation.
+- [ ] Generate proof for passport
+- [x] Remove "prepare captured faces" button from face comparison
+- [ ] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
 
 # Backlog
 
+- Add report button to every user genrated content.
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
 - Add the final waypoint at the center and take a photo to use in comparison.
 

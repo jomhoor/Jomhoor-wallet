@@ -23,7 +23,7 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
   }
 
   public get noirCircuitParams(): NoirCircuitParams {
-    return NoirCircuitParams.fromName(this.prefixName)
+    return NoirCircuitParams.fromName(this.name)
   }
 
   public get chunkedParams() {
@@ -33,7 +33,11 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
       this.eDoc.sod.slaveCertificate.certificate.tbsCertificate.subjectPublicKeyInfo,
     )
 
-    let reduction: string[] = []
+    let reduction = RegistrationCircuit.splitBigIntToChunks(
+      120,
+      defaultChunkedParams.chunk_number,
+      0n,
+    )
 
     if (pubKey instanceof RSAPublicKey) {
       const unpaddedModulus = new Uint8Array(
@@ -50,8 +54,6 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
       )
     }
 
-    reduction = RegistrationCircuit.splitBigIntToChunks(120, defaultChunkedParams.chunk_number, 0n)
-
     return { ...super.chunkedParams, reduction }
   }
 
@@ -65,21 +67,23 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
     const byteCode = await this.noirCircuitParams.downloadByteCode()
 
     const inputs = {
-      dg1: this.eDoc.dg1Bytes,
-      dg15: this.eDoc.dg15Bytes,
-      ec: this.eDoc.sod.encapsulatedContent,
-      sa: this.eDoc.sod.signedAttributes,
+      dg1: Array.from(this.eDoc.dg1Bytes),
+      dg15: this.eDoc.dg15Bytes?.length ? Array.from(this.eDoc.dg15Bytes) : [],
+      ec: Array.from(this.eDoc.sod.encapsulatedContent),
+      sa: Array.from(this.eDoc.sod.signedAttributes),
 
       pk: this.chunkedParams.pk_chunked,
       reduction: this.chunkedParams.reduction,
       sig: this.chunkedParams.sig_chunked,
 
-      sk_identity: params.skIdentity,
-      icao_root: params.icaoRoot,
-      inclusion_branches: params.inclusionBranches,
+      sk_identity: params.skIdentity.toString(),
+      icao_root: params.icaoRoot.toString(),
+      inclusion_branches: params.inclusionBranches.map(el => el.toString()),
     }
 
-    return this.noirCircuitParams.prove(JSON.stringify(inputs), byteCode)
+    const inputsJson = JSON.stringify(inputs)
+
+    return this.noirCircuitParams.prove(inputsJson, byteCode)
   }
 }
 
