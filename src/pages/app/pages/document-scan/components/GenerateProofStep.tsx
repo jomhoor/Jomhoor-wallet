@@ -33,14 +33,14 @@ export default function GenerateProofStep() {
         ? 'Verification session data has been deleted. The local demo profile remains available on the Documents screen.'
         : 'Verification data has been deleted from this device.',
       [
-      {
-        text: 'OK',
-        onPress: () => {
-          navigation.navigate('App', {
-            screen: 'Documents',
-          })
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('App', {
+              screen: 'Documents',
+            })
+          },
         },
-      },
       ],
     )
   }
@@ -70,7 +70,9 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
+                  {isDemoMode
+                    ? 'Creating your demo digital profile'
+                    : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>
@@ -89,7 +91,9 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
+                  {isDemoMode
+                    ? 'Creating your demo digital profile'
+                    : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>
@@ -108,7 +112,9 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
+                  {isDemoMode
+                    ? 'Creating your demo digital profile'
+                    : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>

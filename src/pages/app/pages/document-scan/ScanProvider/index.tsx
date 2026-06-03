@@ -900,35 +900,38 @@ export function ScanContextProvider({
 
   // ---------------------------------------------------------------------------------------------
 
-  const handleSetSelectedDocType = useCallback((value: DocType) => {
-    logIdentityDiagnostic('PassportVerification', 'setDocType', {
-      selectedDocType: value,
-    })
-    setSelectedDocType(value)
-    clearDemoPassportProfile()
-    setVerificationUserData(
-      withVerificationEvidence(createInitialVerificationUserData(value), {
-        keys: ['session.docType'],
-        source: 'manual',
-        step: 'select-document-type',
-      }),
-    )
-    setPassportCountryCode(undefined)
-    setTempEDoc(undefined)
-    setTempMRZ(undefined)
-    setPassportNfcDetails(undefined)
-    setPassportMrzBarcode(undefined)
-    setNidVerificationResult(undefined)
-    setNidProofInputAdapter(undefined)
-    setFaceVerification({
-      enabled: true,
-    })
-    if (value === DocType.PASSPORT) {
-      setCurrentStep(Steps.SelectPassportCountryStep)
-    } else {
-      setCurrentStep(Steps.ScanNfcStep)
-    }
-  }, [clearDemoPassportProfile])
+  const handleSetSelectedDocType = useCallback(
+    (value: DocType) => {
+      logIdentityDiagnostic('PassportVerification', 'setDocType', {
+        selectedDocType: value,
+      })
+      setSelectedDocType(value)
+      clearDemoPassportProfile()
+      setVerificationUserData(
+        withVerificationEvidence(createInitialVerificationUserData(value), {
+          keys: ['session.docType'],
+          source: 'manual',
+          step: 'select-document-type',
+        }),
+      )
+      setPassportCountryCode(undefined)
+      setTempEDoc(undefined)
+      setTempMRZ(undefined)
+      setPassportNfcDetails(undefined)
+      setPassportMrzBarcode(undefined)
+      setNidVerificationResult(undefined)
+      setNidProofInputAdapter(undefined)
+      setFaceVerification({
+        enabled: true,
+      })
+      if (value === DocType.PASSPORT) {
+        setCurrentStep(Steps.SelectPassportCountryStep)
+      } else {
+        setCurrentStep(Steps.ScanNfcStep)
+      }
+    },
+    [clearDemoPassportProfile],
+  )
 
   const handleSetVerificationMode = useCallback(
     (value: VerificationMode) => {
@@ -1109,9 +1112,9 @@ export function ScanContextProvider({
             'document.passport.nfc.packageNfcResult',
             'document.passport.nfc.portrait',
           ],
-            source: previous.session.mode === 'demo' ? 'demo' : 'nfc',
-            step: 'passport-nfc-details',
-          },
+          source: previous.session.mode === 'demo' ? 'demo' : 'nfc',
+          step: 'passport-nfc-details',
+        },
       ),
     )
     setPassportNfcDetails(undefined)

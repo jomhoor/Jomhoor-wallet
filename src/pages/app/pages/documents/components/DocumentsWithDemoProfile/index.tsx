@@ -28,7 +28,7 @@ export default function DocumentsWithDemoProfile() {
 
   return (
     <AppStackScrollLayout title='Documents' contentWrapperClassName='flex-1 gap-5'>
-      <View className='rounded-xl bg-warningMain/10 px-4 py-3'>
+      <View className='bg-warningMain/10 rounded-xl px-4 py-3'>
         <Text className='typography-body3 text-center text-warningMain'>
           Demo profile. This is not a real credential and is not registered on-chain.
         </Text>

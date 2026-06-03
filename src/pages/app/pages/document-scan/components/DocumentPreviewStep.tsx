@@ -16,7 +16,9 @@ const buildPassportPortraitUri = (
   passportImageRaw: string | null,
 ): string | undefined => {
   if (typeof portrait?.filePath === 'string' && portrait.filePath.length > 0) {
-    return portrait.filePath.startsWith('file://') ? portrait.filePath : `file://${portrait.filePath}`
+    return portrait.filePath.startsWith('file://')
+      ? portrait.filePath
+      : `file://${portrait.filePath}`
   }
 
   if (typeof portrait?.base64 === 'string' && portrait.base64.length > 0) {

@@ -6,7 +6,7 @@ export default function DemoModeBanner({
   message?: string
 }) {
   return (
-    <View className='rounded-xl bg-warningMain/10 px-4 py-3'>
+    <View className='bg-warningMain/10 rounded-xl px-4 py-3'>
       <Text className='typography-body4 text-center text-warningMain'>{message}</Text>
     </View>
   )
