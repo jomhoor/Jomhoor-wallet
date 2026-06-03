@@ -9,7 +9,7 @@ import type {
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
@@ -417,9 +417,7 @@ function createSecurelyCleanedVerificationUserData(): VerificationUserData {
           barcode: undefined,
           nationalId: '',
         },
-        nfc: {
-          nativeSessionId: '',
-        },
+        nfc: undefined,
         eID: undefined,
         verification: undefined,
         proofInput: undefined,
@@ -525,7 +523,7 @@ export function ScanContextProvider({
   const [identity, setIdentity] = useState<IdentityItem>()
 
   const secureCleanupSensitiveData = useCallback(() => {
-    logIdentityDiagnostic('SecurityCleanup', 'secureCleanupSensitiveData:start', {
+    logIdentityDiagnostic('IdentityProof', 'secureCleanupSensitiveData:start', {
       timestamp: Date.now(),
     })
 
@@ -539,14 +537,14 @@ export function ScanContextProvider({
     setFaceVerification({ enabled: false })
     setIdentity(undefined)
 
-    logIdentityDiagnostic('SecurityCleanup', 'secureCleanupSensitiveData:completed', {
+    logIdentityDiagnostic('IdentityProof', 'secureCleanupSensitiveData:completed', {
       timestamp: Date.now(),
     })
   }, [])
 
   useEffect(() => {
     return () => {
-      logIdentityDiagnostic('SecurityCleanup', 'ScanContextProvider:unmount', {
+      logIdentityDiagnostic('IdentityProof', 'ScanContextProvider:unmount', {
         timestamp: Date.now(),
       })
       secureCleanupSensitiveData()
