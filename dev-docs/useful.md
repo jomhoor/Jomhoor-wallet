@@ -39,6 +39,7 @@ Quick verification after archive:
 - Enable voting for iranian NIDC and passport
 - Replace Rarimo as much as we can
 - ZK documentation
+- Add report button to every user genrated content.
 
 ## Shooresh
 
@@ -55,7 +56,6 @@ Quick verification after archive:
 
 # Backlog
 
-- Add report button to every user genrated content.
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
 - Add the final waypoint at the center and take a photo to use in comparison.
 

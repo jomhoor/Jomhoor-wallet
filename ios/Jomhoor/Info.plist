@@ -56,15 +56,15 @@
       <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>$(PRODUCT_NAME) needs access to your Camera.</string>
+    <string>$(PRODUCT_NAME)  uses the camera to scan your identity document and verify your face during the verification process. Images are processed on your device and deleted after verification.</string>
     <key>NSFaceIDUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+    <string>Jomhoor uses Face ID to let you securely unlock the app and protect access to your verified participation status.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Location access may be used by identity verification features when required.</string>
+    <string>Jomhoor uses your approximate location only if you enable location-based community poll features. Precise location is not required.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>Jomhoor may use the microphone only if you choose to record or upload audio as part of app content or support features.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your photos</string>
+    <string>Jomhoor may access your photo library only if you choose to upload an image as part of app content or support features.</string>
     <key>UIAppFonts</key>
     <array>
       <string>PlaywriteCU-ExtraLight.ttf</string>
