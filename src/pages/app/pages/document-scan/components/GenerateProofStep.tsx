@@ -7,6 +7,7 @@ import { UiButton, UiIcon } from '@/ui'
 import UiJumpingDotsLoader from '@/ui/UiJumpingDotsLoader'
 
 import { GenProofSteps, useDocumentScanContext } from '../ScanProvider'
+import DemoModeBanner from './DemoModeBanner'
 
 export default function GenerateProofStep() {
   const insets = useSafeAreaInsets()
@@ -20,12 +21,18 @@ export default function GenerateProofStep() {
   } = useDocumentScanContext()
   const reviewNidProofInputAdapter =
     nidProofInputAdapter ?? verificationUserData.document.nid.proofInput
+  const isDemoMode = verificationUserData.session.mode === 'demo'
 
   const navigation = useNavigation()
 
   const handleNavigateToHome = () => {
     secureCleanupSensitiveData()
-    Alert.alert('Data Deletion Confirmed', 'Verification data has been deleted from this device.', [
+    Alert.alert(
+      isDemoMode ? 'Demo Complete' : 'Data Deletion Confirmed',
+      isDemoMode
+        ? 'Verification session data has been deleted. The local demo profile remains available on the Documents screen.'
+        : 'Verification data has been deleted from this device.',
+      [
       {
         text: 'OK',
         onPress: () => {
@@ -34,7 +41,8 @@ export default function GenerateProofStep() {
           })
         },
       },
-    ])
+      ],
+    )
   }
 
   return (
@@ -47,6 +55,11 @@ export default function GenerateProofStep() {
         paddingRight: appPaddings.right,
       }}
     >
+      {isDemoMode ? (
+        <View className='mb-6'>
+          <DemoModeBanner message='Demo mode: progress is simulated locally. No real proof or on-chain registration will occur.' />
+        </View>
+      ) : null}
       {
         {
           [GenProofSteps.DownloadCircuit]: (
@@ -57,7 +70,7 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  Creating your digital profile
+                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>
@@ -76,7 +89,7 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  Creating your digital profile
+                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>
@@ -95,7 +108,7 @@ export default function GenerateProofStep() {
                 </View>
                 <Text className='typography-h5 mb-2 text-center text-textPrimary'>Please wait</Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  Creating your digital profile
+                  {isDemoMode ? 'Creating your demo digital profile' : 'Creating your digital profile'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>
@@ -112,9 +125,13 @@ export default function GenerateProofStep() {
                 <View className='h-16 w-16 items-center justify-center rounded-full bg-successLight'>
                   <UiIcon customIcon='checkIcon' size={40} className='color-successMain' />
                 </View>
-                <Text className='typography-h5 mb-2 text-center text-textPrimary'>Ready</Text>
+                <Text className='typography-h5 mb-2 text-center text-textPrimary'>
+                  {isDemoMode ? 'Demo Profile Ready' : 'Ready'}
+                </Text>
                 <Text className='typography-body3 text-center text-textSecondary'>
-                  A digital profile created
+                  {isDemoMode
+                    ? 'A local demo profile was created. It is not registered on-chain.'
+                    : 'A digital profile created'}
                 </Text>
               </View>
               <View className='mb-8 w-full px-4'>

@@ -9,9 +9,36 @@ import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProv
 import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 import { EID, EPassport } from '@/utils/e-document'
 
+import DemoModeBanner from './DemoModeBanner'
+
+const buildPassportPortraitUri = (
+  portrait: { base64?: string; filePath?: string } | undefined,
+  passportImageRaw: string | null,
+): string | undefined => {
+  if (typeof portrait?.filePath === 'string' && portrait.filePath.length > 0) {
+    return portrait.filePath.startsWith('file://') ? portrait.filePath : `file://${portrait.filePath}`
+  }
+
+  if (typeof portrait?.base64 === 'string' && portrait.base64.length > 0) {
+    return `data:image/jpeg;base64,${portrait.base64}`
+  }
+
+  if (typeof passportImageRaw === 'string' && passportImageRaw.length > 0) {
+    return `data:image/png;base64,${passportImageRaw}`
+  }
+
+  return undefined
+}
+
 export default function DocumentPreviewStep() {
-  const { createIdentity, passportMrzBarcode, passportNfcDetails, tempEDoc, verificationUserData } =
-    useDocumentScanContext()
+  const {
+    createIdentity,
+    passportMrzBarcode,
+    passportNfcDetails,
+    tempEDoc,
+    verificationMode,
+    verificationUserData,
+  } = useDocumentScanContext()
   const storedPassport = verificationUserData.document.passport
   const reviewEDoc = tempEDoc ?? storedPassport.nfc?.ePassport
   const reviewPassportNfcDetails = passportNfcDetails ?? storedPassport.nfc
@@ -27,6 +54,10 @@ export default function DocumentPreviewStep() {
     const { firstName, lastName, passportImageRaw, ...restDetails } = reviewEDoc.personDetails
     const reviewNidn =
       reviewPassportNfcDetails?.normalized?.nidn ?? reviewPassportBarcode?.barcode?.nidn
+    const portraitUri = buildPassportPortraitUri(
+      reviewPassportNfcDetails?.portrait,
+      passportImageRaw,
+    )
 
     return (
       <UiScreenScrollable
@@ -37,6 +68,10 @@ export default function DocumentPreviewStep() {
         }}
       >
         <View className='flex-1 flex-col gap-4 p-5'>
+          {verificationMode === 'demo' ? (
+            <DemoModeBanner message='Demo mode: this preview uses fictional passport details and your session-only live capture.' />
+          ) : null}
+
           <UiCard>
             <View className='flex flex-row'>
               <View className='flex flex-1 flex-col gap-2'>
@@ -46,12 +81,14 @@ export default function DocumentPreviewStep() {
                 </Text>
               </View>
 
-              <Image
-                style={{ width: 120, height: 120, borderRadius: 1000 }}
-                source={{
-                  uri: `data:image/png;base64,${passportImageRaw}`,
-                }}
-              />
+              {portraitUri ? (
+                <Image
+                  style={{ width: 120, height: 120, borderRadius: 1000 }}
+                  source={{ uri: portraitUri }}
+                />
+              ) : (
+                <UiIcon className='color-textPrimary' size={56} customIcon='userIcon' />
+              )}
             </View>
           </UiCard>
 

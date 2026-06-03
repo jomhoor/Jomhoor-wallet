@@ -11,6 +11,7 @@ import { authorize, getChallenge, refresh } from '@/api/modules/auth'
 import { Config } from '@/config'
 import { sleep } from '@/helpers'
 import { zustandStorage } from '@/store/helpers'
+import { demoPassportProfileStore } from '@/store/modules/demo-passport-profile'
 import { identityStore } from '@/store/modules/identity'
 import { localAuthStore } from '@/store/modules/local-auth'
 import { uiPreferencesStore } from '@/store/modules/ui-preferences'
@@ -149,6 +150,9 @@ const useLogout = () => {
     state => state.clearDocumentsCardUi,
   )
   const clearIdentities = identityStore.useIdentityStore(state => state.clearIdentities)
+  const clearDemoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.clearProfile,
+  )
   const resetLocalAuthStore = localAuthStore.useLocalAuthStore(state => state.resetStore)
 
   return async () => {
@@ -156,6 +160,7 @@ const useLogout = () => {
     await Promise.all([
       deletePrivateKey(),
       clearIdentities(),
+      clearDemoPassportProfile(),
       clearDocumentsCardUi(),
       resetLocalAuthStore(),
     ])

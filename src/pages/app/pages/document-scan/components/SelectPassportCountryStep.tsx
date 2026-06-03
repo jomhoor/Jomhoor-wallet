@@ -7,9 +7,11 @@ import { UiCard, UiIcon } from '@/ui'
 type PassportCountryOption = {
   code: string
   name: string
+  isDemo?: boolean
 }
 
 const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
+  { code: 'DEMO', name: 'Demo (No passport required)', isDemo: true },
   { code: 'IRN', name: 'Iran ایران' },
   { code: 'AFG', name: 'Afghanistan افغانستان' },
   { code: 'ARE', name: 'United Arab Emirates الإمارات العربية المتحدة' },
@@ -28,10 +30,17 @@ const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
 
 export default function SelectPassportCountryStep() {
   const insets = useSafeAreaInsets()
-  const { setCurrentStep, setPassportCountryCode } = useDocumentScanContext()
+  const { setCurrentStep, setPassportCountryCode, setVerificationMode } = useDocumentScanContext()
 
   const continueToMrz = (countryCode: string) => {
+    setVerificationMode('live')
     setPassportCountryCode(countryCode)
+    setCurrentStep(Steps.ScanMrzStep)
+  }
+
+  const continueToDemo = () => {
+    setVerificationMode('demo')
+    setPassportCountryCode(undefined)
     setCurrentStep(Steps.ScanMrzStep)
   }
 
@@ -60,6 +69,11 @@ export default function SelectPassportCountryStep() {
               <Pressable
                 key={option.code}
                 onPress={() => {
+                  if (option.isDemo) {
+                    continueToDemo()
+                    return
+                  }
+
                   if (option.code === 'IRN') {
                     continueToMrz(option.code)
                     return
@@ -86,6 +100,11 @@ export default function SelectPassportCountryStep() {
                   <View className='flex-1'>
                     <Text className='typography-subtitle4 text-textPrimary'>{option.name}</Text>
                     <Text className='typography-body4 text-textSecondary'>{option.code}</Text>
+                    {option.isDemo ? (
+                      <Text className='typography-body4 mt-1 text-warningMain'>
+                        Fictional data for App Review and product demonstration
+                      </Text>
+                    ) : null}
                   </View>
                 </UiCard>
               </Pressable>
@@ -95,6 +114,7 @@ export default function SelectPassportCountryStep() {
           <Pressable
             className='mt-4'
             onPress={() => {
+              setVerificationMode('live')
               setPassportCountryCode(undefined)
               setCurrentStep(Steps.SelectDocTypeStep)
             }}
