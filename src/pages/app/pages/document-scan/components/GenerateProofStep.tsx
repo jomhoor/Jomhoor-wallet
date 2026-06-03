@@ -12,12 +12,23 @@ export default function GenerateProofStep() {
   const insets = useSafeAreaInsets()
   const appPaddings = useAppPaddings()
 
-  const { creatingIdentityStep, nidProofInputAdapter, verificationUserData } =
-    useDocumentScanContext()
+  const {
+    creatingIdentityStep,
+    nidProofInputAdapter,
+    verificationUserData,
+    secureCleanupSensitiveData,
+  } = useDocumentScanContext()
   const reviewNidProofInputAdapter =
     nidProofInputAdapter ?? verificationUserData.document.nid.proofInput
 
   const navigation = useNavigation()
+
+  const handleNavigateToHome = () => {
+    secureCleanupSensitiveData()
+    navigation.navigate('App', {
+      screen: 'Documents',
+    })
+  }
 
   return (
     <View
@@ -105,15 +116,7 @@ export default function GenerateProofStep() {
                 <StepRow title='Profile creation' status='completed' />
               </View>
               <View className='mt-auto w-full'>
-                <UiButton
-                  title='Home Page'
-                  onPress={() => {
-                    navigation.navigate('App', {
-                      screen: 'Documents',
-                    })
-                  }}
-                  className='w-full'
-                />
+                <UiButton title='Home Page' onPress={handleNavigateToHome} className='w-full' />
               </View>
             </>
           ),

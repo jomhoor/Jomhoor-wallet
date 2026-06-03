@@ -138,6 +138,7 @@ type DocumentScanContext = {
 
   createIdentity: () => Promise<void>
   revokeIdentity: () => Promise<void>
+  secureCleanupSensitiveData: () => void
 
   circuitLoadingDetails?: {
     isLoaded: boolean
@@ -320,6 +321,9 @@ const documentScanContext = createContext<DocumentScanContext>({
   revokeIdentity: async () => {
     throw new Error('revokeIdentity not implemented')
   },
+  secureCleanupSensitiveData: () => {
+    throw new Error('secureCleanupSensitiveData not implemented')
+  },
 })
 
 export function useDocumentScanContext() {
@@ -375,6 +379,70 @@ function getInitialStep(docType?: DocType): Steps {
   if (docType === DocType.PASSPORT) return Steps.SelectPassportCountryStep
   if (docType === DocType.ID) return Steps.ScanNfcStep
   return Steps.SelectDocTypeStep
+}
+
+function createSecurelyCleanedVerificationUserData(): VerificationUserData {
+  return {
+    session: {
+      id: '',
+      startedAt: 0,
+      docType: undefined,
+      selectedPassportCountry: undefined,
+      status: 'completed',
+    },
+    document: {
+      passport: {
+        mrz: undefined,
+        nfc: {
+          normalized: undefined,
+          files: undefined,
+          packageNfcResult: undefined,
+          portrait: {
+            base64: '',
+            filePath: '',
+          },
+          ePassport: undefined,
+          backend: undefined,
+          finalStatus: undefined,
+          nativeSessionId: '',
+        },
+      },
+      nid: {
+        front: {
+          imageUri: '',
+          capturedAt: 0,
+        },
+        back: {
+          barcodeRaw: '',
+          barcode: undefined,
+          nationalId: '',
+        },
+        nfc: {
+          nativeSessionId: '',
+        },
+        eID: undefined,
+        verification: undefined,
+        proofInput: undefined,
+      },
+    },
+    biometrics: {
+      liveness: undefined,
+      gaze: undefined,
+      comparison: undefined,
+      images: {
+        referenceUri: '',
+        liveCaptureUri: '',
+        referenceCropUri: '',
+        liveCropUri: '',
+      },
+    },
+    proof: {
+      creatingIdentityStep: undefined,
+      identity: undefined,
+      error: undefined,
+    },
+    evidence: [],
+  }
 }
 
 function getEDocumentDiagnosticSnapshot(value?: EDocument): Record<string, unknown> {
@@ -455,6 +523,35 @@ export function ScanContextProvider({
     useState<DocumentScanContext['nidProofInputAdapter']>()
 
   const [identity, setIdentity] = useState<IdentityItem>()
+
+  const secureCleanupSensitiveData = useCallback(() => {
+    logIdentityDiagnostic('SecurityCleanup', 'secureCleanupSensitiveData:start', {
+      timestamp: Date.now(),
+    })
+
+    setVerificationUserData(createSecurelyCleanedVerificationUserData())
+    setTempMRZ(undefined)
+    setTempEDoc(undefined)
+    setPassportNfcDetails(undefined)
+    setPassportMrzBarcode(undefined)
+    setNidVerificationResult(undefined)
+    setNidProofInputAdapter(undefined)
+    setFaceVerification({ enabled: false })
+    setIdentity(undefined)
+
+    logIdentityDiagnostic('SecurityCleanup', 'secureCleanupSensitiveData:completed', {
+      timestamp: Date.now(),
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      logIdentityDiagnostic('SecurityCleanup', 'ScanContextProvider:unmount', {
+        timestamp: Date.now(),
+      })
+      secureCleanupSensitiveData()
+    }
+  }, [secureCleanupSensitiveData])
 
   const revokeIdentity = useCallback(async () => {
     throw new Error('Revoke identity is not implemented for EID')
@@ -1398,6 +1495,7 @@ export function ScanContextProvider({
 
         createIdentity,
         revokeIdentity: revokeIdentity,
+        secureCleanupSensitiveData,
       }}
       children={children}
     />
