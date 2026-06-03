@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
-import { Text, View } from 'react-native'
+import { Alert, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useAppPaddings } from '@/theme'
@@ -25,9 +25,16 @@ export default function GenerateProofStep() {
 
   const handleNavigateToHome = () => {
     secureCleanupSensitiveData()
-    navigation.navigate('App', {
-      screen: 'Documents',
-    })
+    Alert.alert('Data Deletion Confirmed', 'Verification data has been deleted from this device.', [
+      {
+        text: 'OK',
+        onPress: () => {
+          navigation.navigate('App', {
+            screen: 'Documents',
+          })
+        },
+      },
+    ])
   }
 
   return (
