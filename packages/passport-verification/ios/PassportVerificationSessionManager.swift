@@ -136,6 +136,7 @@ final class PassportVerificationSessionManager {
     private var cancelRequested = false
     private var currentAttemptId: String?
     private var activeReader: PassportReader?
+    private var lastEmittedScanStatus: PassportVerificationScanStatus?
 
     func readPassport(input: [String: Any], attemptId: String? = nil) async throws -> [String: Any] {
         setCurrentAttemptId(attemptId)
@@ -570,6 +571,7 @@ final class PassportVerificationSessionManager {
         activeCancelAction = nil
         cancelRequested = false
         activeReader = nil
+        lastEmittedScanStatus = nil
 
         logSession(event: "beginRead: session initialized with clean state", details: [
             "isReading": true,
@@ -591,6 +593,7 @@ final class PassportVerificationSessionManager {
         activeCancelAction = nil
         cancelRequested = false
         activeReader = nil
+        lastEmittedScanStatus = nil
 
         logSession(event: "endRead completed", details: [
             "isReading": false,
@@ -819,6 +822,7 @@ final class PassportVerificationSessionManager {
             "method": method.rawValue,
             "tagCount": tags.count,
         ])
+        emitScanStatus(.waitingForTag, stage: "WAITING_FOR_TAG")
         let reader = PassportReader()
         lock.lock(); activeReader = reader; lock.unlock()
         setActiveCancelAction(nil)
@@ -840,10 +844,14 @@ final class PassportVerificationSessionManager {
                 customDisplayMessage: { displayMessage in
                 switch displayMessage {
                 case .requestPresentPassport:
+                    self.emitScanStatus(.waitingForTag, stage: "WAITING_FOR_TAG")
                     return "Hold the top of your iPhone against the passport chip area. Move slowly across the cover or data page until the chip is detected."
                 case .authenticatingWithPassport:
+                    self.emitScanStatus(.foundTag, stage: "TAG_DISCOVERED")
+                    self.emitScanStatus(.authorizingTag, stage: "AUTHORIZING_TAG")
                     return "Authenticating passport chip. Do not move the phone."
                 case .readingDataGroupProgress:
+                    self.emitScanStatus(.readingTag, stage: "READING_TAG")
                     return "Reading passport data. Keep the phone still."
                 case .successfulRead:
                     return "Passport read complete."
@@ -933,11 +941,17 @@ final class PassportVerificationSessionManager {
                 customDisplayMessage: { displayMessage in
                     switch displayMessage {
                     case .requestPresentPassport:
+                        self.emitScanStatus(.waitingForTag, stage: "WAITING_FOR_TAG")
                         return "Hold your iPhone near the passport NFC chip."
                     case .authenticatingWithPassport:
+                        self.emitScanStatus(.foundTag, stage: "TAG_DISCOVERED")
+                        self.emitScanStatus(.authorizingTag, stage: "AUTHORIZING_TAG")
                         return "Probing passport access..."
                     case .successfulRead:
                         return "Passport probe complete."
+                    case .readingDataGroupProgress:
+                        self.emitScanStatus(.readingTag, stage: "READING_TAG")
+                        return "Reading passport data..."
                     default:
                         return nil
                     }
@@ -983,6 +997,23 @@ final class PassportVerificationSessionManager {
             return true
         }
         return false
+    }
+
+    private func emitScanStatus(_ status: PassportVerificationScanStatus, stage: String) {
+        lock.lock()
+        if lastEmittedScanStatus == status {
+            lock.unlock()
+            return
+        }
+        lastEmittedScanStatus = status
+        let attemptId = currentAttemptId
+        lock.unlock()
+
+        PassportVerificationEventEmitter.emit(
+            status: status,
+            sessionId: attemptId,
+            stage: stage
+        )
     }
 
     @available(iOS 15.0, *)

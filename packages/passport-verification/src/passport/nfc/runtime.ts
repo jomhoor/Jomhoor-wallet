@@ -5,6 +5,7 @@ import {
   invokeNativeClearTemporaryData,
   invokeNativeProbe,
   invokeNativeRead,
+  subscribePassportNfcScanStatus,
 } from '../../shared/native/passport-native-module'
 import { createPassportNfcError } from './errors'
 import type {
@@ -320,3 +321,4 @@ export async function clearPassportNfcTemporaryData(): Promise<void> {
 }
 
 export { getPassportVerificationNativeStatus }
+export { subscribePassportNfcScanStatus }

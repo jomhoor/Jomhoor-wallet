@@ -18,6 +18,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReadableType
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import net.sf.scuba.smartcards.CardService
 import net.sf.scuba.smartcards.CardServiceException
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -207,7 +208,7 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
           event = "Enabling NFC reader mode",
           sessionId = sessionId,
           stage = SessionStage.WAITING_FOR_TAG,
-          details = "presenceCheckDelayMs=250"
+          details = "presenceCheckDelayMs=250; flags=NFC_A|NFC_B|SKIP_NDEF_CHECK"
         )
         adapter.enableReaderMode(
           activity,
@@ -268,6 +269,10 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
       val activePromise = pendingPromise
       val debug = pendingSessionDebug
       if (activeConfig == null || activePromise == null || hasHandledTag || debug == null) {
+        logWarn(
+          event = "Ignoring discovered tag because no readable session is active",
+          details = "hasConfig=${activeConfig != null}; hasPromise=${activePromise != null}; hasHandledTag=$hasHandledTag; hasDebug=${debug != null}; tag=${buildTagDiagnostics(tag)}"
+        )
         null
       } else {
         hasHandledTag = true
@@ -277,18 +282,19 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
 
     val sessionId = activeSession.sessionId
     val techListSummary = tag?.techList?.joinToString(", ").orEmpty()
+    val isoDep = tag?.let { IsoDep.get(it) }
     logStage(
       stage = SessionStage.TAG_DISCOVERED,
       sessionId = sessionId,
-      details = "tagId=${toHex(tag?.id) ?: "unknown"}; techList=[$techListSummary]"
+      details = buildTagDiagnostics(tag, isoDep)
     )
 
-    if (tag == null || IsoDep.get(tag) == null) {
+    if (tag == null || isoDep == null) {
       logWarn(
         event = "Detected tag is not ISO-DEP",
         sessionId = sessionId,
         stage = SessionStage.TAG_DISCOVERED,
-        details = "techList=[$techListSummary]"
+        details = "techList=[$techListSummary]; tag=${buildTagDiagnostics(tag, isoDep)}"
       )
       finishWithError(
         BridgeError(
@@ -326,7 +332,7 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
         event = "IsoDep acquired",
         sessionId = sessionId,
         stage = SessionStage.ISODEP_CONNECTING,
-        details = "isConnected=${isoDep.isConnected}"
+        details = buildIsoDepDiagnostics(isoDep)
       )
       if (!isoDep.isConnected) {
         logInfo(event = "IsoDep.connect start", sessionId = sessionId, stage = SessionStage.ISODEP_CONNECTING)
@@ -336,14 +342,15 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
       logInfo(
         event = "IsoDep connected",
         sessionId = sessionId,
-        stage = SessionStage.ISODEP_CONNECTED
+        stage = SessionStage.ISODEP_CONNECTED,
+        details = buildIsoDepDiagnostics(isoDep)
       )
       isoDep.timeout = ISO_DEP_TIMEOUT_MS
       logInfo(
         event = "IsoDep timeout configured",
         sessionId = sessionId,
         stage = SessionStage.ISODEP_CONNECTED,
-        details = "isoDepTimeoutMs=$ISO_DEP_TIMEOUT_MS"
+        details = "isoDepTimeoutMs=$ISO_DEP_TIMEOUT_MS; ${buildIsoDepDiagnostics(isoDep)}"
       )
 
       logInfo(event = "CardService creation", sessionId = sessionId, stage = SessionStage.ISODEP_CONNECTED)
@@ -594,6 +601,12 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
 
     val paceInfo = cardAccessFile.securityInfos
       .firstOrNull { it is PACEInfo } as? PACEInfo
+    logInfo(
+      event = "PACE CardAccess parsed",
+      sessionId = sessionId,
+      stage = SessionStage.PACE,
+      details = buildSecurityInfoSummary(cardAccessFile.securityInfos)
+    )
 
     accessState.paceSupported = paceInfo != null
     if (paceInfo == null) {
@@ -605,13 +618,19 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     }
 
     try {
-      logInfo(event = "PACE APDU handshake start", sessionId = sessionId, stage = SessionStage.PACE)
+      logInfo(
+        event = "PACE APDU handshake start",
+        sessionId = sessionId,
+        stage = SessionStage.PACE,
+        details = "objectIdentifier=${paceInfo.objectIdentifier}; parameterId=${paceInfo.parameterId}; protocol=${paceInfo.protocolOIDString}"
+      )
       passportService.doPACE(
         config.bacKey,
         paceInfo.objectIdentifier,
         PACEInfo.toParameterSpec(paceInfo.parameterId),
         null
       )
+      logInfo(event = "PACE select applet start", sessionId = sessionId, stage = SessionStage.PACE)
       passportService.sendSelectApplet(true)
       accessState.usedMethod = AccessControlMethod.PACE
       accessState.paceStatus = AUTH_STATUS_SUCCESS
@@ -639,7 +658,9 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     setStage(SessionStage.BAC, sessionId)
     logInfo(event = "BAC start", sessionId = sessionId, stage = SessionStage.BAC)
     try {
+      logInfo(event = "BAC select applet start", sessionId = sessionId, stage = SessionStage.BAC)
       passportService.sendSelectApplet(false)
+      logInfo(event = "BAC APDU handshake start", sessionId = sessionId, stage = SessionStage.BAC)
       passportService.doBAC(config.bacKey)
       accessState.usedMethod = AccessControlMethod.BAC
       accessState.bacStatus = AUTH_STATUS_SUCCESS
@@ -1187,6 +1208,8 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     sessionId: String? = null,
     markSuccessfulStep: String? = null
   ) {
+    var statusToEmit: PassportScanStatus? = null
+    var emitSessionId: String? = sessionId
     synchronized(stateLock) {
       val debug = pendingSessionDebug ?: return
       if (sessionId != null && debug.sessionId != sessionId) {
@@ -1196,6 +1219,16 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
       if (!markSuccessfulStep.isNullOrBlank()) {
         debug.lastSuccessfulStep = markSuccessfulStep
       }
+      val status = passportScanStatusForStage(stage)
+      if (status != null && debug.lastEmittedScanStatus != status) {
+        debug.lastEmittedScanStatus = status
+        statusToEmit = status
+        emitSessionId = debug.sessionId
+      }
+    }
+
+    if (statusToEmit != null) {
+      emitPassportScanStatus(statusToEmit, stage, emitSessionId)
     }
   }
 
@@ -1233,6 +1266,65 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
       stage = stage,
       details = details
     )
+  }
+
+  private fun passportScanStatusForStage(stage: SessionStage): PassportScanStatus? {
+    return when (stage) {
+      SessionStage.WAITING_FOR_TAG -> PassportScanStatus.WAITING_FOR_TAG
+      SessionStage.TAG_DISCOVERED,
+      SessionStage.ISODEP_CONNECTING,
+      SessionStage.ISODEP_CONNECTED -> PassportScanStatus.FOUND_TAG
+      SessionStage.PACE,
+      SessionStage.BAC -> PassportScanStatus.AUTHORIZING_TAG
+      SessionStage.READING_DG1,
+      SessionStage.READING_DG2,
+      SessionStage.READING_DG11,
+      SessionStage.READING_DG12,
+      SessionStage.READING_DG13,
+      SessionStage.READING_DG15,
+      SessionStage.READING_COM,
+      SessionStage.READING_SOD,
+      SessionStage.READING_CARD_ACCESS -> PassportScanStatus.READING_TAG
+      SessionStage.IDLE,
+      SessionStage.COMPLETING,
+      SessionStage.CLEANUP -> null
+    }
+  }
+
+  private fun emitPassportScanStatus(
+    status: PassportScanStatus?,
+    stage: SessionStage,
+    sessionId: String?
+  ) {
+    if (status == null) {
+      return
+    }
+
+    val payload = Arguments.createMap().apply {
+      putString("status", status.rawValue)
+      putString("message", status.message)
+      putString("platform", "android")
+      putString("stage", stage.rawValue)
+      if (!sessionId.isNullOrBlank()) {
+        putString("sessionId", sessionId)
+      }
+      putDouble("timestamp", System.currentTimeMillis().toDouble())
+    }
+
+    mainHandler.post {
+      try {
+        reactApplicationContext
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit(SCAN_STATUS_EVENT_NAME, payload)
+      } catch (error: Throwable) {
+        logWarn(
+          event = "Failed to emit scan status event",
+          sessionId = sessionId,
+          stage = stage,
+          details = "status=${status.rawValue}; errorClass=${error.javaClass.simpleName}; message=${error.message}"
+        )
+      }
+    }
   }
 
   private fun logInfo(
@@ -1299,8 +1391,80 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     details: String?,
     throwable: Throwable? = null
   ) {
-    // Intentionally no-op in production builds.
-    // Keep parameters for future structured logging hooks.
+    if (!BuildConfig.DEBUG) {
+      return
+    }
+
+    val parts = mutableListOf("event=$event")
+    if (!sessionId.isNullOrBlank()) {
+      parts.add("sessionId=$sessionId")
+    }
+    if (stage != null) {
+      parts.add("stage=${stage.rawValue}")
+    }
+    if (elapsedMs != null) {
+      parts.add("elapsedMs=$elapsedMs")
+    }
+    if (!details.isNullOrBlank()) {
+      parts.add(details)
+    }
+    val message = truncateForLog(parts.joinToString("; "))
+
+    when (level) {
+      LogLevel.INFO -> {
+        if (throwable != null) {
+          Log.i(LOG_TAG, message, throwable)
+        } else {
+          Log.i(LOG_TAG, message)
+        }
+      }
+      LogLevel.WARN -> {
+        if (throwable != null) {
+          Log.w(LOG_TAG, message, throwable)
+        } else {
+          Log.w(LOG_TAG, message)
+        }
+      }
+      LogLevel.ERROR -> {
+        if (throwable != null) {
+          Log.e(LOG_TAG, message, throwable)
+        } else {
+          Log.e(LOG_TAG, message)
+        }
+      }
+    }
+  }
+
+  private fun buildTagDiagnostics(tag: Tag?, isoDep: IsoDep? = tag?.let { IsoDep.get(it) }): String {
+    if (tag == null) {
+      return "tag=null"
+    }
+
+    return listOf(
+      "tagId=${toHexPreview(tag.id) ?: "unknown"}",
+      "techList=[${tag.techList.joinToString(", ")}]",
+      "hasIsoDep=${isoDep != null}",
+      "isoDep={${buildIsoDepDiagnostics(isoDep)}}"
+    ).joinToString("; ")
+  }
+
+  private fun buildIsoDepDiagnostics(isoDep: IsoDep?): String {
+    if (isoDep == null) {
+      return "null"
+    }
+
+    return try {
+      listOf(
+        "isConnected=${isoDep.isConnected}",
+        "timeoutMs=${isoDep.timeout}",
+        "maxTransceiveLength=${isoDep.maxTransceiveLength}",
+        "extendedLength=${isoDep.isExtendedLengthApduSupported}",
+        "historicalBytes=${toHexPreview(isoDep.historicalBytes)}",
+        "hiLayerResponse=${toHexPreview(isoDep.hiLayerResponse)}"
+      ).joinToString("; ")
+    } catch (error: Throwable) {
+      "diagnosticsFailed=${error.javaClass.simpleName}:${error.message}"
+    }
   }
 
   private fun buildReadPassportInputSummary(input: ReadableMap): String {
@@ -1359,15 +1523,34 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     entry: Map<String, Any?>
   ): String {
     val status = fileStatus(entry)
+    val rawHex = entry["rawHex"] as? String
+    val rawByteLength = rawHex?.length?.let { it / 2 }
+    val error = entry["error"] as? Map<*, *>
+    val errorCode = error?.get("code")
+    val statusWord = error?.get("statusWord")
     if (group != RequestedDataGroup.DG2) {
-      return "group=${group.responseKey}; status=$status"
+      val parsed = entry["parsed"] as? Map<*, *>
+      return "group=${group.responseKey}; status=$status; rawByteLength=${rawByteLength ?: "none"}; parsedKeys=${parsed?.keys?.joinToString(",") ?: "none"}; errorCode=${errorCode ?: "none"}; statusWord=${statusWord ?: "none"}"
     }
 
     val parsed = entry["parsed"] as? Map<*, *>
     val imageByteLength = parsed?.get("imageByteLength")
     val format = parsed?.get("imageFormat")
     val hasFaceImage = parsed?.get("hasFaceImage")
-    return "group=${group.responseKey}; status=$status; imageByteLength=$imageByteLength; imageFormat=$format; hasFaceImage=$hasFaceImage"
+    return "group=${group.responseKey}; status=$status; rawByteLength=${rawByteLength ?: "none"}; imageByteLength=$imageByteLength; imageFormat=$format; hasFaceImage=$hasFaceImage; errorCode=${errorCode ?: "none"}; statusWord=${statusWord ?: "none"}"
+  }
+
+  private fun buildSecurityInfoSummary(securityInfos: Collection<SecurityInfo>): String {
+    val protocols = securityInfos
+      .map { info ->
+        val paceSuffix = if (info is PACEInfo) {
+          ":parameterId=${info.parameterId}"
+        } else {
+          ""
+        }
+        "${info.javaClass.simpleName}:oid=${info.objectIdentifier}:protocol=${info.protocolOIDString}$paceSuffix"
+      }
+    return "securityInfoCount=${securityInfos.size}; securityInfos=[${protocols.joinToString(" | ")}]"
   }
 
   private fun generateSessionId(): String {
@@ -1935,6 +2118,23 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun truncateForLog(value: String, maxChars: Int = MAX_LOG_MESSAGE_CHARS): String {
+    if (value.length <= maxChars) {
+      return value
+    }
+    return value.take(maxChars) + "...<truncated:${value.length - maxChars}>"
+  }
+
+  private fun toHexPreview(bytes: ByteArray?, maxBytes: Int = MAX_LOG_HEX_PREVIEW_BYTES): String? {
+    if (bytes == null || bytes.isEmpty()) {
+      return null
+    }
+
+    val previewBytes = if (bytes.size > maxBytes) bytes.copyOfRange(0, maxBytes) else bytes
+    val suffix = if (bytes.size > maxBytes) "...(${bytes.size} bytes)" else "(${bytes.size} bytes)"
+    return "${toHex(previewBytes)}$suffix"
+  }
+
   private fun toHex(bytes: ByteArray?): String? {
     if (bytes == null || bytes.isEmpty()) {
       return null
@@ -1952,6 +2152,11 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
   override fun initialize() {
     super.initialize()
     ensureBouncyCastleProvider()
+    val provider = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)
+    logInfo(
+      event = "Native module initialized",
+      details = "debug=${BuildConfig.DEBUG}; bouncyCastleProvider=${provider?.javaClass?.name ?: "missing"}; providerPosition=${Security.getProviders().indexOf(provider)}"
+    )
   }
 
   private fun ensureBouncyCastleProvider() {
@@ -1988,7 +2193,8 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     val sessionId: String,
     val startElapsedMs: Long,
     var stage: SessionStage,
-    var lastSuccessfulStep: String? = null
+    var lastSuccessfulStep: String? = null,
+    var lastEmittedScanStatus: PassportScanStatus? = null
   )
 
   private data class SessionDebugSnapshot(
@@ -2078,6 +2284,13 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
     ERROR
   }
 
+  private enum class PassportScanStatus(val rawValue: String, val message: String) {
+    WAITING_FOR_TAG("waiting_for_tag", "Waiting for tag"),
+    FOUND_TAG("found_tag", "Found tag"),
+    AUTHORIZING_TAG("authorizing_tag", "Authorizing tag"),
+    READING_TAG("reading_tag", "Reading tag")
+  }
+
   private enum class AccessControlMethod(val rawValue: String) {
     PACE("PACE"),
     BAC("BAC");
@@ -2124,6 +2337,7 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
 
   companion object {
     private const val LOG_TAG = "PassportVerificationModule"
+    private const val SCAN_STATUS_EVENT_NAME = "PassportVerificationScanStatus"
 
     private const val FILE_STATUS_OK = "ok"
     private const val FILE_STATUS_ERROR = "error"
@@ -2155,6 +2369,8 @@ class PassportVerificationModule(reactContext: ReactApplicationContext) :
 
     private const val SESSION_TIMEOUT_MS = 75_000L
     private const val ISO_DEP_TIMEOUT_MS = 10_000
+    private const val MAX_LOG_MESSAGE_CHARS = 2_000
+    private const val MAX_LOG_HEX_PREVIEW_BYTES = 32
 
     private val DEFAULT_REQUESTED_GROUPS = listOf(
       RequestedDataGroup.COM,

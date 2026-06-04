@@ -1,4 +1,9 @@
-import type { PassportNfcProbeInput, PassportNfcReadInput } from '../../passport/nfc/types'
+import type {
+  PassportNfcProbeInput,
+  PassportNfcReadInput,
+  PassportNfcScanStatus,
+  PassportNfcScanStatusEvent,
+} from '../../passport/nfc/types'
 
 export type PassportVerificationNativeStatus = {
   platform: 'ios' | 'android' | 'unknown'
@@ -19,6 +24,8 @@ type NativePassportModule = {
 }
 
 const MODULE_NAMES = ['PassportVerificationModule', 'PassportVerification']
+const EVENT_EMITTER_MODULE_NAME = 'PassportVerificationEventEmitter'
+const SCAN_STATUS_EVENT_NAME = 'PassportVerificationScanStatus'
 
 // function logNativeNfcJson(_label: string, _value: unknown): void {}
 
@@ -64,6 +71,40 @@ export function getNativePlatform(): 'ios' | 'android' | 'unknown' {
     return 'unknown'
   } catch {
     return 'unknown'
+  }
+}
+
+function normalizeScanStatusEvent(input: unknown): PassportNfcScanStatusEvent | null {
+  if (!input || typeof input !== 'object') return null
+
+  const raw = input as Record<string, unknown>
+  const status = normalizeScanStatus(raw.status)
+  if (!status) return null
+
+  const platform =
+    raw.platform === 'ios' || raw.platform === 'android' || raw.platform === 'unknown'
+      ? raw.platform
+      : undefined
+
+  return {
+    status,
+    message: typeof raw.message === 'string' && raw.message.length > 0 ? raw.message : status,
+    ...(platform ? { platform } : {}),
+    ...(typeof raw.stage === 'string' ? { stage: raw.stage } : {}),
+    ...(typeof raw.sessionId === 'string' ? { sessionId: raw.sessionId } : {}),
+    ...(typeof raw.timestamp === 'number' ? { timestamp: raw.timestamp } : {}),
+  }
+}
+
+function normalizeScanStatus(input: unknown): PassportNfcScanStatus | null {
+  switch (input) {
+    case 'waiting_for_tag':
+    case 'found_tag':
+    case 'authorizing_tag':
+    case 'reading_tag':
+      return input
+    default:
+      return null
   }
 }
 
@@ -150,6 +191,54 @@ export async function invokeNativeRead(input: PassportNfcReadInput): Promise<unk
   const response = await loaded.module.readPassport(payload)
   // logNativeNfcJson('READ_RESPONSE', response)
   return response
+}
+
+export function subscribePassportNfcScanStatus(
+  listener: (event: PassportNfcScanStatusEvent) => void,
+): { remove: () => void } {
+  try {
+    const reactNative = require('react-native') as {
+      DeviceEventEmitter?: {
+        addListener?: (
+          eventName: string,
+          listener: (event: unknown) => void,
+        ) => { remove: () => void }
+      }
+      NativeEventEmitter?: new (nativeModule?: unknown) => {
+        addListener: (
+          eventName: string,
+          listener: (event: unknown) => void,
+        ) => { remove: () => void }
+      }
+      NativeModules?: Record<string, unknown>
+      Platform?: { OS?: string }
+    }
+
+    const wrappedListener = (event: unknown) => {
+      const normalized = normalizeScanStatusEvent(event)
+      if (normalized) {
+        listener(normalized)
+      }
+    }
+
+    if (reactNative.Platform?.OS === 'ios' && reactNative.NativeEventEmitter) {
+      const emitterModule = reactNative.NativeModules?.[EVENT_EMITTER_MODULE_NAME]
+      if (emitterModule) {
+        return new reactNative.NativeEventEmitter(emitterModule).addListener(
+          SCAN_STATUS_EVENT_NAME,
+          wrappedListener,
+        )
+      }
+    }
+
+    if (reactNative.DeviceEventEmitter?.addListener) {
+      return reactNative.DeviceEventEmitter.addListener(SCAN_STATUS_EVENT_NAME, wrappedListener)
+    }
+  } catch {
+    // Listener support is best-effort. Reads still work through the promise API.
+  }
+
+  return { remove: () => {} }
 }
 
 export async function invokeNativeProbe(input: PassportNfcProbeInput): Promise<unknown> {

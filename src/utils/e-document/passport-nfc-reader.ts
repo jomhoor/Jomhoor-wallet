@@ -10,8 +10,15 @@
  *   4. Return an EPassport object ready for ZK registration
  */
 
-import type { PassportNfcReadResult } from '@iland/passport-verification'
-import { cancelPassportNfcSession, readPassportNfc } from '@iland/passport-verification'
+import type {
+  PassportNfcReadResult,
+  PassportNfcScanStatusEvent,
+} from '@iland/passport-verification'
+import {
+  cancelPassportNfcSession,
+  readPassportNfc,
+  subscribePassportNfcScanStatus,
+} from '@iland/passport-verification'
 import NfcManager, { NfcTech } from 'react-native-nfc-manager'
 
 // Pure JS crypto — works in Hermes (require('crypto') does not)
@@ -772,71 +779,86 @@ async function readPassportWithPackageBackendOutput(
   backend: 'native-ios' | 'native-android',
   opts?: PassportReadOptions,
 ): Promise<PassportNfcScanOutput> {
-  opts?.onConnected?.()
-  opts?.onReading?.()
-
-  const input = createPackageNfcReadInput({
-    documentNumber,
-    dateOfBirth,
-    expiryDate,
-    backend,
+  let connectedNotified = false
+  let readingNotified = false
+  const statusSubscription = subscribePassportNfcScanStatus(event => {
+    opts?.onScanStatus?.(event)
+    if (event.status === 'found_tag' && !connectedNotified) {
+      connectedNotified = true
+      opts?.onConnected?.()
+    }
+    if (event.status === 'reading_tag' && !readingNotified) {
+      readingNotified = true
+      opts?.onReading?.()
+    }
   })
 
-  logNfcMetadata('native-request', {
-    backend,
-    requestedDataGroups: input.requestedDataGroups ?? [],
-    includeImageBase64: input.includeImageBase64 === true,
-    persistDg2ImageFile: input.persistDg2ImageFile === true,
-  })
+  try {
+    const input = createPackageNfcReadInput({
+      documentNumber,
+      dateOfBirth,
+      expiryDate,
+      backend,
+    })
 
-  const result = await readPassportNfc(input)
-  // only in debug mode
-  logNfcJson('native-readPassportNfc-result', result)
-  const dg2Entry = result.files.DG2
-  const dg2Data =
-    dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
-      ? (dg2Entry.data as Record<string, unknown>)
-      : undefined
-  const dg2Parsed =
-    dg2Data && dg2Data.parsed && typeof dg2Data.parsed === 'object'
-      ? (dg2Data.parsed as Record<string, unknown>)
-      : undefined
+    logNfcMetadata('native-request', {
+      backend,
+      requestedDataGroups: input.requestedDataGroups ?? [],
+      includeImageBase64: input.includeImageBase64 === true,
+      persistDg2ImageFile: input.persistDg2ImageFile === true,
+    })
 
-  logNfcMetadata('native-response', {
-    backend: result.backend,
-    finalStatus: result.finalStatus,
-    returnedFileKeys: Object.keys(result.files),
-    dg2Status: dg2Entry?.status ?? 'missing',
-    dg2ByteLength:
-      typeof dg2Parsed?.imageByteLength === 'number' ? dg2Parsed.imageByteLength : undefined,
-    hasDg2ImageBase64Field: typeof dg2Data?.imageBase64 === 'string',
-    hasDg2FilePathField: typeof dg2Data?.filePath === 'string',
-    hasResultPortraitBase64: typeof result.portrait?.base64 === 'string',
-    hasResultPortraitFilePath: typeof result.portrait?.filePath === 'string',
-    normalizedKeys: result.normalized ? Object.keys(result.normalized) : [],
-  })
+    const result = await readPassportNfc(input)
+    // only in debug mode
+    logNfcJson('native-readPassportNfc-result', result)
+    const dg2Entry = result.files.DG2
+    const dg2Data =
+      dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
+        ? (dg2Entry.data as Record<string, unknown>)
+        : undefined
+    const dg2Parsed =
+      dg2Data && dg2Data.parsed && typeof dg2Data.parsed === 'object'
+        ? (dg2Data.parsed as Record<string, unknown>)
+        : undefined
 
-  const displayDetails = extractPackageNfcDisplayDetails(result)
-  logNfcMetadata('native-display-details', {
-    hasPortraitBase64: typeof displayDetails.portrait?.base64 === 'string',
-    hasPortraitFilePath: typeof displayDetails.portrait?.filePath === 'string',
-    normalizedKeys: Object.keys(displayDetails).filter(key => key !== 'portrait'),
-  })
+    logNfcMetadata('native-response', {
+      backend: result.backend,
+      finalStatus: result.finalStatus,
+      returnedFileKeys: Object.keys(result.files),
+      dg2Status: dg2Entry?.status ?? 'missing',
+      dg2ByteLength:
+        typeof dg2Parsed?.imageByteLength === 'number' ? dg2Parsed.imageByteLength : undefined,
+      hasDg2ImageBase64Field: typeof dg2Data?.imageBase64 === 'string',
+      hasDg2FilePathField: typeof dg2Data?.filePath === 'string',
+      hasResultPortraitBase64: typeof result.portrait?.base64 === 'string',
+      hasResultPortraitFilePath: typeof result.portrait?.filePath === 'string',
+      normalizedKeys: result.normalized ? Object.keys(result.normalized) : [],
+    })
 
-  return {
-    ePassport: packageNfcResultToEPassport(result),
-    packageNfcResult: result,
-    normalized: {
-      firstName: result.normalized?.firstName ?? displayDetails.firstName,
-      lastName: result.normalized?.lastName ?? displayDetails.lastName,
-      nationality: result.normalized?.nationality ?? displayDetails.nationality,
-      expiryDate: result.normalized?.expiryDate ?? displayDetails.expiryDate,
-      documentNumber: result.normalized?.documentNumber ?? displayDetails.documentNumber,
-      birthDate: result.normalized?.birthDate,
-      sex: result.normalized?.sex,
-      ...(displayDetails.nidn ? { nidn: displayDetails.nidn } : {}),
-    },
-    portrait: displayDetails.portrait,
+    const displayDetails = extractPackageNfcDisplayDetails(result)
+    logNfcMetadata('native-display-details', {
+      hasPortraitBase64: typeof displayDetails.portrait?.base64 === 'string',
+      hasPortraitFilePath: typeof displayDetails.portrait?.filePath === 'string',
+      normalizedKeys: Object.keys(displayDetails).filter(key => key !== 'portrait'),
+    })
+
+    return {
+      ePassport: packageNfcResultToEPassport(result),
+      packageNfcResult: result,
+      normalized: {
+        firstName: result.normalized?.firstName ?? displayDetails.firstName,
+        lastName: result.normalized?.lastName ?? displayDetails.lastName,
+        nationality: result.normalized?.nationality ?? displayDetails.nationality,
+        expiryDate: result.normalized?.expiryDate ?? displayDetails.expiryDate,
+        documentNumber: result.normalized?.documentNumber ?? displayDetails.documentNumber,
+        birthDate: result.normalized?.birthDate,
+        sex: result.normalized?.sex,
+        ...(displayDetails.nidn ? { nidn: displayDetails.nidn } : {}),
+      },
+      portrait: displayDetails.portrait,
+    }
+  } finally {
+    statusSubscription.remove()
   }
 }
 
@@ -862,6 +884,8 @@ async function readPassportWithPackageBackend(
 // ---------------------------------------------------------------------------
 
 export interface PassportReadOptions {
+  /** Called for native NFC progress updates. */
+  onScanStatus?: (event: PassportNfcScanStatusEvent) => void
   /** Called when NFC tag is detected and BAC is starting */
   onConnected?: () => void
   /** Called when BAC is complete and DG reading begins */

@@ -1,4 +1,8 @@
 #import <React/RCTBridgeModule.h>
+#import <React/RCTEventEmitter.h>
+
+@interface RCT_EXTERN_MODULE(PassportVerificationEventEmitter, RCTEventEmitter)
+@end
 
 @interface RCT_EXTERN_MODULE(PassportVerificationModule, NSObject)
 

@@ -47,13 +47,16 @@ Quick verification after archive:
 - [x] list of passports before visual scan
 - [x] Flow chart data flow User-data schema
 - [x] Include proof gen required data
-- [x] Add a back button to selecet document page
-- [x] Refactor face verification - one livness screen - automate likeness
+- [x] Add a back button to selecet document page.
+- [x] Refactor face verification - one livness screen - automate likeness.
 - [x] Improve MRZ reading - remove reading area limitation.
-- [ ] Generate proof for passport
 - [x] Remove "prepare captured faces" button from face comparison
-- [ ] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
+- [x] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
 - [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
+- [ ] Android NFC
+- [ ] read the docs and watch the video
+- [ ] Generate proof for passport
+
 
 # Backlog
 

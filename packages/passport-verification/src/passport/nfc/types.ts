@@ -3,6 +3,21 @@ import type { PassportCredentials } from '../types'
 
 export type PassportNfcBackend = 'native-ios' | 'native-android' | 'jomhoor-js' | 'stub'
 
+export type PassportNfcScanStatus =
+  | 'waiting_for_tag'
+  | 'found_tag'
+  | 'authorizing_tag'
+  | 'reading_tag'
+
+export type PassportNfcScanStatusEvent = {
+  status: PassportNfcScanStatus
+  message: string
+  platform?: 'ios' | 'android' | 'unknown'
+  stage?: string
+  sessionId?: string
+  timestamp?: number
+}
+
 export type PassportNfcAccessControl = {
   method?: 'PACE' | 'BAC' | 'UNKNOWN'
   paceStatus?: 'success' | 'failed' | 'not_supported' | 'not_attempted' | string

@@ -23,7 +23,29 @@ import {
 
 import DemoModeBanner from './DemoModeBanner'
 
-type ReadState = 'idle' | 'waiting' | 'reading' | 'error'
+type ReadState = 'idle' | 'waiting' | 'found' | 'authorizing' | 'reading' | 'error'
+
+const scanStatusContent: Record<
+  Exclude<ReadState, 'idle' | 'error'>,
+  { title: string; body: string }
+> = {
+  waiting: {
+    title: 'Waiting for tag',
+    body: 'Move the back of your phone slowly over the passport chip area.',
+  },
+  found: {
+    title: 'Found tag',
+    body: 'Keep the phone and passport still.',
+  },
+  authorizing: {
+    title: 'Authorizing tag',
+    body: 'Checking the passport access keys. Do not move the phone.',
+  },
+  reading: {
+    title: 'Reading tag',
+    body: 'Reading passport data. Keep holding steady.',
+  },
+}
 
 /** Format YYMMDD → DD/MM/YYYY for display */
 function formatDate(yymmdd: string): string {
@@ -106,11 +128,12 @@ export default function ScanPassportNfcStep() {
     setReadState('waiting')
 
     if (isDemoMode) {
-      setReadState('reading')
+      setReadState('waiting')
       demoReadTimeoutRef.current = setTimeout(() => {
         demoReadTimeoutRef.current = null
         if (!readInFlightRef.current) return
 
+        setReadState('reading')
         setPassportNfcScanOutput(createDemoPassportNfcScanOutput())
         readInFlightRef.current = false
       }, DEMO_SCAN_DELAY_MS)
@@ -120,7 +143,23 @@ export default function ScanPassportNfcStep() {
     try {
       await stopPassportNfc()
       const passportOutput = await readPassportScanOutput(docNumber, birthDate, expiryDate, {
-        onConnected: () => setReadState('reading'),
+        onScanStatus: event => {
+          switch (event.status) {
+            case 'waiting_for_tag':
+              setReadState('waiting')
+              break
+            case 'found_tag':
+              setReadState('found')
+              break
+            case 'authorizing_tag':
+              setReadState('authorizing')
+              break
+            case 'reading_tag':
+              setReadState('reading')
+              break
+          }
+        },
+        onConnected: () => setReadState('found'),
         onReading: () => setReadState('reading'),
       })
 
@@ -152,7 +191,14 @@ export default function ScanPassportNfcStep() {
     }
   }, [cancelRead])
 
-  const isScanning = readState === 'waiting' || readState === 'reading'
+  const scanStatus =
+    readState === 'waiting' ||
+    readState === 'found' ||
+    readState === 'authorizing' ||
+    readState === 'reading'
+      ? scanStatusContent[readState]
+      : null
+  const isScanning = scanStatus != null
 
   return (
     <View style={{ paddingBottom: insets.bottom, paddingTop: insets.top }} className='flex-1 p-6'>
@@ -224,18 +270,11 @@ export default function ScanPassportNfcStep() {
       )}
 
       {/* Status messages */}
-      {readState === 'waiting' && (
+      {scanStatus && (
         <View className='mb-4 rounded-xl bg-componentPrimary p-4'>
-          <Text className='typography-body2 text-center text-textPrimary'>
-            Waiting for passport... Hold it steady against the back of your phone.
-          </Text>
-        </View>
-      )}
-
-      {readState === 'reading' && (
-        <View className='mb-4 rounded-xl bg-componentPrimary p-4'>
-          <Text className='typography-body2 text-center text-textPrimary'>
-            Reading passport data... Keep holding steady.
+          <Text className='typography-body2 text-center text-textPrimary'>{scanStatus.title}</Text>
+          <Text className='typography-body3 mt-2 text-center text-textSecondary'>
+            {scanStatus.body}
           </Text>
         </View>
       )}

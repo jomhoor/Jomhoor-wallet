@@ -1,6 +1,81 @@
 import CoreNFC
 import Foundation
 import NFCPassportReader
+import React
+
+private let passportVerificationScanStatusEventName = "PassportVerificationScanStatus"
+
+enum PassportVerificationScanStatus: String {
+    case waitingForTag = "waiting_for_tag"
+    case foundTag = "found_tag"
+    case authorizingTag = "authorizing_tag"
+    case readingTag = "reading_tag"
+
+    var message: String {
+        switch self {
+        case .waitingForTag:
+            return "Waiting for tag"
+        case .foundTag:
+            return "Found tag"
+        case .authorizingTag:
+            return "Authorizing tag"
+        case .readingTag:
+            return "Reading tag"
+        }
+    }
+}
+
+@objc(PassportVerificationEventEmitter)
+class PassportVerificationEventEmitter: RCTEventEmitter {
+    private static weak var shared: PassportVerificationEventEmitter?
+    private var hasListeners = false
+
+    override init() {
+        super.init()
+        PassportVerificationEventEmitter.shared = self
+    }
+
+    override func supportedEvents() -> [String]! {
+        [passportVerificationScanStatusEventName]
+    }
+
+    override func startObserving() {
+        hasListeners = true
+    }
+
+    override func stopObserving() {
+        hasListeners = false
+    }
+
+    @objc
+    override static func requiresMainQueueSetup() -> Bool {
+        true
+    }
+
+    static func emit(
+        status: PassportVerificationScanStatus,
+        sessionId: String?,
+        stage: String
+    ) {
+        let body: [String: Any] = [
+            "status": status.rawValue,
+            "message": status.message,
+            "platform": "ios",
+            "stage": stage,
+            "sessionId": sessionId ?? NSNull(),
+            "timestamp": Date().timeIntervalSince1970 * 1000,
+        ]
+
+        DispatchQueue.main.async {
+            guard let emitter = PassportVerificationEventEmitter.shared,
+                  emitter.hasListeners
+            else {
+                return
+            }
+            emitter.sendEvent(withName: passportVerificationScanStatusEventName, body: body)
+        }
+    }
+}
 
 @objc(PassportVerificationModule)
 class PassportVerificationModule: NSObject {
