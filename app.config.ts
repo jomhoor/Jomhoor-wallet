@@ -149,7 +149,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // https://github.com/expo/expo/blob/sdk-52/packages/expo-build-properties/src/withBuildProperties.ts#L31C6-L31C57
     ['expo-build-properties', {
       android: {
-        minSdkVersion: 27,
+        minSdkVersion: 26,
         compileSdkVersion : 35,
         targetSdkVersion: 35,
         // TODO to test builded apk release
