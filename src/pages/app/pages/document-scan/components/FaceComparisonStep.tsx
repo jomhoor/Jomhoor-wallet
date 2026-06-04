@@ -500,7 +500,7 @@ export default function FaceComparisonStep(): JSX.Element {
           title='Compare Cropped Faces'
           onPress={handleComparePrepared}
           className='w-full'
-          disabled={comparisonState !== 'cropped' || isBusy || comparisonState === 'success'}
+          disabled={comparisonState !== 'cropped' || isBusy}
         />
         <UiButton
           title='Retry'

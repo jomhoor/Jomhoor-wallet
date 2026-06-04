@@ -15,8 +15,8 @@ export const DEMO_SCAN_DELAY_MS = 3000
 export const DEMO_PROOF_DELAY_MS = 3000
 
 const DEMO_MRZ_LINES = [
-  'P<UTODEMO<<REVIEWER<<<<<<<<<<<<<<<<<<<<<<<<<',
-  'L898902C36UTO7408122F3001019ZE184226B<<<<<16',
+  'P<IRNDEMO<<REVIEWER<<<<<<<<<<<<<<<<<<<<<<<<<',
+  'L898902C36IRN7408122F3001019ZE184226B<<<<<16',
 ]
 
 const DEMO_PERSON_DETAILS: PersonDetails = {
@@ -26,8 +26,8 @@ const DEMO_PERSON_DETAILS: PersonDetails = {
   birthDate: '740812',
   expiryDate: '300101',
   documentNumber: 'L898902C3',
-  nationality: 'UTO',
-  issuingAuthority: 'UTO',
+  nationality: 'IRN',
+  issuingAuthority: 'IRN',
   passportImageRaw: null,
 }
 
@@ -142,8 +142,8 @@ export const createDemoPassportProfile = (
   birthDate: DEMO_PERSON_DETAILS.birthDate ?? '',
   expiryDate: DEMO_PERSON_DETAILS.expiryDate ?? '',
   documentNumber: DEMO_PERSON_DETAILS.documentNumber ?? '',
-  nationality: DEMO_PERSON_DETAILS.nationality ?? 'UTO',
-  issuingAuthority: DEMO_PERSON_DETAILS.issuingAuthority ?? 'UTO',
+  nationality: DEMO_PERSON_DETAILS.nationality ?? 'IRN',
+  issuingAuthority: DEMO_PERSON_DETAILS.issuingAuthority ?? 'IRN',
   createdAt: proof.generatedAt,
   proof,
 })

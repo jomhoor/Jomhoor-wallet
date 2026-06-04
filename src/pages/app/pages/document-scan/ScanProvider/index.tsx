@@ -9,7 +9,7 @@ import type {
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
@@ -548,12 +548,14 @@ export function ScanContextProvider({
     useState<DocumentScanContext['nidProofInputAdapter']>()
 
   const [identity, setIdentity] = useState<IdentityItem>()
+  const demoProofRunIdRef = useRef(0)
 
   const secureCleanupSensitiveData = useCallback(() => {
     logIdentityDiagnostic('IdentityProof', 'secureCleanupSensitiveData:start', {
       timestamp: Date.now(),
     })
 
+    demoProofRunIdRef.current += 1
     setVerificationUserData(createSecurelyCleanedVerificationUserData())
     setTempMRZ(undefined)
     setTempEDoc(undefined)
@@ -635,8 +637,11 @@ export function ScanContextProvider({
         },
       }))
 
+      const demoProofRunId = ++demoProofRunIdRef.current
+      const isDemoProofCancelled = () => demoProofRunIdRef.current !== demoProofRunId
       const stageDelayMs = DEMO_PROOF_DELAY_MS / 3
       await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
       setCreatingIdentityStep(GenProofSteps.GenerateProof)
       setVerificationUserData(previous => ({
         ...previous,
@@ -647,6 +652,7 @@ export function ScanContextProvider({
       }))
 
       await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
       setCreatingIdentityStep(GenProofSteps.CreateProfile)
       setVerificationUserData(previous => ({
         ...previous,
@@ -657,6 +663,7 @@ export function ScanContextProvider({
       }))
 
       await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
       const demoRecord = createDemoProofRegistrationRecord()
       setDemoPassportProfile(createDemoPassportProfile(demoRecord))
       setCreatingIdentityStep(GenProofSteps.Final)
@@ -905,6 +912,7 @@ export function ScanContextProvider({
       logIdentityDiagnostic('PassportVerification', 'setDocType', {
         selectedDocType: value,
       })
+      demoProofRunIdRef.current += 1
       setSelectedDocType(value)
       clearDemoPassportProfile()
       setVerificationUserData(
@@ -935,6 +943,7 @@ export function ScanContextProvider({
 
   const handleSetVerificationMode = useCallback(
     (value: VerificationMode) => {
+      demoProofRunIdRef.current += 1
       clearDemoPassportProfile()
       setVerificationUserData(previous =>
         withVerificationEvidence(

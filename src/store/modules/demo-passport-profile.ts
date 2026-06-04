@@ -25,13 +25,18 @@ const useDemoPassportProfileStore = create(
   combine(
     {
       profile: undefined as DemoPassportProfile | undefined,
+      votedProposalIds: [] as string[],
     },
-    set => ({
+    (set, get) => ({
       setProfile: (profile: DemoPassportProfile) => {
-        set({ profile })
+        set({ profile, votedProposalIds: [] })
+      },
+      markProposalVoted: (proposalId: string) => {
+        if (get().votedProposalIds.includes(proposalId)) return
+        set({ votedProposalIds: [...get().votedProposalIds, proposalId] })
       },
       clearProfile: () => {
-        set({ profile: undefined })
+        set({ profile: undefined, votedProposalIds: [] })
       },
     }),
   ),
