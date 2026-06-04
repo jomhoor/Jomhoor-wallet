@@ -56,7 +56,8 @@ Quick verification after archive:
 - [ ] Android NFC
 - [ ] read the docs and watch the video
 - [ ] Generate proof for passport
-
+- [ ] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
+- [ ]
 
 # Backlog
 
