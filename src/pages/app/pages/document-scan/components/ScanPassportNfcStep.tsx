@@ -13,6 +13,7 @@ import {
   DEMO_SCAN_DELAY_MS,
 } from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon } from '@/ui'
 import {
   clearPassportNfcTemporaryData,
@@ -42,6 +43,8 @@ export default function ScanPassportNfcStep() {
     verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -61,7 +64,7 @@ export default function ScanPassportNfcStep() {
   const expiryDate = String(
     mrzFields?.expirationDate ?? storedMrz?.credentials?.expiryDateYYMMDD ?? '',
   )
-  const selectedBackend = verificationMode === 'demo' ? 'stub' : resolvePassportNfcBackend()
+  const selectedBackend = isDemoMode ? 'stub' : resolvePassportNfcBackend()
   const debugEnabled =
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
@@ -72,10 +75,10 @@ export default function ScanPassportNfcStep() {
       clearTimeout(demoReadTimeoutRef.current)
       demoReadTimeoutRef.current = null
     }
-    if (verificationMode !== 'demo') {
+    if (!isDemoMode) {
       stopPassportNfc()
     }
-  }, [verificationMode])
+  }, [isDemoMode])
 
   const onReadPress = useCallback(async () => {
     if (readInFlightRef.current) return
@@ -102,7 +105,7 @@ export default function ScanPassportNfcStep() {
     setErrorCode('')
     setReadState('waiting')
 
-    if (verificationMode === 'demo') {
+    if (isDemoMode) {
       setReadState('reading')
       demoReadTimeoutRef.current = setTimeout(() => {
         demoReadTimeoutRef.current = null
@@ -140,7 +143,7 @@ export default function ScanPassportNfcStep() {
     expiryDate,
     setPassportNfcScanOutput,
     debugEnabled,
-    verificationMode,
+    isDemoMode,
   ])
 
   useEffect(() => {
@@ -171,7 +174,7 @@ export default function ScanPassportNfcStep() {
       <Text className='typography-body3 mb-4 mt-1 text-textSecondary'>
         Open your passport to the photo page, then hold it flat against the back of your phone.
       </Text>
-      {verificationMode === 'demo' ? (
+      {isDemoMode ? (
         <View className='mb-4'>
           <DemoModeBanner message='Demo mode: tap Start NFC Read. Fictional chip data will load after 3 seconds without using NFC.' />
         </View>

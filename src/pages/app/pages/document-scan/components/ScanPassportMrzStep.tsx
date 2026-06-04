@@ -9,6 +9,7 @@ import {
   DEMO_SCAN_DELAY_MS,
 } from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 
 import DemoModeBanner from './DemoModeBanner'
 
@@ -29,6 +30,8 @@ function mapResultToFieldRecords(result: PassportMrzBarcodeResult): FieldRecords
 
 export default function ScanPassportMrzStep() {
   const { setTempMrz, setPassportMrzBarcode, verificationMode } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const hasCompletedRef = useRef(false)
 
   const completeScan = useCallback(
@@ -47,14 +50,14 @@ export default function ScanPassportMrzStep() {
 
   const handleDetected = useCallback(
     (result: PassportMrzBarcodeResult) => {
-      if (verificationMode === 'demo') return
+      if (isDemoMode) return
       completeScan(result)
     },
-    [completeScan, verificationMode],
+    [completeScan, isDemoMode],
   )
 
   useEffect(() => {
-    if (verificationMode !== 'demo') return
+    if (!isDemoMode) return
 
     const timeout = setTimeout(() => {
       completeScan(DEMO_PASSPORT_MRZ_BARCODE_RESULT)
@@ -63,12 +66,12 @@ export default function ScanPassportMrzStep() {
     return () => {
       clearTimeout(timeout)
     }
-  }, [completeScan, verificationMode])
+  }, [completeScan, isDemoMode])
 
   return (
     <View className='flex-1 bg-backgroundPrimary'>
       <PassportMrzBarcodeScanScreen onDetected={handleDetected} />
-      {verificationMode === 'demo' ? (
+      {isDemoMode ? (
         <View className='absolute left-4 right-4 top-16'>
           <DemoModeBanner message='Demo mode: the scanner will load fictional MRZ and barcode data after 3 seconds.' />
         </View>

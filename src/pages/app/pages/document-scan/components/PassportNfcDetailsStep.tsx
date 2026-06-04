@@ -5,6 +5,7 @@ import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon, UiScreenScrollable } from '@/ui'
 
 import DemoModeBanner from './DemoModeBanner'
@@ -58,6 +59,8 @@ export default function PassportNfcDetailsStep(): JSX.Element {
     verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const storedPassport = verificationUserData.document.passport
   const reviewDetails = passportNfcDetails ?? storedPassport.nfc
 
@@ -86,7 +89,7 @@ export default function PassportNfcDetailsStep(): JSX.Element {
         Confirm the information read from your passport chip before face verification.
       </Text>
 
-      {verificationMode === 'demo' ? (
+      {isDemoMode ? (
         <View className='mt-4'>
           <DemoModeBanner message='Demo mode: these passport details are fictional and were not read from an NFC document.' />
         </View>

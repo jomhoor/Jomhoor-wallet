@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { formatDateDMY } from '@/helpers'
 import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 import { EID, EPassport } from '@/utils/e-document'
 
@@ -41,6 +42,8 @@ export default function DocumentPreviewStep() {
     verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const storedPassport = verificationUserData.document.passport
   const reviewEDoc = tempEDoc ?? storedPassport.nfc?.ePassport
   const reviewPassportNfcDetails = passportNfcDetails ?? storedPassport.nfc
@@ -70,7 +73,7 @@ export default function DocumentPreviewStep() {
         }}
       >
         <View className='flex-1 flex-col gap-4 p-5'>
-          {verificationMode === 'demo' ? (
+          {isDemoMode ? (
             <DemoModeBanner message='Demo mode: this preview uses fictional passport details and your session-only live capture.' />
           ) : null}
 

@@ -24,7 +24,7 @@ import AppContainer from '@/pages/app/components/AppContainer'
 import { ProposalStatus } from '@/pages/app/pages/poll/types'
 import { parseProposalFromContract } from '@/pages/app/pages/poll/utils'
 import type { AppTabScreenProps } from '@/route-types'
-import { demoPassportProfileStore, identityStore } from '@/store'
+import { appCapabilitiesStore, demoPassportProfileStore, identityStore } from '@/store'
 import { useAppPaddings, useBottomBarOffset } from '@/theme'
 import { UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 
@@ -113,7 +113,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.profile,
   )
-  const isDemoIdentityActive = identities.length === 0 && Boolean(demoPassportProfile)
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoIdentityActive =
+    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const hasIdentity = identities.length > 0 || isDemoIdentityActive
 
   // Real identities take precedence. The demo profile only participates in reviewer-facing UI.

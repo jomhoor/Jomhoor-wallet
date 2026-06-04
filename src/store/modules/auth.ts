@@ -11,6 +11,7 @@ import { authorize, getChallenge, refresh } from '@/api/modules/auth'
 import { Config } from '@/config'
 import { sleep } from '@/helpers'
 import { zustandStorage } from '@/store/helpers'
+import { appCapabilitiesStore } from '@/store/modules/app-capabilities'
 import { demoPassportProfileStore } from '@/store/modules/demo-passport-profile'
 import { identityStore } from '@/store/modules/identity'
 import { localAuthStore } from '@/store/modules/local-auth'
@@ -138,7 +139,7 @@ const useLogin = () => {
       zkProof,
     )
 
-    setTokens(authTokens.access_token.token, authTokens.refresh_token.token)
+    await setTokens(authTokens.access_token.token, authTokens.refresh_token.token)
   }
 }
 
@@ -153,6 +154,9 @@ const useLogout = () => {
   const clearDemoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.clearProfile,
   )
+  const resetAppCapabilities = appCapabilitiesStore.useAppCapabilitiesStore(
+    state => state.resetCapabilities,
+  )
   const resetLocalAuthStore = localAuthStore.useLocalAuthStore(state => state.resetStore)
 
   return async () => {
@@ -161,6 +165,7 @@ const useLogout = () => {
       deletePrivateKey(),
       clearIdentities(),
       clearDemoPassportProfile(),
+      resetAppCapabilities(),
       clearDocumentsCardUi(),
       resetLocalAuthStore(),
     ])

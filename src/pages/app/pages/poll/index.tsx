@@ -19,7 +19,7 @@ import { createPoseidonSMTContract, createProposalContract, sleep } from '@/help
 import { formatDateDMY } from '@/helpers/formatters'
 import { tryCatch } from '@/helpers/try-catch'
 import { AppStackScreenProps } from '@/route-types'
-import { demoPassportProfileStore, identityStore, walletStore } from '@/store'
+import { appCapabilitiesStore, demoPassportProfileStore, identityStore, walletStore } from '@/store'
 import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import {
   UiBottomSheet,
@@ -75,7 +75,9 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const markDemoProposalVoted = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.markProposalVoted,
   )
-  const isDemoIdentityActive = identities.length === 0 && Boolean(demoPassportProfile)
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoIdentityActive =
+    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)

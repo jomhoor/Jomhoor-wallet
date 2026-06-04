@@ -53,7 +53,7 @@ Quick verification after archive:
 - [ ] Generate proof for passport
 - [x] Remove "prepare captured faces" button from face comparison
 - [ ] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
-- [ ] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
+- [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
 
 # Backlog
 

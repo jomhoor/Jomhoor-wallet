@@ -2,6 +2,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiCard, UiIcon } from '@/ui'
 
 type PassportCountryOption = {
@@ -10,8 +11,13 @@ type PassportCountryOption = {
   isDemo?: boolean
 }
 
+const DEMO_PASSPORT_COUNTRY_OPTION: PassportCountryOption = {
+  code: 'DEMO',
+  name: 'Demo (No passport required)',
+  isDemo: true,
+}
+
 const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
-  { code: 'DEMO', name: 'Demo (No passport required)', isDemo: true },
   { code: 'IRN', name: 'Iran ایران' },
   { code: 'AFG', name: 'Afghanistan افغانستان' },
   { code: 'ARE', name: 'United Arab Emirates الإمارات العربية المتحدة' },
@@ -31,6 +37,10 @@ const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
 export default function SelectPassportCountryStep() {
   const insets = useSafeAreaInsets()
   const { setCurrentStep, setPassportCountryCode, setVerificationMode } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const passportCountryOptions = passportDemoModeEnabled
+    ? [DEMO_PASSPORT_COUNTRY_OPTION, ...PASSPORT_COUNTRY_OPTIONS]
+    : PASSPORT_COUNTRY_OPTIONS
 
   const continueToMrz = (countryCode: string) => {
     setVerificationMode('live')
@@ -39,6 +49,7 @@ export default function SelectPassportCountryStep() {
   }
 
   const continueToDemo = () => {
+    if (!passportDemoModeEnabled) return
     setVerificationMode('demo')
     setPassportCountryCode(undefined)
     setCurrentStep(Steps.ScanMrzStep)
@@ -65,7 +76,7 @@ export default function SelectPassportCountryStep() {
           </Text>
 
           <View className='mt-2 flex flex-col gap-3'>
-            {PASSPORT_COUNTRY_OPTIONS.map(option => (
+            {passportCountryOptions.map(option => (
               <Pressable
                 key={option.code}
                 onPress={() => {

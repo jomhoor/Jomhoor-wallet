@@ -2,9 +2,10 @@
 
 ## Status
 
-- Planning document only
+- Implemented in the app as a local review-wallet gated demo path
 - Target audience: engineering, QA, and App Review submission owners
 - Primary goal: provide a complete reviewer-accessible passport verification path without requiring a physical NFC passport
+- Activation and rotation details are documented in `dev-docs/reviewer-demo-mode.md`
 
 ## Problem
 

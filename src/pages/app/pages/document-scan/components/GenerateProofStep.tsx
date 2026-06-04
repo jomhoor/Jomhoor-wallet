@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native'
 import { Alert, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { appCapabilitiesStore } from '@/store'
 import { useAppPaddings } from '@/theme'
 import { UiButton, UiIcon } from '@/ui'
 import UiJumpingDotsLoader from '@/ui/UiJumpingDotsLoader'
@@ -21,7 +22,8 @@ export default function GenerateProofStep() {
   } = useDocumentScanContext()
   const reviewNidProofInputAdapter =
     nidProofInputAdapter ?? verificationUserData.document.nid.proofInput
-  const isDemoMode = verificationUserData.session.mode === 'demo'
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationUserData.session.mode === 'demo' && passportDemoModeEnabled
 
   const navigation = useNavigation()
 

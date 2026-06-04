@@ -14,6 +14,7 @@ import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon } from '@/ui'
 import { DocType } from '@/utils/e-document'
 
@@ -64,7 +65,9 @@ export default function FaceComparisonStep(): JSX.Element {
     verificationUserData,
   } = useDocumentScanContext()
   const isNidFlow = docType === DocType.ID
-  const isDemoMode = !isNidFlow && verificationUserData.session.mode === 'demo'
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode =
+    !isNidFlow && verificationUserData.session.mode === 'demo' && passportDemoModeEnabled
   const storedBiometrics = verificationUserData.biometrics
   const storedNidVerificationResult =
     nidVerificationResult ?? verificationUserData.document.nid.verification

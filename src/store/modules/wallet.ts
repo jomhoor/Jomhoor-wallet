@@ -8,12 +8,31 @@ import {
   PublicKey,
   Signature,
 } from '@iden3/js-crypto'
+import { Buffer } from 'buffer'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { combine, createJSONStorage, persist } from 'zustand/middleware'
 
 import { Config } from '@/config'
 import { zustandSecureStorage } from '@/store/helpers'
+
+const PRIVATE_KEY_HEX_PATTERN = /^[0-9a-fA-F]{64}$/
+
+export const normalizePrivateKeyHex = (value: string): string => value.replace(/^0x/i, '')
+
+export const deriveWalletAddressFromPrivateKey = (value: string): string | undefined => {
+  const privateKeyHex = normalizePrivateKeyHex(value)
+  if (!PRIVATE_KEY_HEX_PATTERN.test(privateKeyHex)) return undefined
+
+  const skBuff = Hex.decodeString(privateKeyHex)
+  const skBig = ffUtils.beBuff2int(skBuff)
+  const point = babyJub.mulPointEScalar(babyJub.Base8, skBig) as [bigint, bigint]
+
+  if (point[0] === 0n) return undefined
+
+  const hash = poseidon.hash(point)
+  return '0x' + Buffer.from(ffUtils.beInt2Buff(hash, 32)).toString('hex')
+}
 
 const useWalletStore = create(
   persist(
@@ -164,8 +183,8 @@ const useSignChallenge = () => {
  * Mirrors: backend crypto.VerifyWalletAddress, and wallet.ts usePublicKeyHash.
  */
 const useWalletAddress = () => {
-  const publicKeyHash = usePublicKeyHash()
-  return useMemo(() => '0x' + Buffer.from(publicKeyHash).toString('hex'), [publicKeyHash])
+  const privateKeyHex = useWalletStore(state => state.privateKey)
+  return useMemo(() => deriveWalletAddressFromPrivateKey(privateKeyHex) ?? '', [privateKeyHex])
 }
 
 const useHasHydrated = () => useWalletStore(state => state._hasHydrated)
