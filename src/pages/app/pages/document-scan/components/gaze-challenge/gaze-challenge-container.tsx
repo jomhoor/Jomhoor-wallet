@@ -20,7 +20,7 @@ import {
 } from '@iland/passport-verification'
 import { useIsFocused, useNavigation } from '@react-navigation/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Platform, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Alert, Platform, Text, useWindowDimensions, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSharedValue, withTiming } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -50,6 +50,7 @@ import { GazeChallengeComponentSmartFace } from './gaze-challenge-smart-face'
 
 type GazeState = 'idle' | 'running' | 'success' | 'failed'
 type FaceChallengePhase = 'liveness' | 'gaze'
+type FaceCountFailureReason = 'face_missing' | 'multiple_faces'
 type LivenessGuideMode = 'headPoseOverlay' | 'dot' | 'smartFace'
 
 const ENABLE_GAZE_DIAGNOSTICS = false
@@ -59,6 +60,7 @@ const WAYPOINT_ANIMATION_MS = 380
 const WAYPOINT_SETTLE_MS = 220
 const MAX_PROGRESS_DELTA_MS = 250
 const LIVENESS_STEP_DEBOUNCE_MS = 450
+const FACE_COUNT_FAILURE_REASONS = new Set(['face_missing', 'multiple_faces'])
 
 type GazeDetectorFace = {
   yawAngle?: number
@@ -114,6 +116,11 @@ function getGuideModeForConfiguration(): LivenessGuideMode {
   if (GAZE_CHALLENGE_MODE === 'face') return 'headPoseOverlay'
   if (GAZE_CHALLENGE_MODE === 'smart-face') return 'smartFace'
   return 'dot'
+}
+
+function getFaceCountFailureReason(faceCount: number): FaceCountFailureReason | undefined {
+  if (faceCount === 1) return undefined
+  return faceCount < 1 ? 'face_missing' : 'multiple_faces'
 }
 
 function formatNowTimestamp(value: number): string {
@@ -189,6 +196,8 @@ export default function GazeChallengeContainer(): JSX.Element {
   const cameraRef = useRef<VisionCamera>(null)
   const challengePhaseRef = useRef<FaceChallengePhase>('liveness')
   const captureInFlightRef = useRef(false)
+  const currentFaceCountRef = useRef(0)
+  const faceCountFailureAlertShownRef = useRef(false)
   const finalCaptureWaypointIndexRef = useRef<number | null>(null)
   const liveCaptureUriRef = useRef<string | null>(null)
   const runningRef = useRef(false)
@@ -349,6 +358,28 @@ export default function GazeChallengeContainer(): JSX.Element {
     }
 
     setCapturingFinalPhoto(false)
+    if (failureReason && FACE_COUNT_FAILURE_REASONS.has(failureReason)) {
+      setGazeState('idle')
+      if (!faceCountFailureAlertShownRef.current) {
+        faceCountFailureAlertShownRef.current = true
+        Alert.alert(
+          'Face verification restarted',
+          failureReason === 'face_missing'
+            ? 'Your face left the camera view. Keep exactly one face in view and start again.'
+            : 'More than one face was detected. Keep exactly one face in view and start again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                faceCountFailureAlertShownRef.current = false
+              },
+            },
+          ],
+        )
+      }
+      return
+    }
+
     setGazeState('failed')
   }
 
@@ -405,6 +436,9 @@ export default function GazeChallengeContainer(): JSX.Element {
   }
 
   const startGazeChallenge = () => {
+    const faceCountFailureReason = getFaceCountFailureReason(currentFaceCountRef.current)
+    if (faceCountFailureReason) return
+
     const generatedWaypoints = generateUnifiedGazeWaypoints(
       { height, width },
       { waypointCount: challengeConfig.waypointCount },
@@ -442,6 +476,8 @@ export default function GazeChallengeContainer(): JSX.Element {
     livenessStartedAtRef.current = Date.now()
     livenessStepPassedRef.current = false
     captureInFlightRef.current = false
+    currentFaceCountRef.current = 1
+    faceCountFailureAlertShownRef.current = false
     liveCaptureUriRef.current = null
     setLatestScorePercent(0)
     setCapturingFinalPhoto(false)
@@ -521,6 +557,14 @@ export default function GazeChallengeContainer(): JSX.Element {
 
     try {
       const photo = await cameraRef.current?.takePhoto()
+      if (!runningRef.current || finishedRef.current) return
+
+      const faceCountFailureReason = getFaceCountFailureReason(currentFaceCountRef.current)
+      if (faceCountFailureReason) {
+        finalizeChallenge(false, faceCountFailureReason)
+        return
+      }
+
       if (!photo?.path) {
         finalizeChallenge(false, 'final_capture_unavailable')
         return
@@ -599,15 +643,20 @@ export default function GazeChallengeContainer(): JSX.Element {
     }
 
     const hasSingleFace = faces.length === 1
+    currentFaceCountRef.current = faces.length
     setFaceDetected(hasSingleFace)
     setMultipleFaces(faces.length > 1)
 
     if (!runningRef.current || finishedRef.current) return
 
+    const faceCountFailureReason = getFaceCountFailureReason(faces.length)
+    if (faceCountFailureReason) {
+      finalizeChallenge(false, faceCountFailureReason)
+      return
+    }
+
     if (challengePhaseRef.current === 'liveness') {
-      if (hasSingleFace) {
-        processLivenessChallenge(faces[0])
-      }
+      processLivenessChallenge(faces[0])
       return
     }
 
@@ -617,11 +666,6 @@ export default function GazeChallengeContainer(): JSX.Element {
     const now = Date.now()
     if (now < waypointValidationUnlockedAtRef.current) {
       lastProgressTickAtRef.current = now
-      return
-    }
-
-    if (!hasSingleFace) {
-      pushProgress(false, now)
       return
     }
 
@@ -822,7 +866,7 @@ export default function GazeChallengeContainer(): JSX.Element {
             title={gazeState === 'failed' ? 'Retry Face Verification' : 'Start Face Verification'}
             onPress={startGazeChallenge}
             className='w-full'
-            disabled={!hasPermission || !device || multipleFaces}
+            disabled={!hasPermission || !device || !faceDetected || multipleFaces}
           />
           <UiButton
             title='Back'
