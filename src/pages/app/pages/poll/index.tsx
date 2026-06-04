@@ -19,7 +19,7 @@ import { createPoseidonSMTContract, createProposalContract, sleep } from '@/help
 import { formatDateDMY } from '@/helpers/formatters'
 import { tryCatch } from '@/helpers/try-catch'
 import { AppStackScreenProps } from '@/route-types'
-import { identityStore, walletStore } from '@/store'
+import { appCapabilitiesStore, demoPassportProfileStore, identityStore, walletStore } from '@/store'
 import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import {
   UiBottomSheet,
@@ -66,6 +66,18 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const { t } = useTranslation()
 
   const identities = identityStore.useIdentityStore(state => state.identities)
+  const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.profile,
+  )
+  const demoVotedProposalIds = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.votedProposalIds,
+  )
+  const markDemoProposalVoted = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.markProposalVoted,
+  )
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoIdentityActive =
+    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -188,11 +200,11 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   )
 
   const {
-    data: isVoted,
-    isLoading: isVotedLoading,
-    error: isVotedError,
+    data: onChainIsVoted,
+    isLoading: isOnChainVotedLoading,
+    error: onChainIsVotedError,
   } = useQuery({
-    queryKey: ['isVoted', route.params?.proposalId],
+    queryKey: ['isVoted', route.params?.proposalId, 'on-chain'],
     queryFn: async () => {
       console.log('[Poll] Checking if already voted, proposalId:', route.params?.proposalId)
       const [isVoted] = await tryCatch(
@@ -222,8 +234,13 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       console.log('[Poll] isVoted result:', isVoted)
       return isVoted
     },
-    enabled: Boolean(route.params?.proposalId),
+    enabled: Boolean(route.params?.proposalId) && !isDemoIdentityActive,
   })
+  const isVoted = isDemoIdentityActive
+    ? demoVotedProposalIds.includes(route.params?.proposalId ?? '')
+    : onChainIsVoted
+  const isVotedLoading = isDemoIdentityActive ? false : isOnChainVotedLoading
+  const isVotedError = isDemoIdentityActive ? null : onChainIsVotedError
 
   const {
     handleSubmit,
@@ -261,6 +278,19 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
     try {
       console.log('[Poll] Starting proof generation, votes:', votes)
       if (!route.params?.proposalId) throw new Error('proposalId is not defined')
+
+      if (isDemoIdentityActive) {
+        await sleep(3_000)
+        markDemoProposalVoted(route.params.proposalId)
+        bus.emit(DefaultBusEvents.success, {
+          message: 'Demo vote recorded locally. No proof or on-chain vote was submitted.',
+        })
+        progress.value = withTiming(100, { duration: 100 })
+        setScreen(Screen.Finish)
+        reset()
+        return
+      }
+
       if (!identities.length) throw new Error("Your identity hasn't registered yet!")
       const currentIdentity = identities[identities.length - 1]
 
@@ -481,7 +511,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         }}
       />
     )
-  if (!identities.length) {
+  if (!identities.length && !isDemoIdentityActive) {
     return (
       <PollStateScreen.NoIdentity
         onGoBack={() => {
@@ -503,14 +533,19 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         onSubmit={isLastQuestion ? submit : goToNextQuestion}
       />
     ),
-    [Screen.Submitting]: <PollStateScreen.Submitting animatedValue={progress} />,
+    [Screen.Submitting]: (
+      <PollStateScreen.Submitting animatedValue={progress} isDemoMode={isDemoIdentityActive} />
+    ),
     [Screen.Finish]: (
       <PollStateScreen.Finished
+        isDemoMode={isDemoIdentityActive}
         onGoBack={() => {
           bottomSheet.dismiss()
-          queryClient.invalidateQueries({
-            queryKey: ['isVoted', route.params?.proposalId],
-          })
+          if (!isDemoIdentityActive) {
+            queryClient.invalidateQueries({
+              queryKey: ['isVoted', route.params?.proposalId, 'on-chain'],
+            })
+          }
           navigation.navigate('App', { screen: 'Home' })
         }}
       />
@@ -523,6 +558,14 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         <View className='flex-row p-4'>
           <View className='relative w-full gap-6 overflow-hidden rounded-3xl'>
             <UiCard className='flex-1 gap-4 p-6'>
+              {isDemoIdentityActive ? (
+                <View className='bg-warningMain/10 rounded-xl px-4 py-3'>
+                  <Text className='typography-body4 text-center text-warningMain'>
+                    Demo identity is active. Any demo vote is recorded locally and is not submitted
+                    on-chain.
+                  </Text>
+                </View>
+              ) : null}
               <View className='flex-col gap-2'>
                 <Text className='typography-h6 text-textPrimary'>{proposalMetadata.title}</Text>
                 <Text className='typography-body3 text-textSecondary'>

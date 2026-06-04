@@ -8,13 +8,20 @@ import {
   mapPassportNfcErrorToMessage,
   resolvePassportNfcBackend,
 } from '@/pages/app/pages/document-scan/adapters'
+import {
+  createDemoPassportNfcScanOutput,
+  DEMO_SCAN_DELAY_MS,
+} from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon } from '@/ui'
 import {
   clearPassportNfcTemporaryData,
   readPassportScanOutput,
   stopPassportNfc,
 } from '@/utils/e-document/passport-nfc-reader'
+
+import DemoModeBanner from './DemoModeBanner'
 
 type ReadState = 'idle' | 'waiting' | 'reading' | 'error'
 
@@ -29,8 +36,15 @@ function formatDate(yymmdd: string): string {
 }
 
 export default function ScanPassportNfcStep() {
-  const { setCurrentStep, setPassportNfcScanOutput, tempMRZ, verificationUserData } =
-    useDocumentScanContext()
+  const {
+    setCurrentStep,
+    setPassportNfcScanOutput,
+    tempMRZ,
+    verificationMode,
+    verificationUserData,
+  } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 
@@ -39,6 +53,7 @@ export default function ScanPassportNfcStep() {
   const [errorDetail, setErrorDetail] = useState<string>('')
   const [errorCode, setErrorCode] = useState<string>('')
   const readInFlightRef = useRef(false)
+  const demoReadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const storedMrz = verificationUserData.document.passport.mrz
   const mrzFields = tempMRZ ?? storedMrz?.fields
@@ -49,10 +64,21 @@ export default function ScanPassportNfcStep() {
   const expiryDate = String(
     mrzFields?.expirationDate ?? storedMrz?.credentials?.expiryDateYYMMDD ?? '',
   )
-  const selectedBackend = resolvePassportNfcBackend()
+  const selectedBackend = isDemoMode ? 'stub' : resolvePassportNfcBackend()
   const debugEnabled =
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
+
+  const cancelRead = useCallback(() => {
+    readInFlightRef.current = false
+    if (demoReadTimeoutRef.current) {
+      clearTimeout(demoReadTimeoutRef.current)
+      demoReadTimeoutRef.current = null
+    }
+    if (!isDemoMode) {
+      stopPassportNfc()
+    }
+  }, [isDemoMode])
 
   const onReadPress = useCallback(async () => {
     if (readInFlightRef.current) return
@@ -78,6 +104,18 @@ export default function ScanPassportNfcStep() {
     setErrorDetail('')
     setErrorCode('')
     setReadState('waiting')
+
+    if (isDemoMode) {
+      setReadState('reading')
+      demoReadTimeoutRef.current = setTimeout(() => {
+        demoReadTimeoutRef.current = null
+        if (!readInFlightRef.current) return
+
+        setPassportNfcScanOutput(createDemoPassportNfcScanOutput())
+        readInFlightRef.current = false
+      }, DEMO_SCAN_DELAY_MS)
+      return
+    }
 
     try {
       await stopPassportNfc()
@@ -105,14 +143,14 @@ export default function ScanPassportNfcStep() {
     expiryDate,
     setPassportNfcScanOutput,
     debugEnabled,
+    isDemoMode,
   ])
 
   useEffect(() => {
     return () => {
-      readInFlightRef.current = false
-      stopPassportNfc()
+      cancelRead()
     }
-  }, [])
+  }, [cancelRead])
 
   const isScanning = readState === 'waiting' || readState === 'reading'
 
@@ -123,7 +161,7 @@ export default function ScanPassportNfcStep() {
         <View className='flex-1' />
         <Pressable
           onPress={() => {
-            stopPassportNfc()
+            cancelRead()
             navigation.navigate('App', { screen: 'Home' })
           }}
         >
@@ -136,6 +174,11 @@ export default function ScanPassportNfcStep() {
       <Text className='typography-body3 mb-4 mt-1 text-textSecondary'>
         Open your passport to the photo page, then hold it flat against the back of your phone.
       </Text>
+      {isDemoMode ? (
+        <View className='mb-4'>
+          <DemoModeBanner message='Demo mode: tap Start NFC Read. Fictional chip data will load after 3 seconds without using NFC.' />
+        </View>
+      ) : null}
       {debugEnabled ? (
         <Text className='typography-body4 mb-3 text-textSecondary'>
           NFC backend: {selectedBackend}
@@ -226,7 +269,7 @@ export default function ScanPassportNfcStep() {
         />
         <UiButton
           onPress={() => {
-            stopPassportNfc()
+            cancelRead()
             setCurrentStep(Steps.ScanMrzStep)
           }}
           title='Rescan MRZ'

@@ -1,4 +1,6 @@
+export * from './modules/app-capabilities'
 export * from './modules/auth'
+export * from './modules/demo-passport-profile'
 export * from './modules/identity'
 export * from './modules/language'
 export * from './modules/local-auth'

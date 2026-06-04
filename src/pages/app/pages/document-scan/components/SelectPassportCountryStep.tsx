@@ -2,11 +2,19 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiCard, UiIcon } from '@/ui'
 
 type PassportCountryOption = {
   code: string
   name: string
+  isDemo?: boolean
+}
+
+const DEMO_PASSPORT_COUNTRY_OPTION: PassportCountryOption = {
+  code: 'DEMO',
+  name: 'Demo (No passport required)',
+  isDemo: true,
 }
 
 const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
@@ -28,10 +36,22 @@ const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
 
 export default function SelectPassportCountryStep() {
   const insets = useSafeAreaInsets()
-  const { setCurrentStep, setPassportCountryCode } = useDocumentScanContext()
+  const { setCurrentStep, setPassportCountryCode, setVerificationMode } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const passportCountryOptions = passportDemoModeEnabled
+    ? [DEMO_PASSPORT_COUNTRY_OPTION, ...PASSPORT_COUNTRY_OPTIONS]
+    : PASSPORT_COUNTRY_OPTIONS
 
   const continueToMrz = (countryCode: string) => {
+    setVerificationMode('live')
     setPassportCountryCode(countryCode)
+    setCurrentStep(Steps.ScanMrzStep)
+  }
+
+  const continueToDemo = () => {
+    if (!passportDemoModeEnabled) return
+    setVerificationMode('demo')
+    setPassportCountryCode(undefined)
     setCurrentStep(Steps.ScanMrzStep)
   }
 
@@ -56,10 +76,15 @@ export default function SelectPassportCountryStep() {
           </Text>
 
           <View className='mt-2 flex flex-col gap-3'>
-            {PASSPORT_COUNTRY_OPTIONS.map(option => (
+            {passportCountryOptions.map(option => (
               <Pressable
                 key={option.code}
                 onPress={() => {
+                  if (option.isDemo) {
+                    continueToDemo()
+                    return
+                  }
+
                   if (option.code === 'IRN') {
                     continueToMrz(option.code)
                     return
@@ -86,6 +111,11 @@ export default function SelectPassportCountryStep() {
                   <View className='flex-1'>
                     <Text className='typography-subtitle4 text-textPrimary'>{option.name}</Text>
                     <Text className='typography-body4 text-textSecondary'>{option.code}</Text>
+                    {option.isDemo ? (
+                      <Text className='typography-body4 mt-1 text-warningMain'>
+                        Fictional data for App Review and product demonstration
+                      </Text>
+                    ) : null}
                   </View>
                 </UiCard>
               </Pressable>
@@ -95,6 +125,7 @@ export default function SelectPassportCountryStep() {
           <Pressable
             className='mt-4'
             onPress={() => {
+              setVerificationMode('live')
               setPassportCountryCode(undefined)
               setCurrentStep(Steps.SelectDocTypeStep)
             }}

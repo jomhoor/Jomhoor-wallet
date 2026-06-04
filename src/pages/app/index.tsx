@@ -1,9 +1,9 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import { useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 
 import InviteOthers from '@/pages/app/pages/invite-others'
 import type { AppStackParamsList, RootStackScreenProps } from '@/route-types'
-import { authStore } from '@/store'
+import { appCapabilitiesStore, authStore, walletStore } from '@/store'
 import { localAuthStore } from '@/store/modules/local-auth'
 import { useAppTheme } from '@/theme'
 import { getAppStackScreenOptions } from '@/theme/navigation-theme'
@@ -26,13 +26,21 @@ const Stack = createNativeStackNavigator<AppStackParamsList>()
 export default function App(props: RootStackScreenProps<'App'>) {
   const { palette } = useAppTheme()
   const isFirstEnter = localAuthStore.useLocalAuthStore(state => state.isFirstEnter)
+  const privateKey = walletStore.useWalletStore(state => state.privateKey)
   const logout = authStore.useLogout()
+  const setCapabilitiesForPrivateKey = appCapabilitiesStore.useAppCapabilitiesStore(
+    state => state.setCapabilitiesForPrivateKey,
+  )
 
   useLayoutEffect(() => {
     if (isFirstEnter) {
       logout()
     }
   }, [isFirstEnter, logout])
+
+  useEffect(() => {
+    setCapabilitiesForPrivateKey(privateKey)
+  }, [privateKey, setCapabilitiesForPrivateKey])
 
   return (
     <Stack.Navigator screenOptions={getAppStackScreenOptions(palette)}>

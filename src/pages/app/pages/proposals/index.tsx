@@ -24,7 +24,7 @@ import AppContainer from '@/pages/app/components/AppContainer'
 import { ProposalStatus } from '@/pages/app/pages/poll/types'
 import { parseProposalFromContract } from '@/pages/app/pages/poll/utils'
 import type { AppTabScreenProps } from '@/route-types'
-import { identityStore } from '@/store'
+import { appCapabilitiesStore, demoPassportProfileStore, identityStore } from '@/store'
 import { useAppPaddings, useBottomBarOffset } from '@/theme'
 import { UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 
@@ -110,11 +110,19 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const { t } = useTranslation()
 
   const identities = identityStore.useIdentityStore(state => state.identities)
-  const hasIdentity = identities.length > 0
+  const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.profile,
+  )
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoIdentityActive =
+    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
+  const hasIdentity = identities.length > 0 || isDemoIdentityActive
 
-  // Get user's nationality from their registered identity
+  // Real identities take precedence. The demo profile only participates in reviewer-facing UI.
   const userNationality = useMemo(() => {
     if (!hasIdentity) return null
+    if (isDemoIdentityActive) return demoPassportProfile?.nationality ?? null
+
     const currentIdentity = identities[identities.length - 1]
     const nationality = currentIdentity?.document?.personDetails?.nationality ?? null
 
@@ -126,7 +134,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
     }
 
     return nationality
-  }, [identities, hasIdentity])
+  }, [demoPassportProfile?.nationality, hasIdentity, identities, isDemoIdentityActive])
 
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
 
@@ -360,6 +368,16 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
             </View>
           )}
         </View>
+
+        {isDemoIdentityActive ? (
+          <UiCard className='bg-warningDark/20 flex flex-row items-center gap-3'>
+            <UiIcon customIcon='infoIcon' className='size-6 text-warningMain' />
+            <Text className='typography-body3 flex-1 text-textPrimary'>
+              Demo identity is active for proposal eligibility. Demo votes are recorded locally and
+              are not submitted on-chain.
+            </Text>
+          </UiCard>
+        ) : null}
 
         {/* Filter tabs */}
         {hasIdentity && userNationality && proposals && proposals.length > 0 && (

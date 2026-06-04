@@ -2,9 +2,10 @@
 
 ## Status
 
-- Planning document only
+- Implemented in the app as a local review-wallet gated demo path
 - Target audience: engineering, QA, and App Review submission owners
 - Primary goal: provide a complete reviewer-accessible passport verification path without requiring a physical NFC passport
+- Activation and rotation details are documented in `dev-docs/reviewer-demo-mode.md`
 
 ## Problem
 
@@ -28,7 +29,7 @@ The app should provide a visible, clearly labeled demo path that exercises the n
 - Run the existing face comparison path using the captured live image as both the document reference and live image.
 - Show the normal proof generation progress UI for approximately three seconds.
 - Create a clearly labeled demo proof and registration result for the reviewer.
-- Keep demo results isolated from real identities, proof consumers, voting, proposals, SSO, revocation, and on-chain registration.
+- Keep demo results isolated from real identities, proof consumers, SSO, revocation, and on-chain registration while allowing a clearly labeled local-only Proposals reviewer path.
 - Preserve the existing live passport verification behavior.
 
 ## Non-Goals
@@ -125,7 +126,7 @@ export const createDemoProofRegistrationRecord = (
 }
 ```
 
-Use fictional ICAO data, such as an `UTO` issuing state, a fictional name, and a document number that cannot be confused with a real user. The MRZ fixture must pass the same parsing and validation logic used by the application.
+Use fictional ICAO data with an `IRN` nationality, a fictional name, and a document number that cannot be confused with a real user. The IRN nationality allows the reviewer to exercise proposal eligibility. The MRZ fixture must pass the same parsing and validation logic used by the application.
 
 The reusable passport-verification package should remain unchanged unless a later implementation identifies a package-level requirement. App-specific demo behavior belongs in the host scan flow.
 
@@ -138,6 +139,8 @@ Create a separate non-persisted demo profile model or store. The demo profile sh
 - Be labeled `Not registered on-chain`
 - Use a generic user icon or generated identicon rather than persisting the reviewer's captured face
 - Be excluded from all real identity selectors and proof consumers
+- Participate in proposal eligibility only when no real identity exists
+- Record demo votes only in memory without generating or submitting a real vote proof
 - Be cleared on app restart, logout, or when a live verification flow begins
 - Support an explicit remove action if the Documents UI needs one
 
@@ -324,12 +327,32 @@ The card should clearly show:
 
 The demo profile must not be returned by selectors used for:
 
-- Voting
-- Proposals
 - SSO
 - Identity proof generation
 - Revocation
 - Any authorization decision
+
+The Proposals and Poll screens may read the separate demo profile for a clearly labeled reviewer experience. Demo votes must return before circuit proof generation, relayer calls, or contract submission.
+
+### 10. Proposals and Local Demo Voting
+
+When no real identity exists, the Proposals screen may use the separate demo profile as the active reviewer identity.
+
+The demo proposal path should:
+
+- Use the fictional `IRN` nationality for proposal eligibility
+- Display a visible banner that the demo identity is active
+- Prefer a real identity whenever one exists
+- Allow the reviewer to open proposal details and complete the poll UI
+- Record completed demo votes only in the non-persisted demo profile store
+- Display a clear message that no proof or on-chain vote was submitted
+
+The demo poll path must return before:
+
+- Query identity circuit creation
+- Vote proof generation
+- Relayer calls
+- Contract submission
 
 ## Expected File Changes
 
@@ -345,6 +368,8 @@ src/pages/app/pages/document-scan/components/DocumentPreviewStep.tsx
 src/pages/app/pages/document-scan/components/GenerateProofStep.tsx
 src/pages/app/pages/document-scan/demo/passport-demo-fixtures.ts
 src/pages/app/pages/documents/index.tsx
+src/pages/app/pages/proposals/index.tsx
+src/pages/app/pages/poll/index.tsx
 ```
 
 Likely additional files:
@@ -438,7 +463,9 @@ Exact store and component locations should follow the existing project organizat
 - Demo mode does not call the relayer
 - Demo mode does not call `addIdentity`
 - Demo mode does not write to `identityStore.identities`
-- Demo profile is not visible to voting, proposal, SSO, revocation, or proof selectors
+- Demo profile is not visible to SSO, revocation, authorization, or real proof selectors
+- Proposal eligibility uses the demo profile only when no real identity exists
+- Demo voting records a local in-memory result and does not generate or submit a vote proof
 - Live proof generation behavior remains unchanged
 
 ### Manual Release Validation
@@ -465,6 +492,8 @@ Add the following instructions, adjusted to match the final UI labels, to App St
 8. Continue through face comparison. In demo mode, the captured live image is used as both the reference and live image while the normal comparison path runs.
 9. Tap Generate Proof and wait approximately three seconds.
 10. Confirm that a clearly labeled demo profile is created. No real proof or on-chain registration occurs.
+11. Open Proposals and confirm the demo identity is used for eligibility.
+12. Open a proposal and complete a demo vote. The vote is recorded locally and is not submitted on-chain.
 
 Camera permission is required. If the app requires authentication, a valid and active review account must also be supplied in App Store Connect.
 
@@ -490,5 +519,6 @@ Apple's review guidance allows a fully featured demo mode when reviewers cannot 
 - Face liveness and gaze remain real camera-based checks.
 - Demo mode is clearly labeled throughout the flow.
 - No real proof, identity, certificate registration, relayer request, or on-chain transaction is created.
-- Demo data cannot be consumed as a real identity by any other application feature.
+- Demo data cannot be consumed as a real identity by any application feature.
+- A reviewer can exercise proposal eligibility and a local-only demo vote without an on-chain transaction.
 - The existing live passport verification path remains unchanged.

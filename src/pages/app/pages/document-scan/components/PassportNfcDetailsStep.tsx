@@ -5,7 +5,10 @@ import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon, UiScreenScrollable } from '@/ui'
+
+import DemoModeBanner from './DemoModeBanner'
 
 const formatDisplayDate = (value?: string): string => {
   if (!value) return '—'
@@ -49,8 +52,15 @@ const buildPortraitUri = (details?: {
 export default function PassportNfcDetailsStep(): JSX.Element {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { passportNfcDetails, passportMrzBarcode, setCurrentStep, verificationUserData } =
-    useDocumentScanContext()
+  const {
+    passportNfcDetails,
+    passportMrzBarcode,
+    setCurrentStep,
+    verificationMode,
+    verificationUserData,
+  } = useDocumentScanContext()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const storedPassport = verificationUserData.document.passport
   const reviewDetails = passportNfcDetails ?? storedPassport.nfc
 
@@ -78,6 +88,12 @@ export default function PassportNfcDetailsStep(): JSX.Element {
       <Text className='typography-body3 mt-2 text-textSecondary'>
         Confirm the information read from your passport chip before face verification.
       </Text>
+
+      {isDemoMode ? (
+        <View className='mt-4'>
+          <DemoModeBanner message='Demo mode: these passport details are fictional and were not read from an NFC document.' />
+        </View>
+      ) : null}
 
       <View className='mt-5 rounded-xl bg-componentPrimary p-4'>
         {portraitUri ? (

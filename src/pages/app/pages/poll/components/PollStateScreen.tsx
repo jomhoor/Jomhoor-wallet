@@ -88,7 +88,13 @@ const PollAlreadyVotedScreen = ({ onGoBack }: { onGoBack: () => void }) => {
   )
 }
 
-function SubmittingScreen({ animatedValue }: { animatedValue: SharedValue<number> }) {
+function SubmittingScreen({
+  animatedValue,
+  isDemoMode = false,
+}: {
+  animatedValue: SharedValue<number>
+  isDemoMode?: boolean
+}) {
   const barStyle = useAnimatedStyle(() => ({ width: `${animatedValue.value}%` }))
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
@@ -104,7 +110,9 @@ function SubmittingScreen({ animatedValue }: { animatedValue: SharedValue<number
         </View>
         <Text className='typography-h5 mb-2 text-textPrimary'>{t('poll.submitting-title')}</Text>
         <Text className='typography-body3 mb-6 text-textSecondary'>
-          {t('poll.submitting-subtitle')}
+          {isDemoMode
+            ? 'Recording your demo vote locally. No proof or on-chain transaction will be created.'
+            : t('poll.submitting-subtitle')}
         </Text>
         <View className='mb-4 h-2 w-4/5 rounded-full bg-componentPrimary'>
           <Animated.View className='h-full rounded-full bg-primaryMain' style={barStyle} />
@@ -121,7 +129,13 @@ function SubmittingScreen({ animatedValue }: { animatedValue: SharedValue<number
   )
 }
 
-function FinishScreen({ onGoBack }: { onGoBack: () => void }) {
+function FinishScreen({
+  onGoBack,
+  isDemoMode = false,
+}: {
+  onGoBack: () => void
+  isDemoMode?: boolean
+}) {
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
   return (
@@ -136,7 +150,9 @@ function FinishScreen({ onGoBack }: { onGoBack: () => void }) {
         <View className='w-full items-center text-center'>
           <Text className='typography-h5 mb-2 text-textPrimary'>{t('poll.finished-title')}</Text>
           <Text className='typography-body3 mb-6 text-textSecondary'>
-            {t('poll.finished-subtitle')}
+            {isDemoMode
+              ? 'Your demo vote was recorded locally. It was not submitted on-chain.'
+              : t('poll.finished-subtitle')}
           </Text>
         </View>
         <View className='absolute inset-x-0 bottom-0 w-full p-2'>

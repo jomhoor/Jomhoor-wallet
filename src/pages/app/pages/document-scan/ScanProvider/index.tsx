@@ -9,7 +9,7 @@ import type {
 } from '@iland/passport-verification'
 import type { FieldRecords } from 'mrz'
 import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
@@ -22,6 +22,14 @@ import {
   logIdentityDiagnosticError,
 } from '@/helpers/identity-proof-diagnostics'
 import { tryCatch } from '@/helpers/try-catch'
+import {
+  createDemoPassportProfile,
+  createDemoProofRegistrationRecord,
+  DEMO_PROOF_DELAY_MS,
+} from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
+import { appCapabilitiesStore } from '@/store/modules/app-capabilities'
+import type { DemoProofRegistrationRecord } from '@/store/modules/demo-passport-profile'
+import { demoPassportProfileStore } from '@/store/modules/demo-passport-profile'
 import { identityStore } from '@/store/modules/identity'
 import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
 import { IdentityItem } from '@/store/modules/identity/Identity'
@@ -51,6 +59,8 @@ export enum GenProofSteps {
   Final,
 }
 
+export type VerificationMode = 'live' | 'demo'
+
 type DocumentScanContext = {
   identity?: IdentityItem
 
@@ -71,6 +81,8 @@ type DocumentScanContext = {
   setDocType: (docType: DocType) => void
   passportCountryCode?: string
   setPassportCountryCode: (value?: string) => void
+  verificationMode: VerificationMode
+  setVerificationMode: (value: VerificationMode) => void
 
   tempMRZ?: FieldRecords
   setTempMrz: (value?: FieldRecords) => void
@@ -164,6 +176,7 @@ export type VerificationEvidenceSource =
   | 'manual'
   | 'derived'
   | 'proof'
+  | 'demo'
 
 export type VerificationEvidenceRecord = {
   step: string
@@ -178,6 +191,7 @@ export type VerificationUserData = {
     startedAt: number
     docType?: DocType
     selectedPassportCountry?: string
+    mode: VerificationMode
     status: VerificationSessionStatus
   }
   document: {
@@ -238,6 +252,7 @@ export type VerificationUserData = {
   proof: {
     creatingIdentityStep?: GenProofSteps
     identity?: IdentityItem
+    demo?: DemoProofRegistrationRecord
     error?: {
       code?: string
       message: string
@@ -278,6 +293,10 @@ const documentScanContext = createContext<DocumentScanContext>({
   passportCountryCode: undefined,
   setPassportCountryCode: () => {
     throw new Error('setPassportCountryCode not implemented')
+  },
+  verificationMode: 'live',
+  setVerificationMode: () => {
+    throw new Error('setVerificationMode not implemented')
   },
   tempMRZ: undefined,
   setTempMrz: () => {
@@ -347,6 +366,7 @@ function createInitialVerificationUserData(docType?: DocType): VerificationUserD
       id: createVerificationSessionId(),
       startedAt: Date.now(),
       docType,
+      mode: 'live',
       status: 'collecting',
     },
     document: {
@@ -388,6 +408,7 @@ function createSecurelyCleanedVerificationUserData(): VerificationUserData {
       startedAt: 0,
       docType: undefined,
       selectedPassportCountry: undefined,
+      mode: 'live',
       status: 'completed',
     },
     document: {
@@ -437,6 +458,7 @@ function createSecurelyCleanedVerificationUserData(): VerificationUserData {
     proof: {
       creatingIdentityStep: undefined,
       identity: undefined,
+      demo: undefined,
       error: undefined,
     },
     evidence: [],
@@ -492,8 +514,15 @@ export function ScanContextProvider({
 } & PropsWithChildren) {
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
   const publicKeyHash = walletStore.usePublicKeyHash()
+  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
 
   const addIdentity = identityStore.useIdentityStore(state => state.addIdentity)
+  const setDemoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.setProfile,
+  )
+  const clearDemoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
+    state => state.clearProfile,
+  )
 
   const [currentStep, setCurrentStep] = useState<Steps>(getInitialStep(docType))
   const [creatingIdentityStep, setCreatingIdentityStep] = useState(GenProofSteps.DownloadCircuit)
@@ -521,12 +550,14 @@ export function ScanContextProvider({
     useState<DocumentScanContext['nidProofInputAdapter']>()
 
   const [identity, setIdentity] = useState<IdentityItem>()
+  const demoProofRunIdRef = useRef(0)
 
   const secureCleanupSensitiveData = useCallback(() => {
     logIdentityDiagnostic('IdentityProof', 'secureCleanupSensitiveData:start', {
       timestamp: Date.now(),
     })
 
+    demoProofRunIdRef.current += 1
     setVerificationUserData(createSecurelyCleanedVerificationUserData())
     setTempMRZ(undefined)
     setTempEDoc(undefined)
@@ -550,6 +581,21 @@ export function ScanContextProvider({
       secureCleanupSensitiveData()
     }
   }, [secureCleanupSensitiveData])
+
+  useEffect(() => {
+    if (passportDemoModeEnabled || verificationUserData.session.mode !== 'demo') return
+
+    demoProofRunIdRef.current += 1
+    clearDemoPassportProfile()
+    setVerificationUserData(previous => ({
+      ...previous,
+      session: {
+        ...previous.session,
+        mode: 'live',
+      },
+    }))
+    setCurrentStep(Steps.SelectPassportCountryStep)
+  }, [clearDemoPassportProfile, passportDemoModeEnabled, verificationUserData.session.mode])
 
   const revokeIdentity = useCallback(async () => {
     throw new Error('Revoke identity is not implemented for EID')
@@ -581,6 +627,95 @@ export function ScanContextProvider({
     }
 
     logIdentityDiagnostic('IdentityProof', 'createIdentity:start', baseContext)
+
+    const isDemoPassport =
+      selectedDocType === DocType.PASSPORT && verificationUserData.session.mode === 'demo'
+
+    if (isDemoPassport) {
+      if (!passportDemoModeEnabled) {
+        throw new Error('Passport demo mode is not enabled for this account')
+      }
+
+      if (!proofFaceVerification.comparison?.passed) {
+        throw new Error('Demo face comparison must pass before creating a demo profile')
+      }
+
+      logIdentityDiagnostic('IdentityProof', 'createIdentity:demo-start', {
+        ...baseContext,
+        registrationMode: 'local-demo-only',
+      })
+      setCurrentStep(Steps.GenerateProofStep)
+      setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
+      setVerificationUserData(previous => ({
+        ...previous,
+        proof: {
+          ...previous.proof,
+          creatingIdentityStep: GenProofSteps.DownloadCircuit,
+        },
+        session: {
+          ...previous.session,
+          status: 'proofing',
+        },
+      }))
+
+      const demoProofRunId = ++demoProofRunIdRef.current
+      const isDemoProofCancelled = () => demoProofRunIdRef.current !== demoProofRunId
+      const stageDelayMs = DEMO_PROOF_DELAY_MS / 3
+      await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
+      setCreatingIdentityStep(GenProofSteps.GenerateProof)
+      setVerificationUserData(previous => ({
+        ...previous,
+        proof: {
+          ...previous.proof,
+          creatingIdentityStep: GenProofSteps.GenerateProof,
+        },
+      }))
+
+      await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
+      setCreatingIdentityStep(GenProofSteps.CreateProfile)
+      setVerificationUserData(previous => ({
+        ...previous,
+        proof: {
+          ...previous.proof,
+          creatingIdentityStep: GenProofSteps.CreateProfile,
+        },
+      }))
+
+      await sleep(stageDelayMs)
+      if (isDemoProofCancelled()) return
+      const demoRecord = createDemoProofRegistrationRecord()
+      setDemoPassportProfile(createDemoPassportProfile(demoRecord))
+      setCreatingIdentityStep(GenProofSteps.Final)
+      setVerificationUserData(previous =>
+        withVerificationEvidence(
+          {
+            ...previous,
+            proof: {
+              ...previous.proof,
+              creatingIdentityStep: GenProofSteps.Final,
+              demo: demoRecord,
+            },
+            session: {
+              ...previous.session,
+              status: 'completed',
+            },
+          },
+          {
+            keys: ['proof.demo', 'proof.creatingIdentityStep', 'session.status'],
+            source: 'demo',
+            step: 'create-demo-passport-profile',
+          },
+        ),
+      )
+      logIdentityDiagnostic('IdentityProof', 'createIdentity:demo-completed', {
+        nextStep: 'GenerateProofStep.Final',
+        proofId: demoRecord.proofId,
+        registrationId: demoRecord.registrationId,
+      })
+      return
+    }
 
     if (!proofEDoc) {
       const classification = classifyIdentityCreationError({ stage: 'nfc-missing-edoc' })
@@ -784,42 +919,74 @@ export function ScanContextProvider({
     addIdentity,
     faceVerification,
     privateKey,
+    passportDemoModeEnabled,
     publicKeyHash,
     selectedDocType,
+    setDemoPassportProfile,
     tempEDoc,
     verificationUserData,
   ])
 
   // ---------------------------------------------------------------------------------------------
 
-  const handleSetSelectedDocType = useCallback((value: DocType) => {
-    logIdentityDiagnostic('PassportVerification', 'setDocType', {
-      selectedDocType: value,
-    })
-    setSelectedDocType(value)
-    setVerificationUserData(
-      withVerificationEvidence(createInitialVerificationUserData(value), {
-        keys: ['session.docType'],
-        source: 'manual',
-        step: 'select-document-type',
-      }),
-    )
-    setPassportCountryCode(undefined)
-    setTempEDoc(undefined)
-    setTempMRZ(undefined)
-    setPassportNfcDetails(undefined)
-    setPassportMrzBarcode(undefined)
-    setNidVerificationResult(undefined)
-    setNidProofInputAdapter(undefined)
-    setFaceVerification({
-      enabled: true,
-    })
-    if (value === DocType.PASSPORT) {
-      setCurrentStep(Steps.SelectPassportCountryStep)
-    } else {
-      setCurrentStep(Steps.ScanNfcStep)
-    }
-  }, [])
+  const handleSetSelectedDocType = useCallback(
+    (value: DocType) => {
+      logIdentityDiagnostic('PassportVerification', 'setDocType', {
+        selectedDocType: value,
+      })
+      demoProofRunIdRef.current += 1
+      setSelectedDocType(value)
+      clearDemoPassportProfile()
+      setVerificationUserData(
+        withVerificationEvidence(createInitialVerificationUserData(value), {
+          keys: ['session.docType'],
+          source: 'manual',
+          step: 'select-document-type',
+        }),
+      )
+      setPassportCountryCode(undefined)
+      setTempEDoc(undefined)
+      setTempMRZ(undefined)
+      setPassportNfcDetails(undefined)
+      setPassportMrzBarcode(undefined)
+      setNidVerificationResult(undefined)
+      setNidProofInputAdapter(undefined)
+      setFaceVerification({
+        enabled: true,
+      })
+      if (value === DocType.PASSPORT) {
+        setCurrentStep(Steps.SelectPassportCountryStep)
+      } else {
+        setCurrentStep(Steps.ScanNfcStep)
+      }
+    },
+    [clearDemoPassportProfile],
+  )
+
+  const handleSetVerificationMode = useCallback(
+    (value: VerificationMode) => {
+      demoProofRunIdRef.current += 1
+      clearDemoPassportProfile()
+      const nextMode = value === 'demo' && !passportDemoModeEnabled ? 'live' : value
+      setVerificationUserData(previous =>
+        withVerificationEvidence(
+          {
+            ...previous,
+            session: {
+              ...previous.session,
+              mode: nextMode,
+            },
+          },
+          {
+            keys: ['session.mode'],
+            source: 'manual',
+            step: 'select-verification-mode',
+          },
+        ),
+      )
+    },
+    [clearDemoPassportProfile, passportDemoModeEnabled],
+  )
 
   const handleSetPassportCountryCode = useCallback((value?: string) => {
     setPassportCountryCode(value)
@@ -841,49 +1008,52 @@ export function ScanContextProvider({
     )
   }, [])
 
-  const handleSetMrz = useCallback((value?: FieldRecords) => {
-    if (!value) {
-      setTempMRZ(undefined)
-      return
-    }
+  const handleSetMrz = useCallback(
+    (value?: FieldRecords) => {
+      if (!value) {
+        setTempMRZ(undefined)
+        return
+      }
 
-    logIdentityDiagnostic('PassportVerification', 'setTempMrz', {
-      hasDocumentCode: Boolean(value.documentCode),
-      hasDocumentNumber: Boolean(value.documentNumber),
-      hasBirthDate: Boolean(value.birthDate),
-      hasExpirationDate: Boolean(value.expirationDate),
-    })
-    setVerificationUserData(previous =>
-      withVerificationEvidence(
-        {
-          ...previous,
-          document: {
-            ...previous.document,
-            passport: {
-              ...previous.document.passport,
-              mrz: {
-                ...previous.document.passport.mrz,
-                fields: value,
+      logIdentityDiagnostic('PassportVerification', 'setTempMrz', {
+        hasDocumentCode: Boolean(value.documentCode),
+        hasDocumentNumber: Boolean(value.documentNumber),
+        hasBirthDate: Boolean(value.birthDate),
+        hasExpirationDate: Boolean(value.expirationDate),
+      })
+      setVerificationUserData(previous =>
+        withVerificationEvidence(
+          {
+            ...previous,
+            document: {
+              ...previous.document,
+              passport: {
+                ...previous.document.passport,
+                mrz: {
+                  ...previous.document.passport.mrz,
+                  fields: value,
+                },
               },
             },
           },
-        },
-        {
-          keys: ['document.passport.mrz.fields'],
-          source: 'camera',
-          step: 'passport-mrz-scan',
-        },
-      ),
-    )
-    setTempMRZ(undefined)
-    setPassportNfcDetails(undefined)
-    setNidVerificationResult(undefined)
-    setNidProofInputAdapter(undefined)
-    setFaceVerification({
-      enabled: true,
-    })
-    setCurrentStep(Steps.ScanPassportNfcStep)
-  }, [])
+          {
+            keys: ['document.passport.mrz.fields'],
+            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'camera',
+            step: 'passport-mrz-scan',
+          },
+        ),
+      )
+      setTempMRZ(undefined)
+      setPassportNfcDetails(undefined)
+      setNidVerificationResult(undefined)
+      setNidProofInputAdapter(undefined)
+      setFaceVerification({
+        enabled: true,
+      })
+      setCurrentStep(Steps.ScanPassportNfcStep)
+    },
+    [passportDemoModeEnabled],
+  )
 
   const handleSetEDoc = useCallback(
     (value?: EDocument) => {
@@ -948,42 +1118,45 @@ export function ScanContextProvider({
     [faceVerification.comparison?.passed, selectedDocType],
   )
 
-  const handleSetPassportNfcDetails = useCallback((value?: PassportNfcDetails) => {
-    if (!value) {
-      setPassportNfcDetails(undefined)
-      return
-    }
+  const handleSetPassportNfcDetails = useCallback(
+    (value?: PassportNfcDetails) => {
+      if (!value) {
+        setPassportNfcDetails(undefined)
+        return
+      }
 
-    setVerificationUserData(previous =>
-      withVerificationEvidence(
-        {
-          ...previous,
-          document: {
-            ...previous.document,
-            passport: {
-              ...previous.document.passport,
-              nfc: {
-                ...previous.document.passport.nfc,
-                normalized: value.normalized,
-                packageNfcResult: value.packageNfcResult,
-                portrait: value.portrait,
+      setVerificationUserData(previous =>
+        withVerificationEvidence(
+          {
+            ...previous,
+            document: {
+              ...previous.document,
+              passport: {
+                ...previous.document.passport,
+                nfc: {
+                  ...previous.document.passport.nfc,
+                  normalized: value.normalized,
+                  packageNfcResult: value.packageNfcResult,
+                  portrait: value.portrait,
+                },
               },
             },
           },
-        },
-        {
-          keys: [
-            'document.passport.nfc.normalized',
-            'document.passport.nfc.packageNfcResult',
-            'document.passport.nfc.portrait',
-          ],
-          source: 'nfc',
-          step: 'passport-nfc-details',
-        },
-      ),
-    )
-    setPassportNfcDetails(undefined)
-  }, [])
+          {
+            keys: [
+              'document.passport.nfc.normalized',
+              'document.passport.nfc.packageNfcResult',
+              'document.passport.nfc.portrait',
+            ],
+            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'nfc',
+            step: 'passport-nfc-details',
+          },
+        ),
+      )
+      setPassportNfcDetails(undefined)
+    },
+    [passportDemoModeEnabled],
+  )
 
   const handleSetPassportMrzBarcode = useCallback(
     (value?: DocumentScanContext['passportMrzBarcode']) => {
@@ -1015,14 +1188,15 @@ export function ScanContextProvider({
               'document.passport.mrz.parsedBarcode',
               'document.passport.mrz.rawBarcode',
             ],
-            source: 'barcode',
+            source:
+              previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'barcode',
             step: 'passport-mrz-barcode-scan',
           },
         ),
       )
       setPassportMrzBarcode(undefined)
     },
-    [],
+    [passportDemoModeEnabled],
   )
 
   const handleSetPassportNfcScanOutput = useCallback(
@@ -1094,7 +1268,7 @@ export function ScanContextProvider({
               'document.passport.nfc.packageNfcResult',
               'document.passport.nfc.portrait',
             ],
-            source: 'nfc',
+            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'nfc',
             step: 'passport-nfc-read',
           },
         ),
@@ -1180,6 +1354,7 @@ export function ScanContextProvider({
     [
       faceVerification.comparison?.passed,
       handleSetPassportNfcDetails,
+      passportDemoModeEnabled,
       selectedDocType,
       verificationUserData.document.passport.mrz?.parsedBarcode?.nidn,
     ],
@@ -1475,6 +1650,8 @@ export function ScanContextProvider({
         setDocType: handleSetSelectedDocType,
         passportCountryCode,
         setPassportCountryCode: handleSetPassportCountryCode,
+        verificationMode: verificationUserData.session.mode,
+        setVerificationMode: handleSetVerificationMode,
 
         tempMRZ,
         tempEDoc,
