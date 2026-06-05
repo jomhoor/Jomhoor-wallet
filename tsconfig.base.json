@@ -10,7 +10,7 @@
     "preserveSymlinks": true,
     "incremental": true,
     "jsx": "react-jsx",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler", "module": "ESNext",
     "noEmitOnError": false,
     "noImplicitAny": false,
     "noImplicitReturns": false,
