@@ -53,11 +53,10 @@ Quick verification after archive:
 - [x] Remove "prepare captured faces" button from face comparison
 - [x] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
 - [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
-- [ ] Android NFC
+- [x] Android NFC
 - [ ] read the docs and watch the video
 - [ ] Generate proof for passport
 - [ ] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
-- [ ]
 
 # Backlog
 
@@ -67,7 +66,6 @@ Quick verification after archive:
 ## Team
 
 - Add privacy policy document at `https://jomhoor.org/app/privacy.html`, including "User privacy choices".
--
 
 # Next release
 
