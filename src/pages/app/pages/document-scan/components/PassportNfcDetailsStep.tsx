@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiIcon, UiScreenScrollable } from '@/ui'
+import { maskIdentityInfo } from '@/utils/mask-identity-info'
 
 import DemoModeBanner from './DemoModeBanner'
 
@@ -27,13 +28,6 @@ const formatDisplayDate = (value?: string): string => {
     return `${dd}/${mm}/${yyyy}`
   }
   return value
-}
-
-const maskDocumentIdentifier = (value?: string): string => {
-  if (!value) return '—'
-  const compact = value.replace(/\s+/g, '')
-  if (compact.length <= 4) return `${compact.slice(0, 1)}***`
-  return `${compact.slice(0, 2)}****${compact.slice(-2)}`
 }
 
 const buildPortraitUri = (details?: {
@@ -126,7 +120,7 @@ export default function PassportNfcDetailsStep(): JSX.Element {
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>NIDN</Text>
-            <Text className='typography-subtitle4 text-textPrimary'>{nidn ?? '—'}</Text>
+            <Text className='typography-subtitle4 text-textPrimary'>{maskIdentityInfo(nidn)}</Text>
           </View>
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Expiry Date</Text>
@@ -137,7 +131,7 @@ export default function PassportNfcDetailsStep(): JSX.Element {
           <View className='flex-row justify-between gap-4'>
             <Text className='typography-body3 text-textSecondary'>Document #</Text>
             <Text className='typography-subtitle4 text-textPrimary'>
-              {maskDocumentIdentifier(reviewDetails?.normalized?.documentNumber)}
+              {maskIdentityInfo(reviewDetails?.normalized?.documentNumber)}
             </Text>
           </View>
         </View>

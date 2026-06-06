@@ -23,6 +23,7 @@ import { UiSwitcher } from '@/ui'
 import { UiBottomSheet, useUiBottomSheet } from '@/ui'
 import { UiHorizontalDivider, UiIcon } from '@/ui'
 import { BottomSheetHeader } from '@/ui/UiBottomSheet'
+import { maskIdentityInfo } from '@/utils/mask-identity-info'
 
 type Props = {
   identity: IdentityItem
@@ -168,6 +169,12 @@ export default function DocumentCard({ identity }: Props) {
                 />
               )
             }
+
+            const sensitiveFields = ['documentNumber', 'nidn', 'personalNumber']
+            const isSensitive = sensitiveFields.includes(el)
+            const displayValue =
+              isSensitive && documentCardUi.isBlurred ? maskIdentityInfo(detailValue) : detailValue
+
             return (
               <DocumentCardRow
                 key={idx}
@@ -177,7 +184,7 @@ export default function DocumentCard({ identity }: Props) {
                 }}
                 valueProps={{
                   ...documentCardUi.foregroundValues,
-                  children: detailValue,
+                  children: displayValue,
                 }}
               />
             )

@@ -1,7 +1,9 @@
 import { Time } from '@distributedlab/tools'
 import { Image } from 'expo-image'
 import { startCase } from 'lodash'
+import { useState } from 'react'
 import { Text, View } from 'react-native'
+import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { formatDateDMY } from '@/helpers'
@@ -9,6 +11,7 @@ import { useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProv
 import { appCapabilitiesStore } from '@/store'
 import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
 import { EID, EPassport } from '@/utils/e-document'
+import { maskIdentityInfo } from '@/utils/mask-identity-info'
 
 import DemoModeBanner from './DemoModeBanner'
 
@@ -34,6 +37,8 @@ const buildPassportPortraitUri = (
 }
 
 export default function DocumentPreviewStep() {
+  const [pressedRowKey, setPressedRowKey] = useState<string | null>(null)
+
   const {
     createIdentity,
     passportMrzBarcode,
@@ -99,22 +104,43 @@ export default function DocumentPreviewStep() {
 
           <View className='mt-6 flex flex-col gap-4'>
             {reviewNidn ? (
-              <View className='flex flex-row items-center justify-between gap-2'>
-                <Text className='typography-body3 capitalize text-textSecondary'>
-                  National ID Number
-                </Text>
-                <Text className='typography-subtitle4 text-textPrimary'>{reviewNidn}</Text>
-              </View>
+              <Pressable
+                onLongPress={() => setPressedRowKey('nidn')}
+                onPressOut={() => setPressedRowKey(null)}
+              >
+                <View className='flex flex-row items-center justify-between gap-2'>
+                  <Text className='typography-body3 capitalize text-textSecondary'>
+                    National ID Number
+                  </Text>
+                  <Text className='typography-subtitle4 text-textPrimary'>
+                    {pressedRowKey === 'nidn' ? reviewNidn : maskIdentityInfo(reviewNidn)}
+                  </Text>
+                </View>
+              </Pressable>
             ) : null}
             {restDetails &&
               Object.keys(restDetails).map(key => {
+                const detailValue = restDetails?.[key as keyof typeof reviewEDoc.personDetails]
+                const sensitiveFields = ['documentNumber', 'personalNumber']
+                const isSensitive = sensitiveFields.includes(key)
+                const displayValue =
+                  pressedRowKey === key && isSensitive
+                    ? detailValue
+                    : isSensitive
+                      ? maskIdentityInfo(detailValue)
+                      : detailValue
+
                 return (
-                  <View key={key} className='flex flex-row items-center justify-between gap-2'>
-                    <Text className='typography-body3 capitalize text-textSecondary'>{key}</Text>
-                    <Text className='typography-subtitle4 text-textPrimary'>
-                      {restDetails?.[key as keyof typeof reviewEDoc.personDetails]}
-                    </Text>
-                  </View>
+                  <Pressable
+                    key={key}
+                    onLongPress={() => isSensitive && setPressedRowKey(key)}
+                    onPressOut={() => setPressedRowKey(null)}
+                  >
+                    <View className='flex flex-row items-center justify-between gap-2'>
+                      <Text className='typography-body3 capitalize text-textSecondary'>{key}</Text>
+                      <Text className='typography-subtitle4 text-textPrimary'>{displayValue}</Text>
+                    </View>
+                  </Pressable>
                 )
               })}
             {/* Only for Testing*/}
@@ -160,6 +186,7 @@ export default function DocumentPreviewStep() {
     if (!reviewEDoc?.personDetails) {
       return null
     }
+
     const { firstName, lastName, expiryDate, ...restDetails } = reviewEDoc.personDetails
 
     return (
@@ -193,13 +220,28 @@ export default function DocumentPreviewStep() {
             </View>
             {restDetails &&
               Object.entries(restDetails).map(([key, value]) => {
+                const sensitiveFields = ['documentNumber', 'personalNumber', 'serialNumber']
+                const isSensitive = sensitiveFields.includes(key)
+                const displayValue =
+                  key === 'expiryDate'
+                    ? formatDateDMY(new Time(value))
+                    : pressedRowKey === key && isSensitive
+                      ? value
+                      : isSensitive
+                        ? maskIdentityInfo(value)
+                        : value
+
                 return (
-                  <View key={key} className='flex flex-row items-center justify-between gap-2'>
-                    <Text className='typography-body3 text-textSecondary'>{startCase(key)}</Text>
-                    <Text className='typography-subtitle4 text-textPrimary'>
-                      {key === 'expiryDate' ? formatDateDMY(new Time(value)) : value}
-                    </Text>
-                  </View>
+                  <Pressable
+                    key={key}
+                    onLongPress={() => isSensitive && setPressedRowKey(key)}
+                    onPressOut={() => setPressedRowKey(null)}
+                  >
+                    <View className='flex flex-row items-center justify-between gap-2'>
+                      <Text className='typography-body3 text-textSecondary'>{startCase(key)}</Text>
+                      <Text className='typography-subtitle4 text-textPrimary'>{displayValue}</Text>
+                    </View>
+                  </Pressable>
                 )
               })}
           </View>
