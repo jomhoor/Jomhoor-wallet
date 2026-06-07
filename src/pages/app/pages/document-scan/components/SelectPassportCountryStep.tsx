@@ -62,80 +62,86 @@ export default function SelectPassportCountryStep() {
         paddingTop: insets.top,
       }}
     >
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className='flex flex-1 flex-col gap-4 p-5'>
-          <Text
-            className='typography-h4 my-4 text-center text-textPrimary'
-            style={{ lineHeight: 52 }}
-          >
-            Select Passport Country
-          </Text>
+      <View className='gap-4 px-5 pb-3'>
+        <Text
+          className='typography-h4 my-4 text-center text-textPrimary'
+          style={{ lineHeight: 42 }}
+        >
+          Select Passport Country
+        </Text>
+      </View>
 
-          <Text className='typography-body3 text-center text-textSecondary'>
-            Iranian passport is fully supported. Other passport types may have limited support.
-          </Text>
+      <ScrollView
+        className='flex-1'
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View className='flex flex-col gap-3'>
+          {passportCountryOptions.map(option => (
+            <Pressable
+              key={option.code}
+              onPress={() => {
+                if (option.isDemo) {
+                  continueToDemo()
+                  return
+                }
 
-          <View className='mt-2 flex flex-col gap-3'>
-            {passportCountryOptions.map(option => (
-              <Pressable
-                key={option.code}
-                onPress={() => {
-                  if (option.isDemo) {
-                    continueToDemo()
-                    return
-                  }
+                if (option.code === 'IRN') {
+                  continueToMrz(option.code)
+                  return
+                }
 
-                  if (option.code === 'IRN') {
-                    continueToMrz(option.code)
-                    return
-                  }
-
-                  Alert.alert(
-                    'NOTE',
-                    'This type of passport is not fully supported.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Continue',
-                        onPress: () => {
-                          continueToMrz(option.code)
-                        },
+                Alert.alert(
+                  'NOTE',
+                  'This type of passport is not fully supported.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Continue',
+                      onPress: () => {
+                        continueToMrz(option.code)
                       },
-                    ],
-                    { cancelable: true },
-                  )
-                }}
-              >
-                <UiCard className='flex flex-row items-center gap-3'>
-                  <UiIcon customIcon='suitcaseSimpleIcon' className='text-textPrimary' />
-                  <View className='flex-1'>
-                    <Text className='typography-subtitle4 text-textPrimary'>{option.name}</Text>
-                    <Text className='typography-body4 text-textSecondary'>{option.code}</Text>
-                    {option.isDemo ? (
-                      <Text className='typography-body4 mt-1 text-warningMain'>
-                        Fictional data for App Review and product demonstration
-                      </Text>
-                    ) : null}
-                  </View>
-                </UiCard>
-              </Pressable>
-            ))}
-          </View>
-
-          <Pressable
-            className='mt-4'
-            onPress={() => {
-              setVerificationMode('live')
-              setPassportCountryCode(undefined)
-              setCurrentStep(Steps.SelectDocTypeStep)
-            }}
-          >
-            <UiCard className='items-center'>
-              <Text className='typography-body3 text-textSecondary'>Back to Document Type</Text>
-            </UiCard>
-          </Pressable>
+                    },
+                  ],
+                  { cancelable: true },
+                )
+              }}
+            >
+              <UiCard className='flex flex-row items-center gap-3'>
+                <UiIcon customIcon='suitcaseSimpleIcon' className='text-textPrimary' />
+                <View className='flex-1'>
+                  <Text className='typography-subtitle4 text-textPrimary'>{option.name}</Text>
+                  <Text className='typography-body4 text-textSecondary'>{option.code}</Text>
+                  {option.isDemo ? (
+                    <Text className='typography-body4 mt-1 text-warningMain'>
+                      Fictional data for App Review and product demonstration
+                    </Text>
+                  ) : null}
+                </View>
+              </UiCard>
+            </Pressable>
+          ))}
         </View>
       </ScrollView>
+
+      <View
+        className='px-5 pt-3'
+        style={{
+          paddingBottom: Math.max(insets.bottom, 20),
+        }}
+      >
+        <Pressable
+          onPress={() => {
+            setVerificationMode('live')
+            setPassportCountryCode(undefined)
+            setCurrentStep(Steps.SelectDocTypeStep)
+          }}
+        >
+          <UiCard className='items-center'>
+            <Text className='typography-body3 text-textSecondary'>Back to Document Type</Text>
+          </UiCard>
+        </Pressable>
+      </View>
     </View>
   )
 }

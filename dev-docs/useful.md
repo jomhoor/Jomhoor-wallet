@@ -49,19 +49,19 @@ Quick verification after archive:
 - [x] Include proof gen required data
 - [x] Add a back button to selecet document page.
 - [x] Refactor face verification - one livness screen - automate likeness.
+- [x] Add the final waypoint at the center and take a photo to use in comparison.
 - [x] Improve MRZ reading - remove reading area limitation.
 - [x] Remove "prepare captured faces" button from face comparison
 - [x] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
 - [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
 - [x] Android NFC
-- [ ] read the docs and watch the video
+- [x] read the docs and watch the video
 - [ ] Generate proof for passport
 - [ ] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
 
 # Backlog
 
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
-- Add the final waypoint at the center and take a photo to use in comparison.
 
 ## Team
 
