@@ -85,3 +85,5 @@ credentials.json
 # Android signing secrets
 android/signing.properties
 android/app/signing.properties
+
+packages/**/.gradle/
