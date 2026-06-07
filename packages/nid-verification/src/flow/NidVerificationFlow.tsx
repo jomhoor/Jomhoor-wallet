@@ -1,7 +1,7 @@
 import { View } from 'react-native'
 
 import { useNidVerification } from '../hooks'
-import type { NidNfcReader } from '../nfc'
+import type { NidNfcProbeResult, NidNfcReader } from '../nfc'
 import { NidBackScanStep, NidFrontScanStep, NidNfcReadStep } from '../steps'
 import type {
   NidBackScanResult,
@@ -21,6 +21,15 @@ export type NidVerificationFlowProps = {
   onFrontStored?: (value: NidFrontScanResult) => Promise<void> | void
   onNfcStored?: (nfc: NidNfcReadResult, result: NidVerificationResult) => Promise<void> | void
   nfcReader?: NidNfcReader
+  nfcProbeEnabled?: boolean
+  nfcProbeBusy?: boolean
+  nfcProbeResult?: NidNfcProbeResult
+  onNfcProbe?: () => void
+  nfcEvidenceLabel?: string
+  nfcEvidenceSummary?: string
+  onNfcEvidenceLabelChange?: (value: string) => void
+  onLogNfcEvidence?: () => void
+  onClearNfcEvidence?: () => void
 }
 
 export function NidVerificationFlow({
@@ -33,6 +42,15 @@ export function NidVerificationFlow({
   onFrontStored,
   onNfcStored,
   nfcReader,
+  nfcProbeEnabled,
+  nfcProbeBusy,
+  nfcProbeResult,
+  onNfcProbe,
+  nfcEvidenceLabel,
+  nfcEvidenceSummary,
+  onNfcEvidenceLabelChange,
+  onLogNfcEvidence,
+  onClearNfcEvidence,
 }: NidVerificationFlowProps): JSX.Element {
   const {
     currentStep,
@@ -100,6 +118,15 @@ export function NidVerificationFlow({
               }}
               onBack={goBack}
               onCancel={cancel}
+              probeEnabled={nfcProbeEnabled}
+              probeBusy={nfcProbeBusy}
+              probeResult={nfcProbeResult}
+              onProbe={onNfcProbe}
+              evidenceLabel={nfcEvidenceLabel}
+              evidenceSummary={nfcEvidenceSummary}
+              onEvidenceLabelChange={onNfcEvidenceLabelChange}
+              onLogEvidence={onLogNfcEvidence}
+              onClearEvidence={onClearNfcEvidence}
             />
           ),
         }[currentStep]

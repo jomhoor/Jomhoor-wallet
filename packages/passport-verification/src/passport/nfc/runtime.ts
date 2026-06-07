@@ -262,7 +262,11 @@ export async function probePassportChip(
       const payload = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
       const finalStatusValue =
         typeof payload.finalStatus === 'string' ? payload.finalStatus : 'error'
-      const available = finalStatusValue === 'success' || finalStatusValue === 'partial_success'
+      const available =
+        finalStatusValue === 'success' ||
+        finalStatusValue === 'partial_success' ||
+        finalStatusValue === 'probe_success' ||
+        finalStatusValue === 'probe_partial'
       const details = {
         ...payload,
         finalStatus: finalStatusValue,

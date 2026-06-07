@@ -1,20 +1,18 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 
 import type { NidNfcReadResult } from '../types'
+import type { NidNfcProbeResult } from '../nfc'
 
 function formatNfcDebug(result: NidNfcReadResult): string {
+  const debug = result.debug ?? {}
   return JSON.stringify(
     {
       authCertLength: result.authCertHex?.length ?? 0,
-      birthDate: result.birthDate?.value,
-      cardNumber: result.cardNumber?.value,
-      debug: result.debug,
-      expiryDate: result.expiryDate?.value,
-      firstName: result.firstName?.value,
+      backend: typeof debug.backend === 'string' ? debug.backend : undefined,
       hasAuthCert: Boolean(result.authCertHex),
       hasSigningCert: Boolean(result.signingCertHex),
-      lastName: result.lastName?.value,
-      nationalId: result.nationalId?.value,
+      mocked: debug.mocked === true,
+      readAt: typeof debug.readAt === 'number' ? debug.readAt : undefined,
       signingCertLength: result.signingCertHex?.length ?? 0,
       status: result.status,
     },
@@ -35,6 +33,15 @@ export type NidNfcReadStepProps = {
   onRead: () => void
   onBack: () => void
   onCancel?: () => void
+  probeEnabled?: boolean
+  probeBusy?: boolean
+  probeResult?: NidNfcProbeResult
+  onProbe?: () => void
+  evidenceLabel?: string
+  evidenceSummary?: string
+  onEvidenceLabelChange?: (value: string) => void
+  onLogEvidence?: () => void
+  onClearEvidence?: () => void
 }
 
 export function NidNfcReadStep({
@@ -49,13 +56,27 @@ export function NidNfcReadStep({
   onRead,
   onBack,
   onCancel,
+  probeEnabled,
+  probeBusy,
+  probeResult,
+  onProbe,
+  evidenceLabel,
+  evidenceSummary,
+  onEvidenceLabelChange,
+  onLogEvidence,
+  onClearEvidence,
 }: NidNfcReadStepProps): JSX.Element {
   const hasNfcSuccess = nfcResult?.status === 'success'
   const hasBlockingErrors = Boolean(blockingErrors && blockingErrors.length > 0)
   const nfcDebugText = nfcResult ? formatNfcDebug(nfcResult) : undefined
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps='handled'
+      nestedScrollEnabled
+      style={styles.screen}
+    >
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Read NID NFC Chip</Text>
       <Text style={styles.subtitle}>
@@ -72,6 +93,64 @@ export function NidNfcReadStep({
       >
         <Text style={styles.primaryButtonText}>{busy ? 'Reading...' : 'Start NFC Read'}</Text>
       </Pressable>
+
+      {probeEnabled && onProbe ? (
+        <>
+          <View style={styles.evidenceCard}>
+            <Text style={styles.evidenceTitle}>Compatibility evidence</Text>
+            <Text style={styles.evidenceHint}>
+              Use a non-sensitive label. Do not enter a national ID or card number.
+            </Text>
+            <TextInput
+              autoCapitalize='none'
+              autoCorrect={false}
+              maxLength={48}
+              onChangeText={onEvidenceLabelChange}
+              placeholder='nid-generation-sample'
+              style={styles.evidenceInput}
+              value={evidenceLabel}
+            />
+            {evidenceSummary ? <Text style={styles.evidenceSummary}>{evidenceSummary}</Text> : null}
+            <View style={styles.row}>
+              {onLogEvidence ? (
+                <Pressable style={styles.evidenceAction} onPress={onLogEvidence}>
+                  <Text style={styles.evidenceActionText}>Log matrix</Text>
+                </Pressable>
+              ) : null}
+              {onClearEvidence ? (
+                <Pressable style={styles.evidenceAction} onPress={onClearEvidence}>
+                  <Text style={styles.evidenceActionText}>Clear evidence</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+          <Pressable
+            style={[styles.probeButton, probeBusy ? styles.disabledButton : null]}
+            onPress={onProbe}
+            disabled={probeBusy || busy}
+          >
+            <Text style={styles.probeButtonText}>
+              {probeBusy ? 'Running NFC Probe...' : 'Run Development NFC Probe'}
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
+
+      {probeResult ? (
+        <View style={styles.debugCard}>
+          <Text style={styles.debugTitle}>Development Probe Report</Text>
+          <ScrollView
+            style={styles.probeReportScroll}
+            contentContainerStyle={styles.probeReportContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            <Text selectable style={styles.debugValue}>
+              {JSON.stringify(probeResult, null, 2)}
+            </Text>
+          </ScrollView>
+        </View>
+      ) : null}
 
       {nfcDebugText ? (
         <View style={styles.debugCard}>
@@ -110,13 +189,13 @@ export function NidNfcReadStep({
           </Pressable>
         ) : null}
       </View>
-    </View>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     gap: 12,
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -168,6 +247,51 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
+  evidenceAction: {
+    alignItems: 'center',
+    borderColor: '#99F6E4',
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 8,
+  },
+  evidenceActionText: {
+    color: '#115E59',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  evidenceCard: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#99F6E4',
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12,
+  },
+  evidenceHint: {
+    color: '#0F766E',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  evidenceInput: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#5EEAD4',
+    borderRadius: 8,
+    borderWidth: 1,
+    color: '#134E4A',
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  evidenceSummary: {
+    color: '#115E59',
+    fontSize: 12,
+  },
+  evidenceTitle: {
+    color: '#134E4A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   info: {
     color: '#0F766E',
     fontSize: 14,
@@ -184,9 +308,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  probeButton: {
+    alignItems: 'center',
+    borderColor: '#0F766E',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  probeButtonText: {
+    color: '#0F766E',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  probeReportContent: {
+    paddingBottom: 8,
+  },
+  probeReportScroll: {
+    maxHeight: 280,
+  },
   row: {
     flexDirection: 'row',
     gap: 8,
+  },
+  screen: {
+    flex: 1,
   },
   secondaryButton: {
     alignItems: 'center',

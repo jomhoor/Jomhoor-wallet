@@ -2918,15 +2918,15 @@ __metadata:
 
 "@iland/nid-verification@file:./packages/nid-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/nid-verification@file:./packages/nid-verification#./packages/nid-verification::hash=d60a1f&locator=jomhoor%40workspace%3A."
-  checksum: 10/dd14bb36121ce06c6a57f1e75ca086e891f1f3f697a2ba963a42c6e9f915b7473cde098a79c79d1d3955185a8238b6eb68c22a23a9120b8c8d40a52d6b3d3fb2
+  resolution: "@iland/nid-verification@file:./packages/nid-verification#./packages/nid-verification::hash=e4f04b&locator=jomhoor%40workspace%3A."
+  checksum: 10/a754496fc80c186ca7dc105087728311b75ad6c27b3ee1fac146bfa8703ea1a7700bc9ad8f803988467d9d8dd4be4ede31249b978af8061b550022f3ff494bb2
   languageName: node
   linkType: hard
 
 "@iland/passport-verification@file:./packages/passport-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=bb5918&locator=jomhoor%40workspace%3A."
-  checksum: 10/29d4b039361dcfdc6161fdddb62208fc5e8f89eb2cb3526d9f01a7183007e70700184de320a1c7ef946d5f62071501378b973e060d559bdacb8818c3e9c6311e
+  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=aefd90&locator=jomhoor%40workspace%3A."
+  checksum: 10/dfcf78c78067fbe68c0940786dc4fbea7aa47101b637f2817ebcf537415847e48937ae56dab267c2ea4ceccfed3bb0046d0128822452163e687d4eda5320cab5
   languageName: node
   linkType: hard
 
@@ -14316,7 +14316,7 @@ __metadata:
     react-native-keyboard-controller: "npm:^1.21.7"
     react-native-linear-gradient: "npm:^2.8.3"
     react-native-mmkv: "npm:3.1.0"
-    react-native-nfc-manager: "npm:^3.16.2"
+    react-native-nfc-manager: "patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch"
     react-native-qrcode-svg: "npm:^6.3.21"
     react-native-reanimated: "npm:3.16.7"
     react-native-reanimated-carousel: "npm:4.0.2"
@@ -18308,7 +18308,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-nfc-manager@npm:^3.16.2":
+"react-native-nfc-manager@npm:3.16.2":
   version: 3.16.2
   resolution: "react-native-nfc-manager@npm:3.16.2"
   peerDependencies:
@@ -18317,6 +18317,18 @@ __metadata:
     "@expo/config-plugins":
       optional: true
   checksum: 10/ef6bfbb54c4904232d24dcdab342e82066779b9118a560ec2d82ab3874cc58ed9f14e4b27c49bba7f241da79be6488c0dbb5835a48cf195eddf7fbeda7b175cb
+  languageName: node
+  linkType: hard
+
+"react-native-nfc-manager@patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch":
+  version: 3.16.2
+  resolution: "react-native-nfc-manager@patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch::version=3.16.2&hash=a068b6"
+  peerDependencies:
+    "@expo/config-plugins": 9 || 10
+  peerDependenciesMeta:
+    "@expo/config-plugins":
+      optional: true
+  checksum: 10/ed4d0bc583b7fdbd058783c4ef5e61107024e908245148faa70f050a6dfad9d1e10abb381e4017cf68ba82d58dd55360d7186eeed887441b42b3cb874e5e3d7f
   languageName: node
   linkType: hard
 

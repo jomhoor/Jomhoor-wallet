@@ -1,0 +1,331 @@
+diff --git a/ios/NfcManager.m b/ios/NfcManager.m
+index 5869623c14a2329d5648751cb8e42e47d61e4661..cdb80e385ee16c882686a1540f46db6d9d2f86b1 100755
+--- a/ios/NfcManager.m
++++ b/ios/NfcManager.m
+@@ -8,6 +8,10 @@ @implementation NfcManager {
+     NSDictionary *nfcTechTypes;
+     NSArray *techRequestTypes;
+     RCTResponseSenderBlock techRequestCallback;
++    NSString *nidNfcSessionId;
++    NSDate *nidNfcSessionStartedAt;
++    BOOL nidNfcSessionBecameActive;
++    NSUInteger nidNfcDetectionCallbackCount;
+ }
+ 
+ RCT_EXPORT_MODULE()
+@@ -18,6 +22,81 @@ @implementation NfcManager {
+ static NSString *const kBgNfcTagNotification = @"RNBgNfcTagNotification";
+ NSArray * bgNdefRecords = nil;
+ 
++- (NSString *)nidNfcApplicationState
++{
++    UIApplicationState state = UIApplication.sharedApplication.applicationState;
++    switch (state) {
++        case UIApplicationStateActive:
++            return @"active";
++        case UIApplicationStateInactive:
++            return @"inactive";
++        case UIApplicationStateBackground:
++            return @"background";
++    }
++    return @"unknown";
++}
++
++- (NSTimeInterval)nidNfcElapsedMs
++{
++    return nidNfcSessionStartedAt == nil
++        ? 0
++        : [[NSDate date] timeIntervalSinceDate:nidNfcSessionStartedAt] * 1000;
++}
++
++- (void)nidNfcLog:(NSString *)event details:(NSDictionary *)details
++{
++#if DEBUG
++    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithArray:@[
++        [NSString stringWithFormat:@"event=%@", event],
++        [NSString stringWithFormat:@"sessionId=%@", nidNfcSessionId ?: @"none"],
++        [NSString stringWithFormat:@"elapsedMs=%.0f", [self nidNfcElapsedMs]],
++        [NSString stringWithFormat:@"mainThread=%@", NSThread.isMainThread ? @"true" : @"false"],
++        [NSString stringWithFormat:@"appState=%@", [self nidNfcApplicationState]],
++    ]];
++    for (NSString *key in [[details allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
++        NSString *value = [NSString stringWithFormat:@"%@", details[key]];
++        value = [value stringByReplacingOccurrencesOfString:@"\n" withString:@"_"];
++        value = [value stringByReplacingOccurrencesOfString:@";" withString:@"_"];
++        [parts addObject:[NSString stringWithFormat:@"%@=%@", key, value]];
++    }
++    NSLog(@"[NidNfcIOS] %@", [parts componentsJoinedByString:@"; "]);
++#else
++    (void)event;
++    (void)details;
++#endif
++}
++
++- (NSString *)nidNfcTagType:(id<NFCTag>)tag API_AVAILABLE(ios(13.0))
++{
++    switch (tag.type) {
++        case NFCTagTypeISO7816Compatible:
++            return @"iso7816";
++        case NFCTagTypeMiFare:
++            return @"mifare";
++        case NFCTagTypeFeliCa:
++            return @"felica";
++        case NFCTagTypeISO15693:
++            return @"iso15693";
++    }
++    return @"unknown";
++}
++
++- (NSDictionary *)nidNfcTagDiagnostics:(id<NFCTag>)tag API_AVAILABLE(ios(13.0))
++{
++    NSMutableDictionary *details = [@{
++        @"tagType": [self nidNfcTagType:tag],
++        @"available": tag.available ? @"true" : @"false",
++    } mutableCopy];
++
++    if (tag.type == NFCTagTypeISO7816Compatible) {
++        id<NFCISO7816Tag> iso7816Tag = [tag asNFCISO7816Tag];
++        details[@"initialSelectedAidLength"] = @(iso7816Tag.initialSelectedAID.length);
++        details[@"historicalBytesLength"] = @(iso7816Tag.historicalBytes.length);
++        details[@"applicationDataLength"] = @(iso7816Tag.applicationData.length);
++    }
++    return details;
++}
++
+ + (BOOL)application:(UIApplication *)application
+ continueUserActivity:(NSUserActivity *)userActivity
+  restorationHandler:
+@@ -73,10 +152,21 @@ - (instancetype)init
+ 
+ - (void)reset
+ {
++    [self nidNfcLog:@"state-reset" details:@{
++        @"hadNdefSession": session == nil ? @"false" : @"true",
++        @"hadTagSession": tagSession == nil ? @"false" : @"true",
++        @"hadPendingCallback": techRequestCallback == nil ? @"false" : @"true",
++        @"didBecomeActive": nidNfcSessionBecameActive ? @"true" : @"false",
++        @"detectionCallbackCount": @(nidNfcDetectionCallbackCount),
++    }];
+     session = nil;
+     tagSession = nil;
+     techRequestTypes = nil;
+     techRequestCallback = nil;
++    nidNfcSessionId = nil;
++    nidNfcSessionStartedAt = nil;
++    nidNfcSessionBecameActive = NO;
++    nidNfcDetectionCallbackCount = 0;
+ }
+ 
+ - (NSArray<NSString *> *)supportedEvents
+@@ -185,39 +275,85 @@ - (void)readerSession:(NFCNDEFReaderSession *)session didInvalidateWithError:(NS
+ 
+ - (void)tagReaderSession:(NFCTagReaderSession *)session didDetectTags:(NSArray<__kindof id<NFCTag>> *)tags
+     API_AVAILABLE(ios(13.0)) {
+-    NSLog(@"NFCTag didDetectTags");
++    nidNfcDetectionCallbackCount += 1;
++    [self nidNfcLog:@"did-detect-tags" details:@{
++        @"callbackCount": @(nidNfcDetectionCallbackCount),
++        @"tagCount": @(tags.count),
++        @"requestedTechs": [techRequestTypes componentsJoinedByString:@","] ?: @"none",
++        @"hasPendingCallback": techRequestCallback == nil ? @"false" : @"true",
++    }];
+     if (techRequestCallback != nil) {
+         for (id<NFCTag> tag in tags) {
+             NSString * tagType = [self getRNTechName:tag];
++            NSMutableDictionary *tagDetails = [[self nidNfcTagDiagnostics:tag] mutableCopy];
++            tagDetails[@"reactNativeTagType"] = tagType;
++            [self nidNfcLog:@"tag-observed" details:tagDetails];
+             
+             for (NSString* requestType in techRequestTypes) {
+                 // here we treat Ndef is a special case, because all specific tech types
+                 // inherites from NFCNDEFTag, so we simply allow it to connect
+                 if ([tagType isEqualToString:requestType] || [requestType isEqualToString:@"Ndef"]) {
+                     RCTResponseSenderBlock pendingCallback = techRequestCallback;
++                    [self nidNfcLog:@"connect-started" details:@{
++                        @"tagType": [self nidNfcTagType:tag],
++                        @"requestType": requestType,
++                        @"available": tag.available ? @"true" : @"false",
++                    }];
+ 
+                     [tagSession connectToTag:tag
+                            completionHandler:^(NSError *error) {
+                         if (error != nil) {
+-                            NSLog(@"NFCTag restarting polling");
++                            [self nidNfcLog:@"connect-failed" details:@{
++                                @"errorDomain": error.domain ?: @"none",
++                                @"errorCode": @(error.code),
++                                @"errorDescription": error.localizedDescription ?: @"none",
++                                @"willRestartPolling": @"true",
++                            }];
+                             [self->tagSession restartPolling];
++                            [self nidNfcLog:@"polling-restarted" details:@{
++                                @"reason": @"connect-failed",
++                            }];
+                             return;
+                         }
+                         
+                         self->techRequestCallback = nil;
+ 
++                        [self nidNfcLog:@"connect-succeeded" details:@{
++                            @"requestType": requestType,
++                            @"connectedTagAvailable": self->tagSession.connectedTag.available
++                                ? @"true"
++                                : @"false",
++                        }];
+                         pendingCallback(@[[NSNull null], requestType]);
+                     }];
+                     return;
+                 }
+             }
++            [self nidNfcLog:@"tag-not-matched" details:@{
++                @"tagType": [self nidNfcTagType:tag],
++                @"reactNativeTagType": tagType,
++                @"requestedTechs": [techRequestTypes componentsJoinedByString:@","] ?: @"none",
++                @"willContinuePolling": @"true",
++            }];
+         }
++    } else {
++        [self nidNfcLog:@"tags-ignored" details:@{
++            @"reason": @"no-pending-technology-callback",
++        }];
+     }
+ }
+ 
+ - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(NSError *)error
+     API_AVAILABLE(ios(13.0)) {
+-    NSLog(@"NFCTag didInvalidateWithError");
++    [self nidNfcLog:@"session-invalidated" details:@{
++        @"errorDomain": error.domain ?: @"none",
++        @"errorCode": @(error.code),
++        @"errorDescription": error.localizedDescription ?: @"none",
++        @"didBecomeActive": nidNfcSessionBecameActive ? @"true" : @"false",
++        @"detectionCallbackCount": @(nidNfcDetectionCallbackCount),
++        @"hasConnectedTag": session.connectedTag == nil ? @"false" : @"true",
++        @"hadPendingCallback": techRequestCallback == nil ? @"false" : @"true",
++    }];
+     if (techRequestCallback) {
+         techRequestCallback(@[getErrorMessage(error)]);
+         techRequestCallback = nil;
+@@ -230,7 +366,11 @@ - (void)tagReaderSession:(NFCTagReaderSession *)session didInvalidateWithError:(
+ 
+ - (void)tagReaderSessionDidBecomeActive:(NFCTagReaderSession *)session
+     API_AVAILABLE(ios(13.0)) {
+-    NSLog(@"NFCTag didBecomeActive");
++    nidNfcSessionBecameActive = YES;
++    [self nidNfcLog:@"session-became-active" details:@{
++        @"hasConnectedTag": session.connectedTag == nil ? @"false" : @"true",
++        @"requestedTechs": [techRequestTypes componentsJoinedByString:@","] ?: @"none",
++    }];
+ }
+ 
+ + (BOOL)requiresMainQueueSetup
+@@ -273,35 +413,70 @@ + (BOOL)requiresMainQueueSetup
+ RCT_EXPORT_METHOD(start: (nonnull RCTResponseSenderBlock)callback)
+ {
+     if (@available(iOS 11.0, *)) {
++        [self nidNfcLog:@"manager-start-invoked" details:@{
++            @"ndefReadingAvailable": NFCNDEFReaderSession.readingAvailable ? @"true" : @"false",
++        }];
+         if (NFCNDEFReaderSession.readingAvailable) {
+             NSLog(@"NfcManager initialized");
+             [self reset];
++            [self nidNfcLog:@"manager-start-succeeded" details:@{}];
+             callback(@[]);
+             return;
+         }
+     }
+ 
++    [self nidNfcLog:@"manager-start-failed" details:@{
++        @"reason": @"ndef-reading-unavailable",
++    }];
+     callback(@[@"Not support in this device", [NSNull null]]);
+ }
+ 
+ RCT_EXPORT_METHOD(requestTechnology: (NSArray *)techs options: (NSDictionary *)options callback:(nonnull RCTResponseSenderBlock)callback)
+ {
+     if (@available(iOS 13.0, *)) {
++        nidNfcSessionId = [[NSUUID UUID].UUIDString substringToIndex:8];
++        nidNfcSessionStartedAt = [NSDate date];
++        nidNfcSessionBecameActive = NO;
++        nidNfcDetectionCallbackCount = 0;
++        [self nidNfcLog:@"request-technology-invoked" details:@{
++            @"requestedTechs": [techs componentsJoinedByString:@","] ?: @"none",
++            @"tagReadingAvailable": NFCTagReaderSession.readingAvailable ? @"true" : @"false",
++            @"hasExistingTagSession": tagSession == nil ? @"false" : @"true",
++            @"hasExistingNdefSession": session == nil ? @"false" : @"true",
++        }];
+         if (tagSession == nil && session == nil) {
+             NFCPollingOption pollFlags = NFCPollingISO14443 | NFCPollingISO15693;
+             if ([techs containsObject:@"felica"]) {
+                 pollFlags |= NFCPollingISO18092;
+             }
++            [self nidNfcLog:@"session-creating" details:@{
++                @"pollIso14443": @"true",
++                @"pollIso15693": @"true",
++                @"pollIso18092": [techs containsObject:@"felica"] ? @"true" : @"false",
++                @"delegateQueue": @"main",
++            }];
+             tagSession = [[NFCTagReaderSession alloc]
+                           initWithPollingOption:pollFlags delegate:self queue:dispatch_get_main_queue()];
++            [self nidNfcLog:@"session-created" details:@{
++                @"sessionIsNil": tagSession == nil ? @"true" : @"false",
++            }];
+             tagSession.alertMessage = [options objectForKey:@"alertMessage"];
+-            [tagSession beginSession];
+             techRequestTypes = techs;
+             techRequestCallback = callback;
++            [self nidNfcLog:@"begin-session-called" details:@{
++                @"hasAlertMessage": tagSession.alertMessage.length > 0 ? @"true" : @"false",
++            }];
++            [tagSession beginSession];
+         } else {
++            [self nidNfcLog:@"request-technology-rejected" details:@{
++                @"reason": @"duplicated-registration",
++            }];
+             callback(@[@"Duplicated registration", [NSNull null]]);
+         }
+     } else {
++        [self nidNfcLog:@"request-technology-rejected" details:@{
++            @"reason": @"ios-version-before-13",
++        }];
+         callback(@[@"Not support in this device", [NSNull null]]);
+     }
+ }
+@@ -310,10 +485,15 @@ + (BOOL)requiresMainQueueSetup
+ {
+     if (@available(iOS 13.0, *)) {
+         if (tagSession != nil) {
+-            NSLog(@"NfcManager restarting polling");
++            [self nidNfcLog:@"manual-restart-polling" details:@{
++                @"hasConnectedTag": tagSession.connectedTag == nil ? @"false" : @"true",
++            }];
+             [self->tagSession restartPolling];
+             techRequestCallback = callback;
+         } else {
++            [self nidNfcLog:@"manual-restart-rejected" details:@{
++                @"reason": @"no-active-session",
++            }];
+             callback(@[@"No active registration", [NSNull null]]);
+         }
+     } else {
+@@ -324,11 +504,20 @@ + (BOOL)requiresMainQueueSetup
+ RCT_EXPORT_METHOD(cancelTechnologyRequest:(nonnull RCTResponseSenderBlock)callback)
+ {
+     if (@available(iOS 13.0, *)) {
++        [self nidNfcLog:@"cancel-technology-request-invoked" details:@{
++            @"hasTagSession": tagSession == nil ? @"false" : @"true",
++            @"hasConnectedTag": tagSession.connectedTag == nil ? @"false" : @"true",
++            @"hasPendingCallback": techRequestCallback == nil ? @"false" : @"true",
++        }];
+         if (tagSession != nil) {
+             [tagSession invalidateSession];
+             tagSession = nil;
++            [self nidNfcLog:@"cancel-technology-request-completed" details:@{}];
+             callback(@[]);
+         } else {
++            [self nidNfcLog:@"cancel-technology-request-rejected" details:@{
++                @"reason": @"no-active-session",
++            }];
+             callback(@[@"Not even registered", [NSNull null]]);
+         }
+     } else {

@@ -1,5 +1,15 @@
 import type { NidNfcReadResult } from '../types'
 
+export {
+  cancelNidNfcProbe,
+  isNidNfcProbeEnabled,
+  logNidNfcDiagnostic,
+  probeNidChip,
+  type NidNfcProbeAttempt,
+  type NidNfcProbeResult,
+  type NidNfcProbeStandardAttempt,
+} from './probe'
+
 export type ReadNidNfcInput = {
   expectedNationalId?: string
 }

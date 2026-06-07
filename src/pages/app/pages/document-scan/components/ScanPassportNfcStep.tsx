@@ -1,10 +1,12 @@
+import { probePassportChip } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, ScrollView, Text, TextInput, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
+  createPackageNfcReadInput,
   mapPassportNfcErrorToMessage,
   resolvePassportNfcBackend,
 } from '@/pages/app/pages/document-scan/adapters'
@@ -20,6 +22,16 @@ import {
   readPassportScanOutput,
   stopPassportNfc,
 } from '@/utils/e-document/passport-nfc-reader'
+import {
+  appendNfcEvidence,
+  clearNfcEvidence,
+  createNfcFailureEvidence,
+  createPassportProbeEvidence,
+  createPassportReadEvidence,
+  getNfcEvidenceSummary,
+  logNfcEvidenceExport,
+  type NfcEvidenceRecord,
+} from '@/utils/nfc-evidence'
 
 import DemoModeBanner from './DemoModeBanner'
 
@@ -74,6 +86,10 @@ export default function ScanPassportNfcStep() {
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [errorDetail, setErrorDetail] = useState<string>('')
   const [errorCode, setErrorCode] = useState<string>('')
+  const [probeBusy, setProbeBusy] = useState(false)
+  const [probeEvidence, setProbeEvidence] = useState<NfcEvidenceRecord>()
+  const [nfcEvidenceLabel, setNfcEvidenceLabel] = useState('passport-sample')
+  const [nfcEvidenceSummary, setNfcEvidenceSummary] = useState('')
   const readInFlightRef = useRef(false)
   const demoReadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -90,6 +106,17 @@ export default function ScanPassportNfcStep() {
   const debugEnabled =
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === '1' ||
     process.env.EXPO_PUBLIC_PASSPORT_NFC_DEBUG === 'true'
+  const evidenceEnabled = typeof __DEV__ !== 'undefined' && __DEV__ && debugEnabled
+
+  const refreshEvidenceSummary = useCallback(async () => {
+    setNfcEvidenceSummary(await getNfcEvidenceSummary('passport', nfcEvidenceLabel))
+  }, [nfcEvidenceLabel])
+
+  useEffect(() => {
+    if (evidenceEnabled) {
+      void refreshEvidenceSummary()
+    }
+  }, [evidenceEnabled, refreshEvidenceSummary])
 
   const cancelRead = useCallback(() => {
     readInFlightRef.current = false
@@ -163,9 +190,26 @@ export default function ScanPassportNfcStep() {
         onReading: () => setReadState('reading'),
       })
 
+      if (passportOutput.packageNfcResult) {
+        await appendNfcEvidence(
+          createPassportReadEvidence(passportOutput.packageNfcResult, nfcEvidenceLabel),
+        )
+        await refreshEvidenceSummary()
+      }
       setPassportNfcScanOutput(passportOutput)
       await clearPassportNfcTemporaryData()
     } catch (e: unknown) {
+      await appendNfcEvidence(
+        createNfcFailureEvidence({
+          documentFlow: 'passport',
+          source: 'read',
+          testLabel: nfcEvidenceLabel,
+          error: e,
+          probeTechnology: 'iso14443-iso7816',
+          readerStrategy: 'icao-emrtd-auto',
+        }),
+      )
+      await refreshEvidenceSummary()
       const mappedError = mapPassportNfcErrorToMessage(e, { debugEnabled })
       setErrorMsg(mappedError.primary)
       setErrorDetail(mappedError.secondary ?? '')
@@ -183,7 +227,44 @@ export default function ScanPassportNfcStep() {
     setPassportNfcScanOutput,
     debugEnabled,
     isDemoMode,
+    nfcEvidenceLabel,
+    refreshEvidenceSummary,
   ])
+
+  const onProbePress = useCallback(async () => {
+    if (probeBusy || readInFlightRef.current) return
+
+    setProbeBusy(true)
+    setProbeEvidence(undefined)
+    try {
+      await stopPassportNfc()
+      const probeInput = createPackageNfcReadInput({
+        documentNumber: docNumber,
+        dateOfBirth: birthDate,
+        expiryDate,
+        backend: 'native-ios',
+      })
+      const result = await probePassportChip(probeInput)
+      const evidence = createPassportProbeEvidence(result, nfcEvidenceLabel)
+      await appendNfcEvidence(evidence)
+      setProbeEvidence(evidence)
+      await refreshEvidenceSummary()
+    } catch (error) {
+      const evidence = createNfcFailureEvidence({
+        documentFlow: 'passport',
+        source: 'probe',
+        testLabel: nfcEvidenceLabel,
+        error,
+        probeTechnology: 'iso14443',
+        readerStrategy: 'icao-emrtd-probe',
+      })
+      await appendNfcEvidence(evidence)
+      setProbeEvidence(evidence)
+      await refreshEvidenceSummary()
+    } finally {
+      setProbeBusy(false)
+    }
+  }, [birthDate, docNumber, expiryDate, nfcEvidenceLabel, probeBusy, refreshEvidenceSummary])
 
   useEffect(() => {
     return () => {
@@ -201,7 +282,16 @@ export default function ScanPassportNfcStep() {
   const isScanning = scanStatus != null
 
   return (
-    <View style={{ paddingBottom: insets.bottom, paddingTop: insets.top }} className='flex-1 p-6'>
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingBottom: insets.bottom,
+        paddingHorizontal: 24,
+        paddingTop: insets.top,
+      }}
+      keyboardShouldPersistTaps='handled'
+      style={{ flex: 1 }}
+    >
       <View className='flex-row items-center'>
         <Text className='typography-h5 text-textPrimary'>Passport NFC Read</Text>
         <View className='flex-1' />
@@ -229,6 +319,58 @@ export default function ScanPassportNfcStep() {
         <Text className='typography-body4 mb-3 text-textSecondary'>
           NFC backend: {selectedBackend}
         </Text>
+      ) : null}
+      {evidenceEnabled ? (
+        <View className='mb-4 gap-2 rounded-xl border border-teal-300 bg-teal-50 p-3'>
+          <Text className='typography-body3 font-bold text-teal-900'>Compatibility evidence</Text>
+          <Text className='typography-body4 text-teal-800'>
+            Use a non-sensitive label. Do not enter a passport or document number.
+          </Text>
+          <TextInput
+            autoCapitalize='none'
+            autoCorrect={false}
+            maxLength={48}
+            onChangeText={setNfcEvidenceLabel}
+            placeholder='passport-generation-sample'
+            className='rounded-lg border border-teal-300 bg-white px-3 py-2 text-teal-950'
+            value={nfcEvidenceLabel}
+          />
+          <Text className='typography-body4 text-teal-800'>{nfcEvidenceSummary}</Text>
+          <View className='flex-row gap-2'>
+            {Platform.OS === 'ios' ? (
+              <UiButton
+                className='flex-1'
+                disabled={probeBusy || isScanning}
+                onPress={() => {
+                  void onProbePress()
+                }}
+                title={probeBusy ? 'Probing...' : 'Run passport probe'}
+                variant='outlined'
+              />
+            ) : null}
+            <UiButton
+              className='flex-1'
+              onPress={() => {
+                void logNfcEvidenceExport()
+              }}
+              title='Log matrix'
+              variant='outlined'
+            />
+            <UiButton
+              className='flex-1'
+              onPress={() => {
+                void clearNfcEvidence().then(refreshEvidenceSummary)
+              }}
+              title='Clear'
+              variant='outlined'
+            />
+          </View>
+          {probeEvidence ? (
+            <Text selectable className='typography-body4 text-teal-950'>
+              {JSON.stringify(probeEvidence, null, 2)}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
 
       {/* MRZ data card — always visible so user can verify */}
@@ -317,6 +459,6 @@ export default function ScanPassportNfcStep() {
           disabled={isScanning}
         />
       </View>
-    </View>
+    </ScrollView>
   )
 }

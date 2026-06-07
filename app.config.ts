@@ -39,6 +39,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
       "NSLocationWhenInUseUsageDescription": "Location access may be used by identity verification features when required.",
+      "NFCReaderUsageDescription": "Jomhoor uses NFC to read supported document chips during on-device identity verification.",
+      "NSCameraUsageDescription": "Jomhoor uses the camera to scan your identity document and verify your face during the verification process. Images are processed on your device and deleted after verification.",
+      "NSFaceIDUsageDescription": "Jomhoor uses Face ID to let you securely unlock the app and protect access to your verified participation status.",
       // Allow self-signed HTTPS (for local Quasar dev server with basicSsl).
       // WebCrypto (crypto.subtle) requires a secure context; without HTTPS the
       // Agora UCAN auth flow fails in the WebView.  Production uses valid certs
@@ -202,7 +205,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Plugin execution order: last defined = first to execute (reversed).
     // So vision-camera must come BEFORE custom plugins to run AFTER them.
     ['./plugins/withLocalAar.plugin.js'],
-    ['./plugins/withNfc.plugin/build/index.js'],
+    [
+      './plugins/withNfc.plugin/build/index.js',
+      {
+        includeNdefEntitlement: true,
+      },
+    ],
     ["react-native-vision-camera", {
       "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera.",
     }]

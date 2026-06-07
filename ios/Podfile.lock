@@ -453,6 +453,8 @@ PODS:
   - nanopb/encode (3.30910.0)
   - NFCPassportReader (2.1.2):
     - OpenSSLLocal
+  - NidVerification (0.1.0):
+    - React-Core
   - Noir (1.0.0):
     - ExpoModulesCore
   - OpenSSLLocal (3.5.5-shooresh.1)
@@ -2628,6 +2630,7 @@ DEPENDENCIES:
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - "NFCPassportReader (from `../node_modules/@iland/passport-verification/ios/LocalPods/NFCPassportReader`)"
+  - "NidVerification (from `../node_modules/@iland/nid-verification`)"
   - Noir (from `../modules/noir/ios`)
   - "OpenSSLLocal (from `../node_modules/@iland/passport-verification/ios/LocalPods/OpenSSLLocal`)"
   - "PassportVerification (from `../node_modules/@iland/passport-verification`)"
@@ -2844,6 +2847,8 @@ EXTERNAL SOURCES:
     :tag: hermes-2024-11-12-RNv0.76.2-5b4aa20c719830dcf5684832b89a6edb95ac3d64
   NFCPassportReader:
     :path: "../node_modules/@iland/passport-verification/ios/LocalPods/NFCPassportReader"
+  NidVerification:
+    :path: "../node_modules/@iland/nid-verification"
   Noir:
     :path: "../modules/noir/ios"
   OpenSSLLocal:
@@ -3080,6 +3085,7 @@ SPEC CHECKSUMS:
   MLKitVision: fa8dea9012ac59497c79ddbe9ebf32051047ac4c
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   NFCPassportReader: 70cbf33012d30b71c874f250ce0d620ef75482be
+  NidVerification: 92a9a771b74c840a29068c48b1abad8bd294b893
   Noir: e920dac565472cbf4378a2380628d374ec0a629b
   OpenSSLLocal: b4f09dafa0a6c8e7da6b071eee9943aa1fe6ac16
   PassportVerification: 88d58be268b7d10ea6010ce549051c06619b5d36
