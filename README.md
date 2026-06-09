@@ -17,7 +17,7 @@ The official mobile app for [Iranians.Vote](https://iranians.vote) — a digital
 
 ```bash
 # 1. Clone (normal git clone hangs on LFS — use this instead)
-GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/Iranians-Vote-Digital-Democracy/mobile-Iranians.vote.git
+GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/jomhoor/Jomhoor-wallet.git
 cd mobile-Iranians.vote
 git lfs pull
 
