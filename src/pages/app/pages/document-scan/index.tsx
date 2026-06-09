@@ -7,7 +7,6 @@ import {
 import {
   DocumentPreviewStep,
   FaceComparisonStep,
-  FaceLivenessStep,
   GazeChallengeStep,
   GenerateProofStep,
   PassportNfcDetailsStep,
@@ -38,7 +37,6 @@ function DocumentScanContent() {
         [Steps.ScanMrzStep]: () => <ScanMrzStep />,
         [Steps.ScanPassportNfcStep]: () => <ScanPassportNfcStep />,
         [Steps.PassportNfcDetailsStep]: () => <PassportNfcDetailsStep />,
-        [Steps.FaceLivenessStep]: () => <FaceLivenessStep />,
         [Steps.FaceGazeStep]: () => <GazeChallengeStep />,
         [Steps.FaceComparisonStep]: () => <FaceComparisonStep />,
         [Steps.ScanNfcStep]: () => <ScanNfcStep />,

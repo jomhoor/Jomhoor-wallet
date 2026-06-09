@@ -415,10 +415,10 @@ export default function FaceComparisonStep(): JSX.Element {
 
       <Text className='typography-body3 mt-3 text-textSecondary'>
         {isNidFlow
-          ? 'Prepare the captured live face and compare it with the cropped face from NID front image.'
+          ? 'Prepare the captured live face and compare it with the face from NID front image.'
           : isDemoMode
             ? 'Prepare the captured live face and run the normal comparison path using it as the demo reference.'
-            : 'Prepare the captured live face, preview both 112x112 cropped faces, then run comparison.'}
+            : 'Prepare the captured live face, preview both faces, then run comparison.'}
       </Text>
 
       {isDemoMode ? (
@@ -452,11 +452,7 @@ export default function FaceComparisonStep(): JSX.Element {
                 style={{ width: 112, height: 112, borderRadius: 10 }}
               />
               <Text className='typography-body4 mt-2 text-textSecondary'>
-                {isNidFlow
-                  ? 'Card front crop'
-                  : isDemoMode
-                    ? 'Demo reference crop'
-                    : 'Passport crop'}
+                {isNidFlow ? 'Card front' : isDemoMode ? 'Demo reference' : 'Passport'}
               </Text>
             </View>
             <View className='items-center'>
@@ -464,7 +460,7 @@ export default function FaceComparisonStep(): JSX.Element {
                 source={{ uri: croppedPreviewUris.liveUri }}
                 style={{ width: 112, height: 112, borderRadius: 10 }}
               />
-              <Text className='typography-body4 mt-2 text-textSecondary'>Live crop</Text>
+              <Text className='typography-body4 mt-2 text-textSecondary'>Live face</Text>
             </View>
           </View>
         ) : null}
@@ -474,12 +470,12 @@ export default function FaceComparisonStep(): JSX.Element {
             ? 'Preparing face model...'
             : comparisonState === 'capturing'
               ? isNidFlow
-                ? 'Comparing live face with NID front image face crop...'
+                ? 'Comparing live face with NID front image face...'
                 : isDemoMode
                   ? 'Comparing live face with demo reference...'
                   : 'Comparing live face with passport portrait...'
               : comparisonState === 'cropped'
-                ? 'Cropped previews ready. Review them, then compare.'
+                ? 'Previews ready. Review them, then compare.'
                 : comparisonState === 'success'
                   ? 'Face comparison passed.'
                   : comparisonState === 'failed'

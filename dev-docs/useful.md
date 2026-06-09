@@ -36,10 +36,11 @@ Quick verification after archive:
 
 ## Arman
 
-- Enable voting for iranian NIDC and passport
-- Replace Rarimo as much as we can
-- ZK documentation
-- Add report button to every user genrated content.
+- [ ] **Generate proof for passport**
+- [ ] Enable voting for iranian NIDC and passport
+- [ ] Replace Rarimo as much as we can
+- [x] ZK documentation
+- [ ] Add report button to every user genrated content.
 
 ## Shooresh
 
@@ -56,13 +57,18 @@ Quick verification after archive:
 - [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
 - [x] Android NFC
 - [x] read the docs and watch the video
-- [ ] Generate proof for passport
-- [ ] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
+- [x] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
 - [x] Improve country selction UI
 
 # Backlog
 
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
+- [ ] Security audit and debug code cleanup
+- [ ]
+
+## UX navigation
+
+-
 
 ## Team
 
