@@ -77,8 +77,8 @@ export default function ScanPassportNfcStep() {
     verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && documentDemoModeEnabled
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
 

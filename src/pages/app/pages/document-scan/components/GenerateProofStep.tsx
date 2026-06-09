@@ -22,8 +22,8 @@ export default function GenerateProofStep() {
   } = useDocumentScanContext()
   const reviewNidProofInputAdapter =
     nidProofInputAdapter ?? verificationUserData.document.nid.proofInput
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const isDemoMode = verificationUserData.session.mode === 'demo' && passportDemoModeEnabled
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const isDemoMode = verificationUserData.session.mode === 'demo' && documentDemoModeEnabled
 
   const navigation = useNavigation()
 

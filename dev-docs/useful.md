@@ -64,7 +64,8 @@ Quick verification after archive:
 
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
 - [ ] Security audit and debug code cleanup
-- [ ]
+- [ ] Provide documentation of encryptions used in the app to Apple.
+- [ ] New screenshots and NFC video in English (US)
 
 ## UX navigation
 

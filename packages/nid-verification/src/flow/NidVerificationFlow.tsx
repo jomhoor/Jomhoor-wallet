@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { View } from 'react-native'
 
 import { useNidVerification } from '../hooks'
@@ -30,6 +31,10 @@ export type NidVerificationFlowProps = {
   onNfcEvidenceLabelChange?: (value: string) => void
   onLogNfcEvidence?: () => void
   onClearNfcEvidence?: () => void
+  mode?: 'live' | 'demo'
+  demoFrontImageUri?: string
+  demoBarcodeRaw?: string
+  demoScanDelayMs?: number
 }
 
 export function NidVerificationFlow({
@@ -51,6 +56,10 @@ export function NidVerificationFlow({
   onNfcEvidenceLabelChange,
   onLogNfcEvidence,
   onClearNfcEvidence,
+  mode = 'live',
+  demoFrontImageUri,
+  demoBarcodeRaw,
+  demoScanDelayMs = 3000,
 }: NidVerificationFlowProps): JSX.Element {
   const {
     currentStep,
@@ -78,6 +87,32 @@ export function NidVerificationFlow({
     onNfcStored,
     nfcReader,
   })
+  const isDemoMode = mode === 'demo'
+  const demoMessage = 'Demo mode uses fictional ID card data. No real document data is being read.'
+
+  useEffect(() => {
+    if (!isDemoMode || currentStep !== 'front-scan' || !demoFrontImageUri) return
+
+    const timeout = setTimeout(() => {
+      submitFront(demoFrontImageUri)
+    }, demoScanDelayMs)
+
+    return () => {
+      clearTimeout(timeout)
+    }
+  }, [currentStep, demoFrontImageUri, demoScanDelayMs, isDemoMode, submitFront])
+
+  useEffect(() => {
+    if (!isDemoMode || currentStep !== 'back-scan' || !demoBarcodeRaw) return
+
+    const timeout = setTimeout(() => {
+      submitBack(demoBarcodeRaw)
+    }, demoScanDelayMs)
+
+    return () => {
+      clearTimeout(timeout)
+    }
+  }, [currentStep, demoBarcodeRaw, demoScanDelayMs, isDemoMode, submitBack])
 
   return (
     <View style={{ flex: 1 }}>
@@ -90,6 +125,7 @@ export function NidVerificationFlow({
               errorMessage={errorMessage}
               onSubmit={submitFront}
               onCancel={cancel}
+              demoMessage={isDemoMode ? demoMessage : undefined}
             />
           ),
           'back-scan': (
@@ -101,6 +137,7 @@ export function NidVerificationFlow({
               onSubmit={submitBack}
               onBack={goBack}
               onCancel={cancel}
+              demoMessage={isDemoMode ? demoMessage : undefined}
             />
           ),
           'nfc-read': (
@@ -127,6 +164,11 @@ export function NidVerificationFlow({
               onEvidenceLabelChange={onNfcEvidenceLabelChange}
               onLogEvidence={onLogNfcEvidence}
               onClearEvidence={onClearNfcEvidence}
+              demoMessage={
+                isDemoMode
+                  ? 'Demo mode: tap Start NFC Read to load fictional chip data without using NFC.'
+                  : undefined
+              }
             />
           ),
         }[currentStep]

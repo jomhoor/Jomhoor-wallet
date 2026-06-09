@@ -113,9 +113,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.profile,
   )
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
   const isDemoIdentityActive =
-    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
+    documentDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const hasIdentity = identities.length > 0 || isDemoIdentityActive
 
   // Real identities take precedence. The demo profile only participates in reviewer-facing UI.

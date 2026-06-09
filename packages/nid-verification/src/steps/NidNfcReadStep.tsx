@@ -2,6 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import type { NidNfcReadResult } from '../types'
 import type { NidNfcProbeResult } from '../nfc'
+import { NidDemoBanner } from './NidDemoBanner'
 
 function formatNfcDebug(result: NidNfcReadResult): string {
   const debug = result.debug ?? {}
@@ -42,6 +43,7 @@ export type NidNfcReadStepProps = {
   onEvidenceLabelChange?: (value: string) => void
   onLogEvidence?: () => void
   onClearEvidence?: () => void
+  demoMessage?: string
 }
 
 export function NidNfcReadStep({
@@ -65,6 +67,7 @@ export function NidNfcReadStep({
   onEvidenceLabelChange,
   onLogEvidence,
   onClearEvidence,
+  demoMessage,
 }: NidNfcReadStepProps): JSX.Element {
   const hasNfcSuccess = nfcResult?.status === 'success'
   const hasBlockingErrors = Boolean(blockingErrors && blockingErrors.length > 0)
@@ -77,6 +80,7 @@ export function NidNfcReadStep({
       nestedScrollEnabled
       style={styles.screen}
     >
+      {demoMessage ? <NidDemoBanner message={demoMessage} /> : null}
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Read NID NFC Chip</Text>
       <Text style={styles.subtitle}>

@@ -22,9 +22,10 @@ import {
   logIdentityDiagnosticError,
 } from '@/helpers/identity-proof-diagnostics'
 import { tryCatch } from '@/helpers/try-catch'
+import { createDemoProofRegistrationRecord } from '@/pages/app/pages/document-scan/demo/demo-fixtures'
+import { createDemoNidProfile } from '@/pages/app/pages/document-scan/demo/nid-demo-fixtures'
 import {
   createDemoPassportProfile,
-  createDemoProofRegistrationRecord,
   DEMO_PROOF_DELAY_MS,
 } from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { appCapabilitiesStore } from '@/store/modules/app-capabilities'
@@ -75,7 +76,6 @@ type DocumentScanContext = {
   setNidVerificationResult: (value?: NidVerificationResult) => void
   nidProofInputAdapter?: NidProofInputAdapterData
   setNidProofInputAdapter: (value?: NidProofInputAdapterData) => void
-  runMockNidProofGeneration: (value: NidProofInputAdapterData) => Promise<void>
 
   docType?: DocType
   setDocType: (docType: DocType) => void
@@ -149,6 +149,10 @@ type DocumentScanContext = {
   resetFaceVerification: () => void
 
   createIdentity: () => Promise<void>
+  createNidIdentity: (
+    result: NidVerificationResult,
+    faceComparison: FaceComparisonResult,
+  ) => Promise<void>
   revokeIdentity: () => Promise<void>
   secureCleanupSensitiveData: () => void
 
@@ -282,10 +286,6 @@ const documentScanContext = createContext<DocumentScanContext>({
   setNidProofInputAdapter: () => {
     throw new Error('setNidProofInputAdapter not implemented')
   },
-  runMockNidProofGeneration: async () => {
-    throw new Error('runMockNidProofGeneration not implemented')
-  },
-
   docType: undefined,
   setDocType: () => {
     throw new Error('setDocType not implemented')
@@ -336,6 +336,9 @@ const documentScanContext = createContext<DocumentScanContext>({
 
   createIdentity: async () => {
     throw new Error('createIdentity not implemented')
+  },
+  createNidIdentity: async () => {
+    throw new Error('createNidIdentity not implemented')
   },
   revokeIdentity: async () => {
     throw new Error('revokeIdentity not implemented')
@@ -397,7 +400,7 @@ function withVerificationEvidence(
 
 function getInitialStep(docType?: DocType): Steps {
   if (docType === DocType.PASSPORT) return Steps.SelectPassportCountryStep
-  if (docType === DocType.ID) return Steps.ScanNfcStep
+  if (docType === DocType.ID) return Steps.SelectPassportCountryStep
   return Steps.SelectDocTypeStep
 }
 
@@ -514,7 +517,7 @@ export function ScanContextProvider({
 } & PropsWithChildren) {
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
   const publicKeyHash = walletStore.usePublicKeyHash()
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
 
   const addIdentity = identityStore.useIdentityStore(state => state.addIdentity)
   const setDemoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
@@ -551,6 +554,8 @@ export function ScanContextProvider({
 
   const [identity, setIdentity] = useState<IdentityItem>()
   const demoProofRunIdRef = useRef(0)
+  const pendingNidFaceComparisonRef = useRef<FaceComparisonResult>()
+  const pendingNidVerificationResultRef = useRef<NidVerificationResult>()
 
   const secureCleanupSensitiveData = useCallback(() => {
     logIdentityDiagnostic('IdentityProof', 'secureCleanupSensitiveData:start', {
@@ -558,6 +563,8 @@ export function ScanContextProvider({
     })
 
     demoProofRunIdRef.current += 1
+    pendingNidFaceComparisonRef.current = undefined
+    pendingNidVerificationResultRef.current = undefined
     setVerificationUserData(createSecurelyCleanedVerificationUserData())
     setTempMRZ(undefined)
     setTempEDoc(undefined)
@@ -583,7 +590,7 @@ export function ScanContextProvider({
   }, [secureCleanupSensitiveData])
 
   useEffect(() => {
-    if (passportDemoModeEnabled || verificationUserData.session.mode !== 'demo') return
+    if (documentDemoModeEnabled || verificationUserData.session.mode !== 'demo') return
 
     demoProofRunIdRef.current += 1
     clearDemoPassportProfile()
@@ -595,7 +602,7 @@ export function ScanContextProvider({
       },
     }))
     setCurrentStep(Steps.SelectPassportCountryStep)
-  }, [clearDemoPassportProfile, passportDemoModeEnabled, verificationUserData.session.mode])
+  }, [clearDemoPassportProfile, documentDemoModeEnabled, verificationUserData.session.mode])
 
   const revokeIdentity = useCallback(async () => {
     throw new Error('Revoke identity is not implemented for EID')
@@ -610,7 +617,10 @@ export function ScanContextProvider({
       enabled: faceVerification.enabled,
       liveness: faceVerification.liveness ?? verificationUserData.biometrics.liveness,
       gaze: faceVerification.gaze ?? verificationUserData.biometrics.gaze,
-      comparison: faceVerification.comparison ?? verificationUserData.biometrics.comparison,
+      comparison:
+        pendingNidFaceComparisonRef.current ??
+        faceVerification.comparison ??
+        verificationUserData.biometrics.comparison,
     }
 
     const baseContext = {
@@ -628,16 +638,19 @@ export function ScanContextProvider({
 
     logIdentityDiagnostic('IdentityProof', 'createIdentity:start', baseContext)
 
-    const isDemoPassport =
-      selectedDocType === DocType.PASSPORT && verificationUserData.session.mode === 'demo'
+    const isDemoDocument = verificationUserData.session.mode === 'demo'
 
-    if (isDemoPassport) {
-      if (!passportDemoModeEnabled) {
-        throw new Error('Passport demo mode is not enabled for this account')
+    if (isDemoDocument) {
+      if (!documentDemoModeEnabled) {
+        throw new Error('Document demo mode is not enabled for this account')
       }
 
-      if (!proofFaceVerification.comparison?.passed) {
-        throw new Error('Demo face comparison must pass before creating a demo profile')
+      if (
+        !proofFaceVerification.liveness?.passed ||
+        !proofFaceVerification.gaze?.passed ||
+        !proofFaceVerification.comparison?.passed
+      ) {
+        throw new Error('Demo face verification must pass before creating a demo profile')
       }
 
       logIdentityDiagnostic('IdentityProof', 'createIdentity:demo-start', {
@@ -686,7 +699,16 @@ export function ScanContextProvider({
       await sleep(stageDelayMs)
       if (isDemoProofCancelled()) return
       const demoRecord = createDemoProofRegistrationRecord()
-      setDemoPassportProfile(createDemoPassportProfile(demoRecord))
+      if (selectedDocType === DocType.ID) {
+        const demoNidResult =
+          pendingNidVerificationResultRef.current ?? verificationUserData.document.nid.verification
+        if (!demoNidResult) {
+          throw new Error('Demo NID verification result is missing')
+        }
+        setDemoPassportProfile(createDemoNidProfile(demoNidResult, demoRecord))
+      } else {
+        setDemoPassportProfile(createDemoPassportProfile(demoRecord))
+      }
       setCreatingIdentityStep(GenProofSteps.Final)
       setVerificationUserData(previous =>
         withVerificationEvidence(
@@ -705,7 +727,10 @@ export function ScanContextProvider({
           {
             keys: ['proof.demo', 'proof.creatingIdentityStep', 'session.status'],
             source: 'demo',
-            step: 'create-demo-passport-profile',
+            step:
+              selectedDocType === DocType.ID
+                ? 'create-demo-nid-profile'
+                : 'create-demo-passport-profile',
           },
         ),
       )
@@ -731,7 +756,9 @@ export function ScanContextProvider({
     }
 
     if (!privateKey) {
-      const classification = classifyIdentityCreationError({ stage: 'wallet-private-key-missing' })
+      const classification = classifyIdentityCreationError({
+        stage: 'wallet-private-key-missing',
+      })
       logIdentityDiagnostic('WalletCredential', 'createIdentity:private-key-missing', {
         classification,
         ...baseContext,
@@ -917,15 +944,29 @@ export function ScanContextProvider({
     })
   }, [
     addIdentity,
+    documentDemoModeEnabled,
     faceVerification,
     privateKey,
-    passportDemoModeEnabled,
     publicKeyHash,
     selectedDocType,
     setDemoPassportProfile,
     tempEDoc,
     verificationUserData,
   ])
+
+  const createNidIdentity = useCallback(
+    async (result: NidVerificationResult, faceComparison: FaceComparisonResult) => {
+      pendingNidVerificationResultRef.current = result
+      pendingNidFaceComparisonRef.current = faceComparison
+      try {
+        await createIdentity()
+      } finally {
+        pendingNidVerificationResultRef.current = undefined
+        pendingNidFaceComparisonRef.current = undefined
+      }
+    },
+    [createIdentity],
+  )
 
   // ---------------------------------------------------------------------------------------------
 
@@ -957,7 +998,7 @@ export function ScanContextProvider({
       if (value === DocType.PASSPORT) {
         setCurrentStep(Steps.SelectPassportCountryStep)
       } else {
-        setCurrentStep(Steps.ScanNfcStep)
+        setCurrentStep(Steps.SelectPassportCountryStep)
       }
     },
     [clearDemoPassportProfile],
@@ -967,7 +1008,7 @@ export function ScanContextProvider({
     (value: VerificationMode) => {
       demoProofRunIdRef.current += 1
       clearDemoPassportProfile()
-      const nextMode = value === 'demo' && !passportDemoModeEnabled ? 'live' : value
+      const nextMode = value === 'demo' && !documentDemoModeEnabled ? 'live' : value
       setVerificationUserData(previous =>
         withVerificationEvidence(
           {
@@ -985,7 +1026,7 @@ export function ScanContextProvider({
         ),
       )
     },
-    [clearDemoPassportProfile, passportDemoModeEnabled],
+    [clearDemoPassportProfile, documentDemoModeEnabled],
   )
 
   const handleSetPassportCountryCode = useCallback((value?: string) => {
@@ -1038,7 +1079,7 @@ export function ScanContextProvider({
           },
           {
             keys: ['document.passport.mrz.fields'],
-            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'camera',
+            source: previous.session.mode === 'demo' && documentDemoModeEnabled ? 'demo' : 'camera',
             step: 'passport-mrz-scan',
           },
         ),
@@ -1052,7 +1093,7 @@ export function ScanContextProvider({
       })
       setCurrentStep(Steps.ScanPassportNfcStep)
     },
-    [passportDemoModeEnabled],
+    [documentDemoModeEnabled],
   )
 
   const handleSetEDoc = useCallback(
@@ -1148,14 +1189,14 @@ export function ScanContextProvider({
               'document.passport.nfc.packageNfcResult',
               'document.passport.nfc.portrait',
             ],
-            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'nfc',
+            source: previous.session.mode === 'demo' && documentDemoModeEnabled ? 'demo' : 'nfc',
             step: 'passport-nfc-details',
           },
         ),
       )
       setPassportNfcDetails(undefined)
     },
-    [passportDemoModeEnabled],
+    [documentDemoModeEnabled],
   )
 
   const handleSetPassportMrzBarcode = useCallback(
@@ -1189,14 +1230,14 @@ export function ScanContextProvider({
               'document.passport.mrz.rawBarcode',
             ],
             source:
-              previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'barcode',
+              previous.session.mode === 'demo' && documentDemoModeEnabled ? 'demo' : 'barcode',
             step: 'passport-mrz-barcode-scan',
           },
         ),
       )
       setPassportMrzBarcode(undefined)
     },
-    [passportDemoModeEnabled],
+    [documentDemoModeEnabled],
   )
 
   const handleSetPassportNfcScanOutput = useCallback(
@@ -1268,7 +1309,7 @@ export function ScanContextProvider({
               'document.passport.nfc.packageNfcResult',
               'document.passport.nfc.portrait',
             ],
-            source: previous.session.mode === 'demo' && passportDemoModeEnabled ? 'demo' : 'nfc',
+            source: previous.session.mode === 'demo' && documentDemoModeEnabled ? 'demo' : 'nfc',
             step: 'passport-nfc-read',
           },
         ),
@@ -1354,7 +1395,7 @@ export function ScanContextProvider({
     [
       faceVerification.comparison?.passed,
       handleSetPassportNfcDetails,
-      passportDemoModeEnabled,
+      documentDemoModeEnabled,
       selectedDocType,
       verificationUserData.document.passport.mrz?.parsedBarcode?.nidn,
     ],
@@ -1569,65 +1610,6 @@ export function ScanContextProvider({
     setNidProofInputAdapter(undefined)
   }, [])
 
-  const runMockNidProofGeneration = useCallback(
-    async (value: NidProofInputAdapterData) => {
-      handleSetNidProofInputAdapter(value)
-      setCurrentStep(Steps.GenerateProofStep)
-      setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
-      setVerificationUserData(previous => ({
-        ...previous,
-        proof: {
-          ...previous.proof,
-          creatingIdentityStep: GenProofSteps.DownloadCircuit,
-        },
-      }))
-
-      await sleep(800)
-      setCreatingIdentityStep(GenProofSteps.GenerateProof)
-      setVerificationUserData(previous => ({
-        ...previous,
-        proof: {
-          ...previous.proof,
-          creatingIdentityStep: GenProofSteps.GenerateProof,
-        },
-      }))
-
-      await sleep(900)
-      setCreatingIdentityStep(GenProofSteps.CreateProfile)
-      setVerificationUserData(previous => ({
-        ...previous,
-        proof: {
-          ...previous.proof,
-          creatingIdentityStep: GenProofSteps.CreateProfile,
-        },
-      }))
-
-      await sleep(900)
-      setCreatingIdentityStep(GenProofSteps.Final)
-      setVerificationUserData(previous =>
-        withVerificationEvidence(
-          {
-            ...previous,
-            proof: {
-              ...previous.proof,
-              creatingIdentityStep: GenProofSteps.Final,
-            },
-            session: {
-              ...previous.session,
-              status: 'completed',
-            },
-          },
-          {
-            keys: ['proof.creatingIdentityStep', 'session.status'],
-            source: 'proof',
-            step: 'nid-mock-proof-generation',
-          },
-        ),
-      )
-    },
-    [handleSetNidProofInputAdapter, setCurrentStep],
-  )
-
   return (
     <documentScanContext.Provider
       value={{
@@ -1644,7 +1626,6 @@ export function ScanContextProvider({
         setNidVerificationResult: handleSetNidVerificationResult,
         nidProofInputAdapter,
         setNidProofInputAdapter: handleSetNidProofInputAdapter,
-        runMockNidProofGeneration,
 
         docType: selectedDocType,
         setDocType: handleSetSelectedDocType,
@@ -1669,6 +1650,7 @@ export function ScanContextProvider({
         resetFaceVerification,
 
         createIdentity,
+        createNidIdentity,
         revokeIdentity: revokeIdentity,
         secureCleanupSensitiveData,
       }}

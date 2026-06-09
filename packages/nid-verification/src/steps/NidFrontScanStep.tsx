@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 
+import { NidDemoBanner } from './NidDemoBanner'
+
 export type NidFrontScanStepProps = {
   stepIndex: number
   totalSteps: number
   errorMessage?: string
   onSubmit: (frontImageUri: string) => void
   onCancel?: () => void
+  demoMessage?: string
 }
 
 export function NidFrontScanStep({
@@ -16,6 +19,7 @@ export function NidFrontScanStep({
   errorMessage,
   onSubmit,
   onCancel,
+  demoMessage,
 }: NidFrontScanStepProps): JSX.Element {
   const { hasPermission, requestPermission } = useCameraPermission()
   const device = useCameraDevice('back')
@@ -43,6 +47,7 @@ export function NidFrontScanStep({
 
   return (
     <View style={styles.container}>
+      {demoMessage ? <NidDemoBanner message={demoMessage} /> : null}
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Capture NID Front</Text>
       <Text style={styles.subtitle}>Capture a clear image of the front side.</Text>

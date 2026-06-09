@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { appCapabilitiesStore } from '@/store'
 import { UiCard, UiIcon } from '@/ui'
+import { DocType } from '@/utils/e-document'
 
 type PassportCountryOption = {
   code: string
@@ -11,9 +12,9 @@ type PassportCountryOption = {
   isDemo?: boolean
 }
 
-const DEMO_PASSPORT_COUNTRY_OPTION: PassportCountryOption = {
+const DEMO_COUNTRY_OPTION: PassportCountryOption = {
   code: 'DEMO',
-  name: 'Demo (No passport required)',
+  name: 'Demo',
   isDemo: true,
 }
 
@@ -36,23 +37,26 @@ const PASSPORT_COUNTRY_OPTIONS: PassportCountryOption[] = [
 
 export default function SelectPassportCountryStep() {
   const insets = useSafeAreaInsets()
-  const { setCurrentStep, setPassportCountryCode, setVerificationMode } = useDocumentScanContext()
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const passportCountryOptions = passportDemoModeEnabled
-    ? [DEMO_PASSPORT_COUNTRY_OPTION, ...PASSPORT_COUNTRY_OPTIONS]
+  const { docType, setCurrentStep, setPassportCountryCode, setVerificationMode } =
+    useDocumentScanContext()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const countryOptions = documentDemoModeEnabled
+    ? [DEMO_COUNTRY_OPTION, ...PASSPORT_COUNTRY_OPTIONS]
     : PASSPORT_COUNTRY_OPTIONS
+  const isNidFlow = docType === DocType.ID
+  const documentLabel = isNidFlow ? 'ID card' : 'passport'
 
-  const continueToMrz = (countryCode: string) => {
+  const continueToLiveVerification = (countryCode: string) => {
     setVerificationMode('live')
     setPassportCountryCode(countryCode)
-    setCurrentStep(Steps.ScanMrzStep)
+    setCurrentStep(isNidFlow ? Steps.ScanNfcStep : Steps.ScanMrzStep)
   }
 
   const continueToDemo = () => {
-    if (!passportDemoModeEnabled) return
+    if (!documentDemoModeEnabled) return
     setVerificationMode('demo')
     setPassportCountryCode(undefined)
-    setCurrentStep(Steps.ScanMrzStep)
+    setCurrentStep(isNidFlow ? Steps.ScanNfcStep : Steps.ScanMrzStep)
   }
 
   return (
@@ -67,7 +71,7 @@ export default function SelectPassportCountryStep() {
           className='typography-h4 my-4 text-center text-textPrimary'
           style={{ lineHeight: 42 }}
         >
-          Select Passport Country
+          Select {isNidFlow ? 'ID Card' : 'Passport'} Country
         </Text>
       </View>
 
@@ -77,7 +81,7 @@ export default function SelectPassportCountryStep() {
         showsVerticalScrollIndicator={false}
       >
         <View className='flex flex-col gap-3'>
-          {passportCountryOptions.map(option => (
+          {countryOptions.map(option => (
             <Pressable
               key={option.code}
               onPress={() => {
@@ -87,19 +91,19 @@ export default function SelectPassportCountryStep() {
                 }
 
                 if (option.code === 'IRN') {
-                  continueToMrz(option.code)
+                  continueToLiveVerification(option.code)
                   return
                 }
 
                 Alert.alert(
                   'NOTE',
-                  'This type of passport is not fully supported.',
+                  `This type of ${documentLabel} is not fully supported.`,
                   [
                     { text: 'Cancel', style: 'cancel' },
                     {
                       text: 'Continue',
                       onPress: () => {
-                        continueToMrz(option.code)
+                        continueToLiveVerification(option.code)
                       },
                     },
                   ],
@@ -108,9 +112,16 @@ export default function SelectPassportCountryStep() {
               }}
             >
               <UiCard className='flex flex-row items-center gap-3'>
-                <UiIcon customIcon='suitcaseSimpleIcon' className='text-textPrimary' />
+                <UiIcon
+                  customIcon={isNidFlow ? 'cardholderIcon' : 'suitcaseSimpleIcon'}
+                  className='text-textPrimary'
+                />
                 <View className='flex-1'>
-                  <Text className='typography-subtitle4 text-textPrimary'>{option.name}</Text>
+                  <Text className='typography-subtitle4 text-textPrimary'>
+                    {option.isDemo
+                      ? `Demo (No ${isNidFlow ? 'ID card' : 'passport'} required)`
+                      : option.name}
+                  </Text>
                   <Text className='typography-body4 text-textSecondary'>{option.code}</Text>
                   {option.isDemo ? (
                     <Text className='typography-body4 mt-1 text-warningMain'>

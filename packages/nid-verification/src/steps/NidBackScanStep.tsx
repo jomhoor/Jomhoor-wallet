@@ -8,6 +8,7 @@ import {
 } from 'react-native-vision-camera'
 
 import { parseNidBarcode } from '../barcode'
+import { NidDemoBanner } from './NidDemoBanner'
 
 const BARCODE_CODE_TYPES = [
   'code-39',
@@ -33,6 +34,7 @@ export type NidBackScanStepProps = {
   onSubmit: (barcodeRaw?: string) => void
   onBack: () => void
   onCancel?: () => void
+  demoMessage?: string
 }
 
 export function NidBackScanStep({
@@ -43,6 +45,7 @@ export function NidBackScanStep({
   onSubmit,
   onBack,
   onCancel,
+  demoMessage,
 }: NidBackScanStepProps): JSX.Element {
   const { hasPermission, requestPermission } = useCameraPermission()
   const device = useCameraDevice('back')
@@ -80,6 +83,7 @@ export function NidBackScanStep({
 
   return (
     <View style={styles.container}>
+      {demoMessage ? <NidDemoBanner message={demoMessage} /> : null}
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Scan NID Back Barcode</Text>
       <Text style={styles.subtitle}>

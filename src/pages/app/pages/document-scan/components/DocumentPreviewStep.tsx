@@ -47,8 +47,8 @@ export default function DocumentPreviewStep() {
     verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && documentDemoModeEnabled
   const storedPassport = verificationUserData.document.passport
   const reviewEDoc = tempEDoc ?? storedPassport.nfc?.ePassport
   const reviewPassportNfcDetails = passportNfcDetails ?? storedPassport.nfc
@@ -175,7 +175,12 @@ export default function DocumentPreviewStep() {
 
           <View className='mt-auto'>
             <UiHorizontalDivider className='my-5' />
-            <UiButton title='Generate Proof' onPress={createIdentity} />
+            <UiButton
+              title='Generate Proof'
+              onPress={() => {
+                void createIdentity()
+              }}
+            />
           </View>
         </View>
       </UiScreenScrollable>
@@ -247,7 +252,12 @@ export default function DocumentPreviewStep() {
           </View>
           <View className='mt-auto'>
             <UiHorizontalDivider className='my-5' />
-            <UiButton title='Generate Proof' onPress={createIdentity} />
+            <UiButton
+              title='Generate Proof'
+              onPress={() => {
+                void createIdentity()
+              }}
+            />
           </View>
         </View>
       </UiScreenScrollable>

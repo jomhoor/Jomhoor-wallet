@@ -5,6 +5,7 @@ import { demoPassportProfileStore } from '@/store/modules/demo-passport-profile'
 import { deriveWalletAddressFromPrivateKey, walletStore } from '@/store/modules/wallet'
 
 export type AppCapabilities = {
+  documentDemoModeEnabled: boolean
   passportDemoModeEnabled: boolean
 }
 
@@ -16,6 +17,7 @@ type AppCapabilitiesResolution = {
 }
 
 const DEFAULT_CAPABILITIES: AppCapabilities = {
+  documentDemoModeEnabled: false,
   passportDemoModeEnabled: false,
 }
 
@@ -32,11 +34,14 @@ export const isPassportDemoReviewWalletAddress = (walletAddress?: string): boole
   return passportDemoReviewWalletAddressSet.has(walletAddress.toLowerCase())
 }
 
-export const resolveAppCapabilitiesForWalletAddress = (
-  walletAddress?: string,
-): AppCapabilities => ({
-  passportDemoModeEnabled: isPassportDemoReviewWalletAddress(walletAddress),
-})
+export const resolveAppCapabilitiesForWalletAddress = (walletAddress?: string): AppCapabilities => {
+  const documentDemoModeEnabled = isPassportDemoReviewWalletAddress(walletAddress)
+
+  return {
+    documentDemoModeEnabled,
+    passportDemoModeEnabled: documentDemoModeEnabled,
+  }
+}
 
 export const resolveAppCapabilitiesForPrivateKey = (
   privateKey: string,
@@ -50,7 +55,7 @@ export const resolveAppCapabilitiesForPrivateKey = (
 }
 
 const clearDemoStateIfDisabled = (capabilities: AppCapabilities) => {
-  if (capabilities.passportDemoModeEnabled) return
+  if (capabilities.documentDemoModeEnabled) return
   demoPassportProfileStore.useDemoPassportProfileStore.getState().clearProfile()
 }
 
@@ -99,7 +104,13 @@ const usePassportDemoModeEnabled = () => {
   return resolveAppCapabilitiesForPrivateKey(privateKey).capabilities.passportDemoModeEnabled
 }
 
+const useDocumentDemoModeEnabled = () => {
+  const privateKey = walletStore.useWalletStore(state => state.privateKey)
+  return resolveAppCapabilitiesForPrivateKey(privateKey).capabilities.documentDemoModeEnabled
+}
+
 export const appCapabilitiesStore = {
   useAppCapabilitiesStore,
+  useDocumentDemoModeEnabled,
   usePassportDemoModeEnabled,
 }

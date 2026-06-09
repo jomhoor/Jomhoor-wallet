@@ -11,8 +11,11 @@ import type {
 import { EPassport, type PersonDetails } from '@/utils/e-document'
 import type { PassportNfcScanOutput } from '@/utils/e-document/passport-nfc-reader'
 
-export const DEMO_SCAN_DELAY_MS = 3000
-export const DEMO_PROOF_DELAY_MS = 3000
+export {
+  createDemoProofRegistrationRecord,
+  DEMO_PROOF_DELAY_MS,
+  DEMO_SCAN_DELAY_MS,
+} from './demo-fixtures'
 
 const DEMO_MRZ_LINES = [
   'P<IRNDEMO<<REVIEWER<<<<<<<<<<<<<<<<<<<<<<<<<',
@@ -122,16 +125,6 @@ export const createDemoPassportNfcScanOutput = (): PassportNfcScanOutput => {
     },
   }
 }
-
-const createDemoIdentifier = (prefix: string): string =>
-  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-export const createDemoProofRegistrationRecord = (): DemoProofRegistrationRecord => ({
-  kind: 'demo',
-  proofId: createDemoIdentifier('demo-proof'),
-  registrationId: createDemoIdentifier('demo-registration'),
-  generatedAt: new Date().toISOString(),
-})
 
 export const createDemoPassportProfile = (
   proof: DemoProofRegistrationRecord,
