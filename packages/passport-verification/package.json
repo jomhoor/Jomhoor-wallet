@@ -1,0 +1,82 @@
+{
+  "name": "@iland/passport-verification",
+  "private": true,
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "react-native": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "files": [
+    "assets",
+    "dist",
+    "ios",
+    "android",
+    "passport.js",
+    "passport.d.ts",
+    "face.js",
+    "face.d.ts",
+    "identity-flow.js",
+    "identity-flow.d.ts",
+    "shared.js",
+    "shared.d.ts",
+    "README.md"
+  ],
+  "typesVersions": {
+    "*": {
+      "passport": [
+        "dist/passport/index.d.ts"
+      ],
+      "face": [
+        "dist/face/index.d.ts"
+      ],
+      "identity-flow": [
+        "dist/identity-flow/index.d.ts"
+      ],
+      "native": [
+        "dist/native/index.d.ts"
+      ],
+      "shared": [
+        "dist/shared/index.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./passport": {
+      "types": "./dist/passport/index.d.ts",
+      "import": "./dist/passport/index.js",
+      "require": "./dist/passport/index.js"
+    },
+    "./face": {
+      "types": "./dist/face/index.d.ts",
+      "import": "./dist/face/index.js",
+      "require": "./dist/face/index.js"
+    },
+    "./identity-flow": {
+      "types": "./dist/identity-flow/index.d.ts",
+      "import": "./dist/identity-flow/index.js",
+      "require": "./dist/identity-flow/index.js"
+    },
+    "./native": {
+      "types": "./dist/native/index.d.ts",
+      "import": "./dist/native/index.js",
+      "require": "./dist/native/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "import": "./dist/shared/index.js",
+      "require": "./dist/shared/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test:vectors": "node ./tests/mrz-access-key-vectors.cjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.3"
+  }
+}

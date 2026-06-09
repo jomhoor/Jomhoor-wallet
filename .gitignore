@@ -47,8 +47,12 @@ web-build/
 #.env.*
 
 .expo
-/android
-/ios
+android/.gradle
+android/build
+android/gradle
+ios/build
+ios/Pods
+
 modules/**/*/build
 !modules/**/*/plugin/build
 modules/**/*/.cxx
@@ -70,3 +74,14 @@ modules/**/*/.cxx
 modules/**/.gradle/
 docs/VOTING_WITHOUT_ZKP.md
 credentials.json
+
+# Secrets
+*.keystore
+*.jks
+*.pem
+*.p8
+*.p12
+*.key
+# Android signing secrets
+android/signing.properties
+android/app/signing.properties

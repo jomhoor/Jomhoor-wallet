@@ -6,12 +6,17 @@ import {
 
 import {
   DocumentPreviewStep,
+  FaceComparisonStep,
+  FaceLivenessStep,
+  GazeChallengeStep,
   GenerateProofStep,
+  PassportNfcDetailsStep,
   RevocationStep,
   ScanMrzStep,
   ScanNfcStep,
   ScanPassportNfcStep,
   SelectDocTypeStep,
+  SelectPassportCountryStep,
 } from './components'
 
 export default function DocumentScanScreen() {
@@ -29,8 +34,13 @@ function DocumentScanContent() {
     <>
       {{
         [Steps.SelectDocTypeStep]: () => <SelectDocTypeStep />,
+        [Steps.SelectPassportCountryStep]: () => <SelectPassportCountryStep />,
         [Steps.ScanMrzStep]: () => <ScanMrzStep />,
         [Steps.ScanPassportNfcStep]: () => <ScanPassportNfcStep />,
+        [Steps.PassportNfcDetailsStep]: () => <PassportNfcDetailsStep />,
+        [Steps.FaceLivenessStep]: () => <FaceLivenessStep />,
+        [Steps.FaceGazeStep]: () => <GazeChallengeStep />,
+        [Steps.FaceComparisonStep]: () => <FaceComparisonStep />,
         [Steps.ScanNfcStep]: () => <ScanNfcStep />,
         [Steps.DocumentPreviewStep]: () => <DocumentPreviewStep />,
         [Steps.GenerateProofStep]: () => <GenerateProofStep />,

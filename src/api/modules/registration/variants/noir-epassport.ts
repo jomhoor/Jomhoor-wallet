@@ -6,6 +6,11 @@ import { FieldRecords } from 'mrz'
 import { relayerRegister } from '@/api/modules/registration/relayer'
 import { PassportInfo, RegistrationStrategy } from '@/api/modules/registration/strategy'
 import { Config } from '@/config'
+import {
+  classifyIdentityCreationError,
+  logIdentityDiagnostic,
+  logIdentityDiagnosticError,
+} from '@/helpers/identity-proof-diagnostics'
 import { tryCatch } from '@/helpers/try-catch'
 import { PassportRegisteredWithAnotherPKError } from '@/store/modules/identity/errors'
 import { IdentityItem, NoirEpassportIdentity } from '@/store/modules/identity/Identity'
@@ -20,6 +25,14 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
     slaveCertSmtProof: SparseMerkleTree.ProofStructOutput,
     isRevoked: boolean,
   ) => {
+    logIdentityDiagnostic('IdentityProof', 'buildRegisterCallData:start', {
+      identityType: identityItem.identityType,
+      isRevoked,
+      siblingsLength: slaveCertSmtProof.siblings.length,
+      hasDg15: Boolean(identityItem.document.dg15Bytes?.length),
+      hasAaSignature: Boolean(identityItem.document.aaSignature?.length),
+    })
+
     if (typeof identityItem.registrationProof !== 'string') {
       throw new TypeError('Noir proof is not supported for Circom registration')
     }
@@ -60,7 +73,7 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
     }
 
     if (isRevoked) {
-      return RegistrationStrategy.registrationContractInterface.encodeFunctionData(
+      const callData = RegistrationStrategy.registrationContractInterface.encodeFunctionData(
         'reissueIdentityViaNoir',
         [
           slaveCertSmtProof.root,
@@ -70,9 +83,14 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
           registrationProof.proof,
         ],
       )
+      logIdentityDiagnostic('IdentityProof', 'buildRegisterCallData:success', {
+        mode: 'reissueIdentityViaNoir',
+        callDataLength: callData.length,
+      })
+      return callData
     }
 
-    return RegistrationStrategy.registrationContractInterface.encodeFunctionData(
+    const callData = RegistrationStrategy.registrationContractInterface.encodeFunctionData(
       'registerViaNoir',
       [
         slaveCertSmtProof.root,
@@ -82,6 +100,11 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         registrationProof.proof,
       ],
     )
+    logIdentityDiagnostic('IdentityProof', 'buildRegisterCallData:success', {
+      mode: 'registerViaNoir',
+      callDataLength: callData.length,
+    })
+    return callData
   }
 
   createIdentity = async (
@@ -90,60 +113,165 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
     publicKeyHash: Uint8Array,
   ): Promise<NoirEpassportIdentity> => {
     const eDocument = _eDocument as EPassport
+    let stage = 'passport-data-check'
 
-    const CSCACertBytes = await RegistrationStrategy.retrieveCSCAFromPem()
-
-    const slaveMaster = await eDocument.sod.slaveCertificate.getSlaveMaster(CSCACertBytes)
-
-    const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(
-      eDocument.sod.slaveCertificate,
-    )
-
-    if (!slaveCertSmtProof.existence) {
-      await RegistrationStrategy.registerCertificate(
-        CSCACertBytes,
-        eDocument.sod.slaveCertificate,
-        slaveMaster,
-      )
-    }
-
-    const circuit = new NoirEPassportBasedRegistrationCircuit(eDocument)
-
-    const registrationProof = await circuit.prove({
-      skIdentity: BigInt(`0x${privateKey}`),
-      icaoRoot: BigInt(slaveCertSmtProof.root),
-      inclusionBranches: slaveCertSmtProof.siblings.map(el => BigInt(el)),
+    logIdentityDiagnostic('IdentityProof', 'NoirEPassportRegistration.createIdentity:start', {
+      hasPrivateKey: Boolean(privateKey),
+      privateKeyLength: privateKey.length,
+      publicKeyHashLength: publicKeyHash.length,
+      hasSodBytes: eDocument.sodBytes.length > 0,
+      sodBytesLength: eDocument.sodBytes.length,
+      dg1BytesLength: eDocument.dg1Bytes.length,
+      dg15BytesLength: eDocument.dg15Bytes?.length ?? 0,
+      dg11BytesLength: eDocument.dg11Bytes?.length ?? 0,
+      hasAaSignature: Boolean(eDocument.aaSignature?.length),
     })
 
-    const identityItem = new NoirEpassportIdentity(eDocument, registrationProof)
+    try {
+      if (eDocument.sodBytes.length === 0 || eDocument.dg1Bytes.length === 0) {
+        throw new TypeError('Passport NFC result is missing required DG/SOD bytes')
+      }
 
-    const passportInfo = await identityItem.getPassportInfo()
+      stage = 'wallet-private-key-parse'
+      const skIdentity = BigInt(`0x${privateKey}`)
+      logIdentityDiagnostic('WalletCredential', 'NoirEPassportRegistration:private-key-ready', {
+        hasPrivateKey: Boolean(privateKey),
+        privateKeyLength: privateKey.length,
+      })
 
-    const currentIdentityKey = publicKeyHash
-    const currentIdentityKeyHex = hexlify(currentIdentityKey)
+      stage = 'passport-csca-fetch'
+      logIdentityDiagnostic('PassportVerification', 'retrieveCSCAFromPem:start')
+      const CSCACertBytes = await RegistrationStrategy.retrieveCSCAFromPem()
+      logIdentityDiagnostic('PassportVerification', 'retrieveCSCAFromPem:success', {
+        certificateCount: CSCACertBytes.length,
+      })
 
-    const isPassportNotRegistered =
-      !passportInfo ||
-      passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
+      stage = 'passport-sod-parse'
+      const slaveCertificate = eDocument.sod.slaveCertificate
+      logIdentityDiagnostic('PassportVerification', 'slaveCertificate:available', {
+        keySize: slaveCertificate.keySize,
+        hasSlaveCertificateIndex: Boolean(slaveCertificate.slaveCertificateIndex),
+      })
 
-    const isPassportRegisteredWithCurrentPK =
-      passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
+      stage = 'passport-slave-master-fetch'
+      const slaveMaster = await slaveCertificate.getSlaveMaster(CSCACertBytes)
+      logIdentityDiagnostic('PassportVerification', 'slaveMaster:resolved', {
+        signatureAlgorithm: slaveMaster.signatureAlgorithm.algorithm,
+      })
 
-    if (isPassportNotRegistered) {
-      const registerCallData = await this.buildRegisterCallData(
-        identityItem,
-        slaveCertSmtProof,
-        false,
-      )
+      stage = 'passport-slave-proof-fetch'
+      const slaveCertSmtProof = await RegistrationStrategy.getSlaveCertSmtProof(slaveCertificate)
+      logIdentityDiagnostic('IdentityProof', 'slaveCertSmtProof:received', {
+        existence: slaveCertSmtProof.existence,
+        siblingsLength: slaveCertSmtProof.siblings.length,
+        rootLength: String(slaveCertSmtProof.root).length,
+      })
 
-      await RegistrationStrategy.requestRelayerRegisterMethod(registerCallData)
+      if (!slaveCertSmtProof.existence) {
+        stage = 'register-certificate-api'
+        logIdentityDiagnostic('IdentityProof', 'registerCertificate:start', {
+          reason: 'slave-certificate-proof-not-found',
+        })
+        await RegistrationStrategy.registerCertificate(CSCACertBytes, slaveCertificate, slaveMaster)
+        logIdentityDiagnostic('IdentityProof', 'registerCertificate:success')
+      }
+
+      stage = 'registration-circuit-prepare'
+      const circuit = new NoirEPassportBasedRegistrationCircuit(eDocument)
+      logIdentityDiagnostic('IdentityProof', 'registration-circuit:prepared', {
+        circuitName: circuit.name,
+        hasDg15: Boolean(eDocument.dg15Bytes?.length),
+      })
+
+      stage = 'proof-generate'
+      const registrationProof = await circuit.prove({
+        skIdentity,
+        icaoRoot: BigInt(slaveCertSmtProof.root),
+        inclusionBranches: slaveCertSmtProof.siblings.map(el => BigInt(el)),
+      })
+      logIdentityDiagnostic('IdentityProof', 'proof-generated', {
+        publicSignalsCount: registrationProof.pub_signals?.length ?? 0,
+        proofKeyCount:
+          registrationProof && typeof registrationProof === 'object'
+            ? Object.keys(registrationProof).length
+            : 0,
+      })
+
+      stage = 'credential-identity-item-create'
+      const identityItem = new NoirEpassportIdentity(eDocument, registrationProof)
+      logIdentityDiagnostic('WalletCredential', 'identity-item-created', {
+        identityType: identityItem.identityType,
+      })
+
+      stage = 'passport-info-fetch'
+      const passportInfo = await identityItem.getPassportInfo()
+
+      const currentIdentityKeyHex = hexlify(publicKeyHash)
+      const isPassportNotRegistered =
+        !passportInfo ||
+        passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
+      const isPassportRegisteredWithCurrentPK =
+        passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
+
+      logIdentityDiagnostic('IdentityProof', 'passport-info-evaluated', {
+        hasPassportInfo: Boolean(passportInfo),
+        hasActiveIdentity: Boolean(passportInfo?.passportInfo_.activeIdentity),
+        isPassportNotRegistered,
+        isPassportRegisteredWithCurrentPK,
+      })
+
+      if (isPassportNotRegistered) {
+        stage = 'register-call-data-build'
+        const registerCallData = await this.buildRegisterCallData(
+          identityItem,
+          slaveCertSmtProof,
+          false,
+        )
+
+        logIdentityDiagnostic('IdentityProof', 'register-call-data-built', {
+          registerCallDataLength: registerCallData.length,
+        })
+
+        stage = 'register-via-relayer-api'
+        await RegistrationStrategy.requestRelayerRegisterMethod(registerCallData)
+        logIdentityDiagnostic('IdentityProof', 'register-via-relayer:success')
+      }
+
+      stage = 'passport-owner-validate'
+      if (!isPassportRegisteredWithCurrentPK) {
+        throw new PassportRegisteredWithAnotherPKError()
+      }
+
+      logIdentityDiagnostic('IdentityProof', 'NoirEPassportRegistration.createIdentity:success', {
+        identityType: identityItem.identityType,
+      })
+
+      return identityItem
+    } catch (error) {
+      const classification = classifyIdentityCreationError({
+        stage,
+        error,
+      })
+
+      logIdentityDiagnosticError({
+        domain: 'IdentityProof',
+        event: 'NoirEPassportRegistration.createIdentity:failed',
+        stage,
+        classification,
+        error,
+        context: {
+          hasPrivateKey: Boolean(privateKey),
+          privateKeyLength: privateKey.length,
+          publicKeyHashLength: publicKeyHash.length,
+          hasSodBytes: eDocument.sodBytes.length > 0,
+          sodBytesLength: eDocument.sodBytes.length,
+          dg1BytesLength: eDocument.dg1Bytes.length,
+          dg15BytesLength: eDocument.dg15Bytes?.length ?? 0,
+        },
+      })
+
+      throw error
     }
-
-    if (!isPassportRegisteredWithCurrentPK) {
-      throw new PassportRegisteredWithAnotherPKError()
-    }
-
-    return identityItem
   }
 
   public revokeIdentity = async (

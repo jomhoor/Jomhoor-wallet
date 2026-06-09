@@ -1,0 +1,110 @@
+{
+  "name": "@iland/nid-verification",
+  "private": true,
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "react-native": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "flow.js",
+    "flow.d.ts",
+    "types.js",
+    "types.d.ts",
+    "adapters.js",
+    "adapters.d.ts",
+    "nfc.js",
+    "nfc.d.ts",
+    "barcode.js",
+    "barcode.d.ts",
+    "face.js",
+    "face.d.ts",
+    "steps.js",
+    "steps.d.ts",
+    "hooks.js",
+    "hooks.d.ts",
+    "README.md"
+  ],
+  "typesVersions": {
+    "*": {
+      "flow": [
+        "dist/flow/index.d.ts"
+      ],
+      "types": [
+        "dist/types/index.d.ts"
+      ],
+      "adapters": [
+        "dist/adapters/index.d.ts"
+      ],
+      "nfc": [
+        "dist/nfc/index.d.ts"
+      ],
+      "barcode": [
+        "dist/barcode/index.d.ts"
+      ],
+      "face": [
+        "dist/face/index.d.ts"
+      ],
+      "steps": [
+        "dist/steps/index.d.ts"
+      ],
+      "hooks": [
+        "dist/hooks/index.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./flow": {
+      "types": "./dist/flow/index.d.ts",
+      "import": "./dist/flow/index.js",
+      "require": "./dist/flow/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters/index.d.ts",
+      "import": "./dist/adapters/index.js",
+      "require": "./dist/adapters/index.js"
+    },
+    "./nfc": {
+      "types": "./dist/nfc/index.d.ts",
+      "import": "./dist/nfc/index.js",
+      "require": "./dist/nfc/index.js"
+    },
+    "./barcode": {
+      "types": "./dist/barcode/index.d.ts",
+      "import": "./dist/barcode/index.js",
+      "require": "./dist/barcode/index.js"
+    },
+    "./face": {
+      "types": "./dist/face/index.d.ts",
+      "import": "./dist/face/index.js",
+      "require": "./dist/face/index.js"
+    },
+    "./steps": {
+      "types": "./dist/steps/index.d.ts",
+      "import": "./dist/steps/index.js",
+      "require": "./dist/steps/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js",
+      "require": "./dist/hooks/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.3"
+  }
+}

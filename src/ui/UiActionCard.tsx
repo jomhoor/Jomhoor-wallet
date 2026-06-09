@@ -31,8 +31,12 @@ export default function UiActionCard({
         <View className='flex flex-1 flex-col gap-2'>
           {children || (
             <>
-              <Text className='typography-subtitle3 text-textPrimary'>{title}</Text>
-              <Text className='typography-body3 text-textPrimary'>{subtitle}</Text>
+              <Text className='typography-subtitle3 text-textPrimary' style={{ textAlign: 'left' }}>
+                {title}
+              </Text>
+              <Text className='typography-body3 text-textPrimary' style={{ textAlign: 'left' }}>
+                {subtitle}
+              </Text>
             </>
           )}
         </View>

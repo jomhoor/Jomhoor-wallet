@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { isHexString } from 'ethers'
 import { useCallback, useMemo } from 'react'
 import type { ViewProps } from 'react-native'
@@ -7,8 +8,14 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler, translate } from '@/core'
-import { useCopyToClipboard, useForm, useLoading } from '@/hooks'
-import type { AuthStackScreenProps } from '@/route-types'
+import {
+  AttestationNotSupportedError,
+  useCopyToClipboard,
+  useForm,
+  useLoading,
+  useWalletRegistration,
+} from '@/hooks'
+import type { AuthStackParamsList, AuthStackScreenProps } from '@/route-types'
 import { localAuthStore, walletStore } from '@/store'
 import { cn } from '@/theme'
 import { UiButton, UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
@@ -19,12 +26,13 @@ type Props = ViewProps & AuthStackScreenProps<'CreateWallet'>
 export default function CreateWallet({ route }: Props) {
   const generatePrivateKey = walletStore.useGeneratePrivateKey()
   const setPrivateKey = walletStore.useWalletStore(state => state.setPrivateKey)
+  const { register: registerWithSSO } = useWalletRegistration()
 
   const isImporting = useMemo(() => {
     return route?.params?.isImporting
   }, [route])
 
-  const navigation = useNavigation()
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamsList>>()
 
   const insets = useSafeAreaInsets()
 
@@ -59,12 +67,30 @@ export default function CreateWallet({ route }: Props) {
       // await login(privateKey)
 
       setIsFirstEnter(false)
+
+      // Non-blocking background registration with the SSO service.
+      // The hook reads the freshly stored key from the wallet store.
+      registerWithSSO().catch(err => {
+        if (err instanceof AttestationNotSupportedError) {
+          navigation.navigate('DeviceNotSupported')
+          return
+        }
+        console.warn('[CreateWallet] SSO registration error:', err)
+      })
     } catch (error) {
       // TODO: network inspector
       ErrorHandler.process(error)
     }
     enableForm()
-  }, [disableForm, enableForm, formState, setIsFirstEnter, setPrivateKey])
+  }, [
+    disableForm,
+    enableForm,
+    formState,
+    navigation,
+    setIsFirstEnter,
+    setPrivateKey,
+    registerWithSSO,
+  ])
 
   // eslint-disable-next-line unused-imports/no-unused-vars
   const pasteFromClipboard = useCallback(async () => {
@@ -106,24 +132,40 @@ export default function CreateWallet({ route }: Props) {
         </View>
         <View className='flex flex-1 flex-col px-screen-x'>
           <View className='flex flex-col items-center gap-5'>
-            <UiIcon customIcon='keyIcon' className='size-[200px] justify-center text-primaryMain' />
-            <Text className='typography-h4 text-textPrimary'>Your key</Text>
+            <UiIcon customIcon='keyIcon' className='size-[140px] justify-center text-primaryMain' />
+            <Text className='typography-h4 text-textPrimary' style={{ lineHeight: 52 }}>
+              {translate('auth.create-wallet.title')}
+            </Text>
           </View>
           {isImporting ? (
             <View className='flex flex-1 flex-col items-center justify-center gap-4'>
               <View>
-                <UiCard className='mt-5 flex w-full flex-row items-center justify-between gap-3 bg-warningLight'>
-                  <UiIcon customIcon='infoIcon' className='color-warningMain' />
-                  <Text className='typography-body4 flex-1 text-warningMain'>
-                    {translate('auth.sign-in.tip')}
-                  </Text>
+                <UiCard className='mt-5 w-full bg-warningLight'>
+                  <View
+                    style={{
+                      width: '100%',
+                      flexDirection: 'row-reverse',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <UiIcon customIcon='infoIcon' className='color-warningMain' />
+                    <Text
+                      className='typography-body4 text-warningMain'
+                      style={{ flex: 1, textAlign: 'left' }}
+                    >
+                      {translate('auth.sign-in.tip')}
+                    </Text>
+                  </View>
                 </UiCard>
               </View>
               <ControlledUiInput
                 name='privateKey'
-                placeholder='Your private key'
+                placeholder={translate('auth.create-wallet.private-key-ph')}
                 control={control}
                 disabled={isFormDisabled}
+                multiline
+                style={{ height: 80, textAlignVertical: 'top' }}
               />
             </View>
           ) : (
@@ -141,16 +183,57 @@ export default function CreateWallet({ route }: Props) {
                     leadingIconProps={{
                       customIcon: isCopied ? 'checkIcon' : 'copySimpleIcon',
                     }}
-                    title='Copy to Clipboard'
+                    title={translate('auth.create-wallet.copy-btn')}
                     onPress={() => copy(formState.privateKey)}
                   />
                 </>
               </UiCard>
-              <UiCard className='mt-5 flex w-full flex-row items-center justify-between gap-3 bg-warningLight'>
-                <UiIcon customIcon='infoIcon' className='color-warningMain' />
-                <Text className='typography-body4 flex-1 text-warningMain'>
-                  {translate('auth.sign-up.tip')}
-                </Text>
+              <UiCard className='mt-5 w-full bg-warningLight'>
+                <View
+                  style={{
+                    width: '100%',
+                    flexDirection: 'row-reverse',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <UiIcon customIcon='infoIcon' className='color-warningMain' />
+                  <Text
+                    className='typography-body4 text-warningMain'
+                    style={{ flex: 1, textAlign: 'left' }}
+                  >
+                    {translate('auth.sign-up.tip')}
+                  </Text>
+                </View>
+              </UiCard>
+              {/*
+                M5 #5 — Phase-1 wallet-loss warning.
+                Per docs/SSO/plan.txt §"ACCOUNT RECOVERY MODEL": a freshly
+                created wallet that has NOT yet bound a nullifier (i.e. the
+                user has not scanned their ID and obtained a Jomhoor SSO
+                assertion) cannot be recovered. Recovery (M5 #3) only
+                migrates assertions/pairwise subjects bound to a prior
+                wallet via the same nullifier_hash — Phase 1 has no such
+                anchor. Make this explicit before the user finishes
+                creating the wallet.
+              */}
+              <UiCard className='mt-3 w-full bg-errorLight'>
+                <View
+                  style={{
+                    width: '100%',
+                    flexDirection: 'row-reverse',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <UiIcon customIcon='infoIcon' className='color-errorMain' />
+                  <Text
+                    className='typography-body4 text-errorMain'
+                    style={{ flex: 1, textAlign: 'left' }}
+                  >
+                    {translate('auth.sign-up.wallet-loss-warning')}
+                  </Text>
+                </View>
               </UiCard>
             </View>
           )}
@@ -160,7 +243,11 @@ export default function CreateWallet({ route }: Props) {
         </View>
         <View className='flex w-full flex-row px-screen-x'>
           <UiButton
-            title={isImporting ? 'Import Key' : 'Create Key'}
+            title={
+              isImporting
+                ? translate('auth.create-wallet.import-btn')
+                : translate('auth.create-wallet.create-btn')
+            }
             className='mb-5 mt-auto w-full'
             onPress={handleSubmit(submit)}
             disabled={isFormDisabled}

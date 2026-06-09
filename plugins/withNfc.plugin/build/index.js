@@ -256,12 +256,7 @@ const withNfc = (config, props = {}) => {
   //   productName: 'NFCPassportReader',
   // })
   // config = withNFCPassportReader(config, props)
-  // We start to support Android 12 from v3.11.1, and you will need to update compileSdkVersion to 31,
-  // otherwise the build will fail:
-  config = config_plugins_2.AndroidConfig.Version.withBuildScriptExtMinimumVersion(config, {
-    name: 'compileSdkVersion',
-    minVersion: 31,
-  })
+  // compileSdkVersion is managed by expo-build-properties in app.config.ts.
   if (nfcPermission !== false) {
     config = withIosPermission(config, props)
     config = config_plugins_2.AndroidConfig.Permissions.withPermissions(config, [

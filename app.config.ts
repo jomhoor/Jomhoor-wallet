@@ -1,6 +1,6 @@
-import type { ConfigContext, ExpoConfig } from '@expo/config'
+import type { ConfigContext, ExpoConfig } from '@expo/config';
 
-import { ClientEnv, Env } from './env'
+import { ClientEnv, Env } from './env';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -18,17 +18,27 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     fallbackToCacheTimeout: 0,
     url: `https://u.expo.dev/${Env.EAS_PROJECT_ID}`
   },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: Env.VERSION.toString(),
   ios: {
     bundleIdentifier: Env.BUNDLE_ID,
+    // Universal Links: the app intercepts https://sso.jomhoor.org/auth/sso* URLs.
+    // The AASA file at https://sso.jomhoor.org/.well-known/apple-app-site-association
+    // must list the team ID + bundle ID for this to work.
+    // auth.jomhoor.org is intentionally excluded — it's browser-only.
+    associatedDomains: [
+      // production + staging: standard Universal Link
+      'applinks:sso.jomhoor.org',
+      // development builds: Apple requires ?mode=developer so iOS resolves
+      // the AASA via CDN bypass and allows Universal Links in debug builds.
+      ...(Env.APP_ENV !== 'production' ? ['applinks:sso.jomhoor.org?mode=developer'] : []),
+    ],
     entitlements: {
       'com.apple.developer.kernel.increased-memory-limit': true,
       'com.apple.developer.kernel.extended-virtual-addressing': true
     },
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
+      "NSLocationWhenInUseUsageDescription": "Location access may be used by identity verification features when required.",
       // Allow self-signed HTTPS (for local Quasar dev server with basicSsl).
       // WebCrypto (crypto.subtle) requires a secure context; without HTTPS the
       // Agora UCAN auth flow fails in the WebView.  Production uses valid certs
@@ -43,11 +53,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bitcode: false
   },
   android: {
+    versionCode: 5,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#2E3C4B',
     },
     package: Env.PACKAGE,
+    // App Links: the app handles https://sso.jomhoor.org/auth/sso* URLs.
+    // The assetlinks.json at https://sso.jomhoor.org/.well-known/assetlinks.json
+    // must list the package name and SHA-256 cert fingerprint for verification.
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          {
+            scheme: 'https',
+            host: 'sso.jomhoor.org',
+            pathPrefix: '/auth/sso',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
   },
   web: {
     favicon: './assets/favicon.png',
@@ -55,6 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ['expo-asset'],
+    ['./plugins/withFaceModelAssets.plugin.js'],
     [
       'expo-font',
       {
@@ -164,11 +193,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID."
       }
     ],
+    // FIX for Face Detection Issue (Hermes + Worklets Incompatibility)
+    // https://github.com/mrousavy/react-native-vision-camera/issues
+    // Issue: Frame processors with worklets don't run in release builds with Hermes.
+    // Root cause: Vision camera plugin must be applied after custom plugins to ensure
+    // babel worklet plugins (react-native-worklets-core/plugin, react-native-reanimated/plugin)
+    // are properly registered before vision-camera initializes.
+    // Plugin execution order: last defined = first to execute (reversed).
+    // So vision-camera must come BEFORE custom plugins to run AFTER them.
+    ['./plugins/withLocalAar.plugin.js'],
+    ['./plugins/withNfc.plugin/build/index.js'],
     ["react-native-vision-camera", {
       "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera.",
-    }],
-    ['./plugins/withNfc.plugin/build/index.js'],
-    ['./plugins/withLocalAar.plugin.js']
+    }]
   ],
   extra: {
     ...ClientEnv,

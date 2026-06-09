@@ -1,7 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useLayoutEffect } from 'react'
 
-import { useAgoraDeepLink } from '@/hooks/useAgoraDeepLink'
 import InviteOthers from '@/pages/app/pages/invite-others'
 import type { AppStackParamsList, RootStackScreenProps } from '@/route-types'
 import { authStore } from '@/store'
@@ -18,6 +17,7 @@ import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
 import ProposalsScreen from './pages/proposals'
 import SettingsScreen from './pages/settings'
+import SsoConsentScreen from './pages/sso-consent'
 import WalletScreen from './pages/wallet'
 
 const Stack = createNativeStackNavigator<AppStackParamsList>()
@@ -27,9 +27,6 @@ export default function App(props: RootStackScreenProps<'App'>) {
   const { palette } = useAppTheme()
   const isFirstEnter = localAuthStore.useLocalAuthStore(state => state.isFirstEnter)
   const logout = authStore.useLogout()
-
-  // Handle jomhoor://auth/agora?challenge=... deep links for desktop QR auth
-  useAgoraDeepLink()
 
   useLayoutEffect(() => {
     if (isFirstEnter) {
@@ -50,6 +47,11 @@ export default function App(props: RootStackScreenProps<'App'>) {
       <Stack.Screen name='InviteOthers' component={InviteOthers} options={{ animation: 'fade' }} />
       <Stack.Screen name='Scan' component={DocumentScanScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Poll' component={PollScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name='SsoConsent'
+        component={SsoConsentScreen}
+        options={{ title: 'Sign In Request' }}
+      />
     </Stack.Navigator>
   )
 }
