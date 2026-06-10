@@ -1,4 +1,8 @@
-import { getMapMarkers, getProposalMapPolicy } from '../client'
+import {
+  getMapMarkers,
+  getMapProposalCatalog,
+  getProposalMapPolicy,
+} from '../client'
 
 describe('map API mock backend client', () => {
   it('loads seeded policies through the Phase 2 endpoint boundary', async () => {
@@ -23,5 +27,12 @@ describe('map API mock backend client', () => {
     expect(markers.every(marker => marker.totalMappedVotes >= 5)).toBe(true)
     expect(JSON.stringify(markers)).not.toContain('nullifier')
     expect(JSON.stringify(markers)).not.toContain('transactionHash')
+  })
+
+  it('loads the seeded proposal and question catalog for read-only UI work', async () => {
+    const catalog = await getMapProposalCatalog()
+
+    expect(catalog.map(proposal => proposal.proposalId)).toEqual(['1', '2', '3'])
+    expect(catalog[0].questions).toHaveLength(2)
   })
 })

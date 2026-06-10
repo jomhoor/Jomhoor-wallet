@@ -8,6 +8,8 @@ import {
   mapMarkersQuerySchema,
   type MapMarkersResponse,
   mapMarkersResponseSchema,
+  type MapProposalCatalogResponse,
+  mapProposalCatalogResponseSchema,
   type ProposalParticipationPolicy,
   proposalParticipationPolicySchema,
   validateMapContextForPolicy,
@@ -159,6 +161,23 @@ export class MockMapBackend {
 
   getPolicy(proposalId: string): ProposalParticipationPolicy {
     return clonePolicy(this.getProposal(proposalId).policy)
+  }
+
+  getCatalog(): MapProposalCatalogResponse {
+    return mapProposalCatalogResponseSchema.parse(
+      this.database.proposals.map(proposal => ({
+        proposalId: proposal.proposalId,
+        title: `Proposal #${proposal.proposalId}`,
+        description: 'Seeded aggregate map data for read-only UI development.',
+        questions: proposal.questionOptionCounts.map((optionCount, questionIndex) => ({
+          title: `Question ${questionIndex + 1}`,
+          variants: Array.from(
+            { length: optionCount },
+            (_, optionIndex) => `Option ${optionIndex + 1}`,
+          ),
+        })),
+      })),
+    )
   }
 
   createPendingBinding(input: CreatePendingBindingInput): MockMapPendingBindingRow | null {

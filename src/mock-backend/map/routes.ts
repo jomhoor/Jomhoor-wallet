@@ -2,6 +2,7 @@ import {
   type MapCellResolution,
   mapMarkersQuerySchema,
   mapMarkersResponseSchema,
+  mapProposalCatalogResponseSchema,
   proposalParticipationPolicySchema,
 } from '@/api/modules/map/contracts'
 
@@ -47,6 +48,10 @@ export class MockMapRoutes {
           error instanceof Error ? error.message : 'Invalid marker request',
         )
       }
+    }
+
+    if (request.path === '/v1/map/catalog') {
+      return mapProposalCatalogResponseSchema.parse(this.backend.getCatalog())
     }
 
     const policyMatch = request.path.match(/^\/v1\/map\/policies\/([^/]+)$/)

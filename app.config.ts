@@ -57,6 +57,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     versionCode: 5,
+    ...(Env.GOOGLE_MAPS_API_KEY
+      ? {
+          config: {
+            googleMaps: {
+              apiKey: Env.GOOGLE_MAPS_API_KEY,
+            },
+          },
+        }
+      : {}),
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#2E3C4B',

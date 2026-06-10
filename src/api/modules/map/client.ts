@@ -5,6 +5,8 @@ import {
   mapMarkersQuerySchema,
   type MapMarkersResponse,
   mapMarkersResponseSchema,
+  type MapProposalCatalogResponse,
+  mapProposalCatalogResponseSchema,
   type ProposalParticipationPolicy,
   proposalParticipationPolicySchema,
 } from './contracts'
@@ -27,4 +29,12 @@ export const getProposalMapPolicy = async (
     path: `/v1/map/policies/${encodeURIComponent(proposalId)}`,
   })
   return proposalParticipationPolicySchema.parse(response)
+}
+
+export const getMapProposalCatalog = async (): Promise<MapProposalCatalogResponse> => {
+  const response = await getMockBackendRoutes().request({
+    method: 'GET',
+    path: '/v1/map/catalog',
+  })
+  return mapProposalCatalogResponseSchema.parse(response)
 }

@@ -790,6 +790,19 @@ own repository before location contribution is enabled.
 
 ### Phase 3: Read-Only Jomhoor Map
 
+Status: Implemented on June 10, 2026 using the Phase 2 mock backend.
+
+- Added the Map route and placed it directly after Proposals on Home.
+- Added a shared on-chain/IPFS proposal catalog used by Proposals and Map.
+- Added proposal and question selectors with no automatic marker request.
+- Added native aggregate marker rendering and a web fallback.
+- Added answer breakdown, privacy, loading, empty, error, and offline states.
+- Added `expoMapAdapter.ts` as the mandatory future coordinate-offset boundary.
+- The read-only screen does not import `expo-location`, request permission, or
+  enable the map's device-location controls.
+- Android builds must provide `GOOGLE_MAPS_API_KEY` at build time. iOS uses
+  Apple Maps by default and does not require that key.
+
 - Install Expo-compatible `react-native-maps`. The actual approximate location is gated by expoMapAdapter.ts that always adds a random offset to the current location.
 - Add the Map route and home destination under Proposals.
 - Extract reusable proposal catalog loading.

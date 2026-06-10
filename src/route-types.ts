@@ -40,6 +40,7 @@ export type AppStackParamsList = {
   Home: undefined
   Documents: undefined
   Proposals: undefined
+  Map: undefined
   Hub: undefined
   Compass: undefined
   Wallet: undefined

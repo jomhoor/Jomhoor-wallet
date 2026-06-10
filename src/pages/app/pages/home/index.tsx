@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native'
 import type { ComponentProps } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Pressable, Text, View } from 'react-native'
+import { Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SvgXml } from 'react-native-svg'
 
@@ -18,8 +18,8 @@ import { GRID_UNIT } from '@/theme/config/spacing'
 import { UiCard, UiIcon } from '@/ui'
 
 type HomeDestination = {
-  labelKey: 'home.profile' | 'home.proposals' | 'home.hub' | 'home.compass'
-  route: 'Profile' | 'Proposals' | 'Hub' | 'Compass'
+  labelKey: 'home.profile' | 'home.proposals' | 'home.map' | 'home.hub' | 'home.compass'
+  route: 'Profile' | 'Proposals' | 'Map' | 'Hub' | 'Compass'
   icon: { lib: string; name: string } | { custom: string }
   color: string
 }
@@ -37,6 +37,12 @@ function getHomeDestinations(p: BaseTheme): HomeDestination[] {
       route: 'Proposals',
       icon: { lib: 'FontAwesome', name: 'list-ul' },
       color: p.successMain,
+    },
+    {
+      labelKey: 'home.map',
+      route: 'Map',
+      icon: { custom: 'mapPinIcon' },
+      color: p.primaryMain,
     },
     {
       labelKey: 'home.hub',
@@ -178,7 +184,11 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
         </Text>
       </View>
 
-      <View className='flex-1 gap-4 px-home-x' style={{ paddingTop: GRID_UNIT * 4 }}>
+      <ScrollView
+        className='flex-1'
+        contentContainerClassName='gap-4 px-home-x pb-8'
+        contentContainerStyle={{ paddingTop: GRID_UNIT * 4 }}
+      >
         {destinations.map(item => (
           <HomeSectionCard
             key={item.route}
@@ -188,7 +198,7 @@ export default function HomeScreen({}: AppStackScreenProps<'Home'>) {
             onPress={() => navigation.navigate(item.route as never)}
           />
         ))}
-      </View>
+      </ScrollView>
     </View>
   )
 }

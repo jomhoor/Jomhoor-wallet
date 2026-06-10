@@ -246,6 +246,24 @@ export const mapMarkersQuerySchema = z
 
 export const mapMarkersResponseSchema = z.array(mapMarkerSchema)
 
+export const mapProposalCatalogQuestionSchema = z
+  .object({
+    title: z.string().trim().min(1),
+    variants: z.array(z.string().trim().min(1)).min(1),
+  })
+  .strict()
+
+export const mapProposalCatalogItemSchema = z
+  .object({
+    proposalId: z.string().trim().min(1),
+    title: z.string().trim().min(1),
+    description: z.string(),
+    questions: z.array(mapProposalCatalogQuestionSchema).min(1),
+  })
+  .strict()
+
+export const mapProposalCatalogResponseSchema = z.array(mapProposalCatalogItemSchema)
+
 export type MapCellResolution = (typeof MAP_ALLOWED_CELL_RESOLUTIONS)[number]
 export type MapProfileLocationPreference = z.infer<typeof mapProfileLocationPreferenceSchema>
 export type MapLocationSource = z.infer<typeof mapLocationSourceSchema>
@@ -261,6 +279,9 @@ export type MapMarkerOptionBreakdown = z.infer<typeof mapMarkerOptionBreakdownSc
 export type MapMarker = z.infer<typeof mapMarkerSchema>
 export type MapMarkersQuery = z.infer<typeof mapMarkersQuerySchema>
 export type MapMarkersResponse = z.infer<typeof mapMarkersResponseSchema>
+export type MapProposalCatalogQuestion = z.infer<typeof mapProposalCatalogQuestionSchema>
+export type MapProposalCatalogItem = z.infer<typeof mapProposalCatalogItemSchema>
+export type MapProposalCatalogResponse = z.infer<typeof mapProposalCatalogResponseSchema>
 
 export type MapContextPolicyErrorCode =
   | 'LOCATION_DISABLED'

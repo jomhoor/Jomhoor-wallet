@@ -1795,6 +1795,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-maps (1.18.0):
+    - React-Core
   - react-native-mmkv (3.1.0):
     - DoubleConversion
     - glog
@@ -1816,6 +1818,8 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-netinfo (11.4.1):
+    - React-Core
   - react-native-nfc-manager (3.16.2):
     - React-Core
   - react-native-restart (0.0.27):
@@ -2670,7 +2674,9 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - react-native-keyboard-controller (from `../node_modules/react-native-keyboard-controller`)
+  - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-mmkv (from `../node_modules/react-native-mmkv`)
+  - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-nfc-manager (from `../node_modules/react-native-nfc-manager`)
   - react-native-restart (from `../node_modules/react-native-restart`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
@@ -2922,8 +2928,12 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-get-random-values"
   react-native-keyboard-controller:
     :path: "../node_modules/react-native-keyboard-controller"
+  react-native-maps:
+    :path: "../node_modules/react-native-maps"
   react-native-mmkv:
     :path: "../node_modules/react-native-mmkv"
+  react-native-netinfo:
+    :path: "../node_modules/@react-native-community/netinfo"
   react-native-nfc-manager:
     :path: "../node_modules/react-native-nfc-manager"
   react-native-restart:
@@ -3129,7 +3139,9 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: a645237a841d733861c70b69908ab4a1707b52ad
   react-native-get-random-values: 21325b2244dfa6b58878f51f9aa42821e7ba3d06
   react-native-keyboard-controller: fe6ff64c6871d3f4b5573a2ef5d15d1d7416d8af
+  react-native-maps: 2e6e9896195781327ee15b33e3e84bf73c08207a
   react-native-mmkv: 15b2a88cd80e999a53c6dc06f6ef1b6ce5c172a0
+  react-native-netinfo: f0a9899081c185db1de5bb2fdc1c88c202a059ac
   react-native-nfc-manager: f7156b2485f43a664c26f3c519408ef356b61042
   react-native-restart: 7595693413fe3ca15893702f2c8306c62a708162
   react-native-safe-area-context: 3ef4bda709fc54a17f4d5987c894b4f088651c25

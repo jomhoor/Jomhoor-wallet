@@ -13,6 +13,7 @@ import DocumentScanScreen from './pages/document-scan'
 import DocumentsScreen from './pages/documents'
 import HomeScreen from './pages/home'
 import HubScreen from './pages/hub'
+import JomhoorMapScreen from './pages/map'
 import PollScreen from './pages/poll'
 import ProfileScreen from './pages/profile'
 import ProposalsScreen from './pages/proposals'
@@ -47,6 +48,7 @@ export default function App(props: RootStackScreenProps<'App'>) {
       <Stack.Screen name='Home' component={HomeScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Documents' component={DocumentsScreen} />
       <Stack.Screen name='Proposals' component={ProposalsScreen} />
+      <Stack.Screen name='Map' component={JomhoorMapScreen} />
       <Stack.Screen name='Hub' component={HubScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Compass' component={CompassScreen} options={{ headerShown: false }} />
       <Stack.Screen name='Wallet' component={WalletScreen} />
