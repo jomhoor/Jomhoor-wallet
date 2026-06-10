@@ -724,6 +724,29 @@ Add `Map` immediately after `Proposals` in `getHomeDestinations()`.
 
 ### Phase 1: Contracts and Privacy Rules
 
+Status: Implemented on June 10, 2026.
+
+- Runtime wire contracts and policy validation:
+  `src/api/modules/map/contracts.ts`
+- Deterministic hierarchical privacy aggregation:
+  `src/api/modules/map/privacy.ts`
+- Public module exports: `src/api/modules/map/index.ts`
+- Focused tests: `src/api/modules/map/__tests__/`
+
+Implemented decisions:
+
+- H3 is the version 1 cell scheme.
+- Collection resolution is 6.
+- Published parent resolutions may descend to resolution 3.
+- The minimum privacy threshold is `k = 5`.
+- The default fixed publication window is 15 minutes.
+- Individual map context contains only a cell ID, resolution, source, and
+  policy/consent versions. Runtime schemas reject raw coordinates.
+- If any non-zero answer count is below `k`, the complete option breakdown is
+  withheld to prevent subtraction from revealing the minority answer.
+- Location policy validation implements `disabled`, `optional`, and `required`
+  behavior without changing proof or contract calldata.
+
 - Finalize the marker DTO.
 - Finalize the coarse cell system and allowed resolutions.
 - Set the production minimum to `k = 5` and define publication delay.
@@ -746,7 +769,7 @@ Add `Map` immediately after `Proposals` in `getHomeDestinations()`.
 
 ### Phase 3: Read-Only Jomhoor Map
 
-- Install Expo-compatible `react-native-maps`.
+- Install Expo-compatible `react-native-maps`. The actual approximate location is gated by expoMapAdapter.ts that always adds a random offset to the current location.
 - Add the Map route and home destination under Proposals.
 - Extract reusable proposal catalog loading.
 - Add proposal and question selectors.
