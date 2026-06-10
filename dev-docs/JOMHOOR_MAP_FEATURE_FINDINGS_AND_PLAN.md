@@ -756,6 +756,27 @@ Implemented decisions:
 
 ### Phase 2: Backend Read Path
 
+Status: Implemented as an in-process mock backend on June 10, 2026.
+
+The mock preserves the production service boundary while UI work proceeds:
+
+- `src/mock-backend/map/` implements the logical schema, migration manifest,
+  one-hot answer decoder, `VoteCast` indexer, finality/reorg reconciliation,
+  pending relayer bindings, fixed-window marker cache, and seeded data.
+- `src/mock-backend/map/routes.ts` exposes endpoint-shaped handlers for
+  `GET /v1/map/markers` and `GET /v1/map/policies/:proposalId`.
+- `src/api/modules/map/client.ts` is the app-facing client and currently uses
+  those mock routes. A real backend can replace that transport without changing
+  map consumers.
+- Seeded proposal IDs `1`, `2`, and `3` demonstrate `optional`, `required`, and
+  `disabled` location policies respectively.
+- The mock never publishes chain event IDs, transaction hashes, nullifier
+  hashes, receipts, or source child cells through its read endpoints.
+
+This is not a production RPC indexer or persistent SQL migration. The
+production backend must implement the same contracts and constraints in its
+own repository before location contribution is enabled.
+
 - Add the `VoteCast` chain indexer.
 - Decode and validate multi-question one-hot answer masks.
 - Add map tables and migrations.
