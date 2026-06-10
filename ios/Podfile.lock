@@ -2575,6 +2575,8 @@ PODS:
     - GoogleMLKit/Translate
     - React-Core
     - VisionCamera
+  - WalletKeyService (1.0.0):
+    - ExpoModulesCore
   - Witnesscalculator (1.0.0):
     - ExpoModulesCore
   - Yoga (0.0.0)
@@ -2715,6 +2717,7 @@ DEPENDENCIES:
   - VisionCamera (from `../node_modules/react-native-vision-camera`)
   - VisionCameraFaceDetector (from `../node_modules/react-native-vision-camera-face-detector`)
   - VisionCameraTextRecognition (from `../node_modules/react-native-vision-camera-text-recognition`)
+  - WalletKeyService (from `../modules/wallet-key-service/ios`)
   - Witnesscalculator (from `../modules/witnesscalculator/ios`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -3013,6 +3016,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-vision-camera-face-detector"
   VisionCameraTextRecognition:
     :path: "../node_modules/react-native-vision-camera-text-recognition"
+  WalletKeyService:
+    :path: "../modules/wallet-key-service/ios"
   Witnesscalculator:
     :path: "../modules/witnesscalculator/ios"
   Yoga:
@@ -3180,6 +3185,7 @@ SPEC CHECKSUMS:
   VisionCamera: 88df4dae7196c93ecd331f105f0e5d7d95702cb3
   VisionCameraFaceDetector: 8e11198c3145b40037575d8f476e491813e2ffee
   VisionCameraTextRecognition: 659545d60ca13fc8e2389c760f5f3b8730b4bf33
+  WalletKeyService: acadb01bd80543949a104d61438b9efc2454e1aa
   Witnesscalculator: 57f2092a257e099bd7d80b2a80fb4e403f4dad5c
   Yoga: 40f19fff64dce86773bf8b602c7070796c007970
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5

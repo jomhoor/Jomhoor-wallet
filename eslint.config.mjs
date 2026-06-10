@@ -137,6 +137,15 @@ export default tseslint.config(
     },
   },
 
+  // CommonJS files in this repository are Node.js scripts, not browser modules.
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: globals.node,
+    },
+  },
+
   // Turns off all rules that are unnecessary or might conflict with Prettier
   eslintConfigPrettier,
 

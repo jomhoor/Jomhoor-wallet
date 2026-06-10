@@ -1,0 +1,56 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.walletkeyservice'
+version = '1.0.0'
+
+def expoModulesCorePlugin = new File(
+  project(":expo-modules-core").projectDir.absolutePath,
+  "ExpoModulesCorePlugin.gradle"
+)
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+def useManagedAndroidSdkVersions = false
+if (useManagedAndroidSdkVersions) {
+  useDefaultAndroidSdkVersions()
+} else {
+  buildscript {
+    ext.safeExtGet = { prop, fallback ->
+      rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+    }
+  }
+  project.android {
+    compileSdkVersion safeExtGet("compileSdkVersion", 35)
+    defaultConfig {
+      minSdkVersion safeExtGet("minSdkVersion", 26)
+      targetSdkVersion safeExtGet("targetSdkVersion", 35)
+    }
+  }
+}
+
+android {
+  namespace "expo.modules.walletkeyservice"
+
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+
+    externalNativeBuild {
+      cmake {
+        cppFlags "-std=c++17"
+      }
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path "src/main/cpp/CMakeLists.txt"
+    }
+  }
+}
+
+dependencies {
+  implementation("com.google.code.gson:gson:2.10.1")
+}

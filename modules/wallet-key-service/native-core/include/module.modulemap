@@ -1,0 +1,4 @@
+module WalletKeyCrypto {
+  header "wallet_key_crypto.h"
+  export *
+}
