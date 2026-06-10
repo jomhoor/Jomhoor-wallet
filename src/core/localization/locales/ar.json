@@ -133,8 +133,14 @@
     "advanced": "متقدم",
     "display-name": "غريب",
     "display-name-verified": "إيراني",
+    "identity-key": "مفتاح الهوية",
+    "key-ready": "محفوظ بأمان",
+    "key-unavailable": "غير متاح",
     "log-out": "تسجيل الخروج",
-    "private-key": "المفتاح الخاص"
+    "private-key-protected": "مفتاحك الخاص محفوظ بأمان على هذا الجهاز ولا يتم عرضه أبداً.",
+    "public-wallet-address": "عنوان المحفظة العام",
+    "recovery-guidance": "استعد الوصول عبر التحقق من هويتك مرة أخرى. النسخ الاحتياطي الآمن غير متاح بعد.",
+    "wallet-key-status": "حالة المحفظة / مفتاح الهوية"
   },
   "proposals": {
     "active": "Active",

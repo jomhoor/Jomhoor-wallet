@@ -133,8 +133,14 @@
     "advanced": "Advanced",
     "display-name": "Stranger",
     "display-name-verified": "Iranian",
+    "identity-key": "Identity key",
+    "key-ready": "Securely stored",
+    "key-unavailable": "Unavailable",
     "log-out": "Log out",
-    "private-key": "Private key"
+    "private-key-protected": "Your private key is securely stored on this device and is never shown.",
+    "public-wallet-address": "Public wallet address",
+    "recovery-guidance": "Recover access by verifying your identity again. Secure backup is not available yet.",
+    "wallet-key-status": "Wallet / Identity key status"
   },
   "proposals": {
     "active": "Active",

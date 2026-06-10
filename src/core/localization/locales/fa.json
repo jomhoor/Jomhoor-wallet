@@ -133,8 +133,14 @@
     "advanced": "پیشرفته",
     "display-name": "غریبه",
     "display-name-verified": "ایرانی",
+    "identity-key": "کلید هویت",
+    "key-ready": "به‌صورت امن ذخیره شده",
+    "key-unavailable": "در دسترس نیست",
     "log-out": "خروج",
-    "private-key": "کلید خصوصی"
+    "private-key-protected": "کلید خصوصی شما به‌صورت امن روی این دستگاه ذخیره شده و هرگز نمایش داده نمی‌شود.",
+    "public-wallet-address": "نشانی عمومی کیف پول",
+    "recovery-guidance": "برای بازیابی دسترسی، دوباره هویت خود را تأیید کنید. پشتیبان‌گیری امن هنوز در دسترس نیست.",
+    "wallet-key-status": "وضعیت کیف پول / کلید هویت"
   },
   "proposals": {
     "active": "فعال",
