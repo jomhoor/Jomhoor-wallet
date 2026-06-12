@@ -1,0 +1,3 @@
+native-core/target/
+native-core/include/WalletKeyCrypto/
+native-core/WalletKeyCrypto.xcframework/

@@ -114,6 +114,7 @@ const client = z.object({
 const buildTime = z.object({
   EXPO_ACCOUNT_OWNER: z.string(),
   EAS_PROJECT_ID: z.string(),
+  GOOGLE_MAPS_API_KEY: z.string(),
   // ADD YOUR BUILD TIME ENV VARS HERE
 })
 
@@ -156,6 +157,7 @@ const _clientEnv = {
 const _buildTimeEnv = {
   EXPO_ACCOUNT_OWNER,
   EAS_PROJECT_ID,
+  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
   // ADD YOUR ENV VARS HERE TOO
   // SECRET_KEY: process.env.EXPO_PUBLIC_SECRET_KEY,
 }

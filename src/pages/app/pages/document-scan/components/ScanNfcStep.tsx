@@ -1,26 +1,46 @@
 import {
+  cancelNidNfcProbe,
+  isNidNfcProbeEnabled,
   type NidBackScanResult,
   type NidFrontScanResult,
+  type NidNfcProbeResult,
   type NidNfcReadResult,
   NidVerificationFlow,
   type NidVerificationInitialData,
   type NidVerificationResult,
+  probeNidChip,
   type ReadNidNfcInput,
 } from '@iland/nid-verification'
 import { useNavigation } from '@react-navigation/core'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ErrorHandler } from '@/core'
 import { nidNfcResultToEID } from '@/pages/app/pages/document-scan/adapters'
+import {
+  createDemoNidNfcResult,
+  DEMO_NID_BARCODE_RAW,
+  DEMO_NID_FRONT_IMAGE_URI,
+  DEMO_SCAN_DELAY_MS,
+} from '@/pages/app/pages/document-scan/demo/nid-demo-fixtures'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
+import { appCapabilitiesStore } from '@/store'
 import {
   clearInidNfcTemporaryData,
   initNfc,
   readSigningCertDgAndSod,
   stopNfc,
 } from '@/utils/e-document/inid-nfc-reader'
+import {
+  appendNfcEvidence,
+  clearNfcEvidence,
+  createNfcFailureEvidence,
+  createNidProbeEvidence,
+  createNidReadEvidence,
+  getNfcEvidenceSummary,
+  logNfcEvidenceExport,
+} from '@/utils/nfc-evidence'
 
 function normalizeNationalId(value?: string): string | undefined {
   if (!value) return undefined
@@ -34,6 +54,11 @@ function normalizeNationalId(value?: string): string | undefined {
 export default function ScanNfcStep() {
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const [nfcProbeBusy, setNfcProbeBusy] = useState(false)
+  const [nfcProbeResult, setNfcProbeResult] = useState<NidNfcProbeResult>()
+  const [nfcEvidenceLabel, setNfcEvidenceLabel] = useState('nid-sample')
+  const [nfcEvidenceSummary, setNfcEvidenceSummary] = useState('')
 
   const {
     resetFaceVerification,
@@ -41,8 +66,11 @@ export default function ScanNfcStep() {
     setNidVerificationResult,
     setTempEDoc,
     setVerificationUserData,
+    verificationMode,
     verificationUserData,
   } = useDocumentScanContext()
+  const isDemoMode = verificationMode === 'demo' && documentDemoModeEnabled
+  const nfcProbeEnabled = !isDemoMode && isNidNfcProbeEnabled()
 
   const nidInitialData = useMemo<NidVerificationInitialData>(() => {
     const nid = verificationUserData.document.nid
@@ -71,49 +99,108 @@ export default function ScanNfcStep() {
     }
   }, [verificationUserData])
 
+  const refreshEvidenceSummary = useCallback(async () => {
+    setNfcEvidenceSummary(await getNfcEvidenceSummary('nid', nfcEvidenceLabel))
+  }, [nfcEvidenceLabel])
+
   useEffect(() => {
+    void refreshEvidenceSummary()
+  }, [refreshEvidenceSummary])
+
+  useEffect(() => {
+    if (isDemoMode) return
+
     void initNfc().catch(() => undefined)
 
     return () => {
+      void cancelNidNfcProbe().catch(() => undefined)
       void stopNfc().catch(() => undefined)
     }
-  }, [])
+  }, [isDemoMode])
 
-  const readLiveNidNfc = useCallback(async (input: ReadNidNfcInput): Promise<NidNfcReadResult> => {
-    const expectedNationalId = normalizeNationalId(input.expectedNationalId)
-
+  const runNfcProbe = useCallback(async () => {
+    setNfcProbeBusy(true)
+    setNfcProbeResult(undefined)
     try {
-      const { authCert, dg1Bytes, dg15Bytes, signingCert, sodBytes } =
-        await readSigningCertDgAndSod()
-      const hasSigningCert = Boolean(signingCert)
-      const hasAuthCert = Boolean(authCert)
-      const status = hasSigningCert && hasAuthCert ? 'success' : 'failed'
-
-      return {
-        status,
-        nationalId: expectedNationalId
-          ? {
-              value: expectedNationalId,
-              source: 'derived',
-              confidence: 0.9,
-            }
-          : undefined,
-        signingCertHex: signingCert ?? undefined,
-        authCertHex: authCert ?? undefined,
-        dg1Bytes,
-        dg15Bytes,
-        sodBytes,
-        debug: {
-          backend: 'inid-nfc-reader',
-          hasAuthCert,
-          hasSigningCert,
-          mocked: false,
-          readAt: Date.now(),
-        },
-      }
+      const result = await probeNidChip()
+      console.warn('[NID-NFC-PROBE][REPORT]\n', JSON.stringify(result, null, 2))
+      setNfcProbeResult(result)
+      await appendNfcEvidence(createNidProbeEvidence(result, nfcEvidenceLabel))
+      await refreshEvidenceSummary()
     } catch (error) {
-      throw error instanceof Error ? error : new Error('Failed to read NID NFC chip.')
+      await appendNfcEvidence(
+        createNfcFailureEvidence({
+          documentFlow: 'nid',
+          source: 'probe',
+          testLabel: nfcEvidenceLabel,
+          error,
+        }),
+      )
+      await refreshEvidenceSummary()
+      ErrorHandler.processWithoutFeedback(
+        error instanceof Error ? error : new Error('NID NFC probe failed.'),
+      )
+    } finally {
+      setNfcProbeBusy(false)
     }
+  }, [nfcEvidenceLabel, refreshEvidenceSummary])
+
+  const readLiveNidNfc = useCallback(
+    async (input: ReadNidNfcInput): Promise<NidNfcReadResult> => {
+      const expectedNationalId = normalizeNationalId(input.expectedNationalId)
+
+      try {
+        const { authCert, dg1Bytes, dg15Bytes, signingCert, sodBytes } =
+          await readSigningCertDgAndSod()
+        const hasSigningCert = Boolean(signingCert)
+        const hasAuthCert = Boolean(authCert)
+        const status = hasSigningCert && hasAuthCert ? 'success' : 'failed'
+
+        return {
+          status,
+          nationalId: expectedNationalId
+            ? {
+                value: expectedNationalId,
+                source: 'derived',
+                confidence: 0.9,
+              }
+            : undefined,
+          signingCertHex: signingCert ?? undefined,
+          authCertHex: authCert ?? undefined,
+          dg1Bytes,
+          dg15Bytes,
+          sodBytes,
+          debug: {
+            backend: 'inid-nfc-reader',
+            hasAuthCert,
+            hasSigningCert,
+            mocked: false,
+            readAt: Date.now(),
+          },
+        }
+      } catch (error) {
+        await appendNfcEvidence(
+          createNfcFailureEvidence({
+            documentFlow: 'nid',
+            source: 'read',
+            testLabel: nfcEvidenceLabel,
+            error,
+            probeTechnology: 'iso-dep-iso7816',
+            readerStrategy: 'nid-certificate-auto',
+          }),
+        )
+        await refreshEvidenceSummary()
+        throw error instanceof Error ? error : new Error('Failed to read NID NFC chip.')
+      }
+    },
+    [nfcEvidenceLabel, refreshEvidenceSummary],
+  )
+
+  const readDemoNidNfc = useCallback(async (input: ReadNidNfcInput): Promise<NidNfcReadResult> => {
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, DEMO_SCAN_DELAY_MS)
+    })
+    return createDemoNidNfcResult(input)
   }, [])
 
   const handleFrontStored = useCallback(
@@ -134,14 +221,14 @@ export default function ScanNfcStep() {
           ...previous.evidence,
           {
             keys: ['document.nid.front'],
-            source: 'camera',
+            source: isDemoMode ? 'demo' : 'camera',
             step: 'nid-front-scan',
             storedAt: Date.now(),
           },
         ],
       }))
     },
-    [setVerificationUserData],
+    [isDemoMode, setVerificationUserData],
   )
 
   const handleBackStored = useCallback(
@@ -163,14 +250,14 @@ export default function ScanNfcStep() {
           ...previous.evidence,
           {
             keys: ['document.nid.back'],
-            source: 'barcode',
+            source: isDemoMode ? 'demo' : 'barcode',
             step: 'nid-back-barcode-scan',
             storedAt: Date.now(),
           },
         ],
       }))
     },
-    [setVerificationUserData],
+    [isDemoMode, setVerificationUserData],
   )
 
   const handleNfcStored = useCallback(
@@ -189,7 +276,7 @@ export default function ScanNfcStep() {
           ...previous.evidence,
           {
             keys: ['document.nid.nfc', 'document.nid.verification'],
-            source: 'nfc',
+            source: isDemoMode ? 'demo' : 'nfc',
             step: 'nid-nfc-read',
             storedAt: Date.now(),
           },
@@ -199,9 +286,13 @@ export default function ScanNfcStep() {
           status: result.verified ? 'ready-for-proof' : 'failed',
         },
       }))
-      await clearInidNfcTemporaryData()
+      if (!isDemoMode) {
+        await appendNfcEvidence(createNidReadEvidence(nfc, result, nfcEvidenceLabel))
+        await refreshEvidenceSummary()
+        await clearInidNfcTemporaryData()
+      }
     },
-    [setVerificationUserData],
+    [isDemoMode, nfcEvidenceLabel, refreshEvidenceSummary, setVerificationUserData],
   )
 
   const handleComplete = (result: NidVerificationResult) => {
@@ -214,14 +305,16 @@ export default function ScanNfcStep() {
       return
     }
 
-    try {
-      setTempEDoc(nidNfcResultToEID(result.nfc))
-    } catch (error) {
-      ErrorHandler.process(
-        error instanceof Error ? error : new Error('Failed to convert NID NFC data'),
-        'Could not prepare NID NFC data for proof generation.',
-      )
-      return
+    if (!isDemoMode) {
+      try {
+        setTempEDoc(nidNfcResultToEID(result.nfc))
+      } catch (error) {
+        ErrorHandler.process(
+          error instanceof Error ? error : new Error('Failed to convert NID NFC data'),
+          'Could not prepare NID NFC data for proof generation.',
+        )
+        return
+      }
     }
 
     resetFaceVerification()
@@ -238,7 +331,11 @@ export default function ScanNfcStep() {
     >
       <NidVerificationFlow
         initialData={nidInitialData}
-        nfcReader={readLiveNidNfc}
+        mode={isDemoMode ? 'demo' : 'live'}
+        demoFrontImageUri={DEMO_NID_FRONT_IMAGE_URI}
+        demoBarcodeRaw={DEMO_NID_BARCODE_RAW}
+        demoScanDelayMs={DEMO_SCAN_DELAY_MS}
+        nfcReader={isDemoMode ? readDemoNidNfc : readLiveNidNfc}
         onBackStored={handleBackStored}
         onComplete={handleComplete}
         onCancel={() => {
@@ -249,6 +346,21 @@ export default function ScanNfcStep() {
         }}
         onFrontStored={handleFrontStored}
         onNfcStored={handleNfcStored}
+        nfcProbeEnabled={nfcProbeEnabled}
+        nfcProbeBusy={nfcProbeBusy}
+        nfcProbeResult={nfcProbeResult}
+        onNfcProbe={() => {
+          void runNfcProbe()
+        }}
+        nfcEvidenceLabel={nfcEvidenceLabel}
+        nfcEvidenceSummary={nfcEvidenceSummary}
+        onNfcEvidenceLabelChange={setNfcEvidenceLabel}
+        onLogNfcEvidence={() => {
+          void logNfcEvidenceExport()
+        }}
+        onClearNfcEvidence={() => {
+          void clearNfcEvidence().then(refreshEvidenceSummary)
+        }}
       />
     </View>
   )

@@ -83,9 +83,9 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const markDemoProposalVoted = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.markProposalVoted,
   )
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
   const isDemoIdentityActive =
-    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
+    documentDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const privateKey = walletStore.useWalletStore(state => state.privateKey)
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)

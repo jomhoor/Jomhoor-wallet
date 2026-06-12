@@ -1,7 +1,7 @@
 # Jomhoor Security Review — Quick Summary
 
-**Date:** May 23, 2026  
-**Status:** 9 findings identified (5 Critical, 4 High/Medium)  
+**Date:** May 23, 2026
+**Status:** 9 findings identified (5 Critical, 4 High/Medium)
 **Target:** Production readiness assessment for Iran deployment
 
 ---

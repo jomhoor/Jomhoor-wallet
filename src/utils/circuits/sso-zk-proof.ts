@@ -23,6 +23,7 @@ import { recoverWallet, submitZkAssertion, type SubmitZkAssertionRequest } from 
 import { Config } from '@/config'
 import { ZERO_DATE_HEX } from '@/pages/app/pages/poll/constants'
 import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
+import { walletStore } from '@/store/modules/wallet'
 import type { ProposalState } from '@/types/contracts'
 
 import { EIDBasedQueryIdentityCircuit } from './eid-based-query-identity-circuit'
@@ -155,4 +156,20 @@ export async function recoverSsoWalletWithZk(args: {
   const payload = await buildSsoZkAssertionPayload(args)
   const { data } = await recoverWallet(payload)
   return { priorWalletExisted: data.priorWalletExisted }
+}
+
+/**
+ * UI-safe recovery entry point. Raw wallet secrets must stay inside wallet-domain
+ * operations and must never be returned to or passed through UI components.
+ */
+export async function recoverCurrentSsoWalletWithZk(args: {
+  identity: NoirEIDIdentity
+  walletAddress: string
+}): Promise<{ priorWalletExisted: boolean }> {
+  return walletStore.withPrivateKey(privateKey =>
+    recoverSsoWalletWithZk({
+      ...args,
+      privateKey,
+    }),
+  )
 }

@@ -825,7 +825,7 @@ export default function GazeChallengeContainer(): JSX.Element {
         />
       )}
 
-      <View className='flex-1 bg-black/45 p-6'>
+      <View className='flex-1 p-6'>
         <View className='flex-row items-center'>
           <Text className='typography-h5 text-white'>Face Verification</Text>
           <View className='flex-1' />

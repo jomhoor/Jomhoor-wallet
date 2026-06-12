@@ -53,6 +53,7 @@ describe('appCapabilitiesStore', () => {
 
     expect(isPassportDemoReviewWalletAddress(reviewWalletAddress)).toBe(true)
     expect(resolveAppCapabilitiesForWalletAddress(reviewWalletAddress)).toEqual({
+      documentDemoModeEnabled: true,
       passportDemoModeEnabled: true,
     })
 
@@ -72,6 +73,7 @@ describe('appCapabilitiesStore', () => {
     expect(resolveAppCapabilitiesForPrivateKey('review-private-key-fixture')).toEqual({
       walletAddress: PASSPORT_DEMO_REVIEW_WALLET_ADDRESSES[0],
       capabilities: {
+        documentDemoModeEnabled: true,
         passportDemoModeEnabled: true,
       },
     })
@@ -89,6 +91,7 @@ describe('appCapabilitiesStore', () => {
 
     expect(capabilities.passportDemoModeEnabled).toBe(false)
     expect(appCapabilitiesStore.useAppCapabilitiesStore.getState()).toMatchObject({
+      documentDemoModeEnabled: false,
       passportDemoModeEnabled: false,
       sourceWalletAddress: unknownWalletAddress,
       status: 'loaded',
@@ -100,6 +103,7 @@ describe('appCapabilitiesStore', () => {
     expect(resolveAppCapabilitiesForPrivateKey('')).toEqual({
       walletAddress: undefined,
       capabilities: {
+        documentDemoModeEnabled: false,
         passportDemoModeEnabled: false,
       },
     })
@@ -107,6 +111,7 @@ describe('appCapabilitiesStore', () => {
     expect(resolveAppCapabilitiesForPrivateKey('not-a-private-key')).toEqual({
       walletAddress: undefined,
       capabilities: {
+        documentDemoModeEnabled: false,
         passportDemoModeEnabled: false,
       },
     })

@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera'
 
+import { NidDemoBanner } from './NidDemoBanner'
+
 export type NidFrontScanStepProps = {
   stepIndex: number
   totalSteps: number
   errorMessage?: string
   onSubmit: (frontImageUri: string) => void
   onCancel?: () => void
+  demoMessage?: string
 }
 
 export function NidFrontScanStep({
@@ -16,6 +19,7 @@ export function NidFrontScanStep({
   errorMessage,
   onSubmit,
   onCancel,
+  demoMessage,
 }: NidFrontScanStepProps): JSX.Element {
   const { hasPermission, requestPermission } = useCameraPermission()
   const device = useCameraDevice('back')
@@ -43,11 +47,10 @@ export function NidFrontScanStep({
 
   return (
     <View style={styles.container}>
+      {demoMessage ? <NidDemoBanner message={demoMessage} /> : null}
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Capture NID Front</Text>
-      <Text style={styles.subtitle}>
-        Capture a clear image of the front side. No OCR is used in this flow.
-      </Text>
+      <Text style={styles.subtitle}>Capture a clear image of the front side.</Text>
 
       <View style={styles.previewFrame}>
         {capturedFrontUri ? (
@@ -57,7 +60,15 @@ export function NidFrontScanStep({
             resizeMode='cover'
           />
         ) : hasPermission && device ? (
-          <Camera ref={cameraRef} style={styles.camera} device={device} isActive photo />
+          <>
+            <Camera ref={cameraRef} style={styles.camera} device={device} isActive photo />
+            <View pointerEvents='none' style={styles.cardGuide}>
+              <View style={[styles.cardGuideCorner, styles.cardGuideTopLeft]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideTopRight]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideBottomLeft]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideBottomRight]} />
+            </View>
+          </>
         ) : (
           <View style={styles.cameraPlaceholder}>
             <Text style={styles.placeholderText}>Camera permission is required.</Text>
@@ -70,7 +81,7 @@ export function NidFrontScanStep({
 
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-      <View style={styles.row}>
+      <View style={styles.actionList}>
         {capturedFrontUri ? (
           <Pressable
             style={[styles.secondaryButton, busy ? styles.disabledButton : null]}
@@ -105,18 +116,21 @@ export function NidFrontScanStep({
         >
           <Text style={styles.primaryButtonText}>Continue to Back Scan</Text>
         </Pressable>
-      </View>
 
-      {onCancel ? (
-        <Pressable style={styles.secondaryButton} onPress={onCancel}>
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
-        </Pressable>
-      ) : null}
+        {onCancel ? (
+          <Pressable style={styles.secondaryButton} onPress={onCancel}>
+            <Text style={styles.secondaryButtonText}>Cancel</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
+  actionList: {
+    gap: 8,
+  },
   camera: {
     flex: 1,
   },
@@ -125,6 +139,47 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 16,
+  },
+  cardGuide: {
+    bottom: '15%',
+    left: '8%',
+    position: 'absolute',
+    right: '8%',
+    top: '15%',
+  },
+  cardGuideBottomLeft: {
+    borderBottomLeftRadius: 14,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    bottom: 0,
+    left: 0,
+  },
+  cardGuideBottomRight: {
+    borderBottomRightRadius: 14,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    bottom: 0,
+    right: 0,
+  },
+  cardGuideCorner: {
+    borderColor: '#FFFFFF',
+    height: 34,
+    position: 'absolute',
+    width: 34,
+  },
+  cardGuideTopLeft: {
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 14,
+    borderTopWidth: 4,
+    left: 0,
+    top: 0,
+  },
+  cardGuideTopRight: {
+    borderRightWidth: 4,
+    borderTopRightRadius: 14,
+    borderTopWidth: 4,
+    right: 0,
+    top: 0,
   },
   container: {
     flex: 1,
@@ -160,7 +215,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#111827',
     borderRadius: 12,
-    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
     paddingVertical: 14,
   },
   primaryButtonText: {
@@ -168,16 +224,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  row: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   secondaryButton: {
     alignItems: 'center',
     borderColor: '#D1D5DB',
     borderRadius: 12,
     borderWidth: 1,
-    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
     paddingVertical: 14,
   },
   secondaryButtonText: {

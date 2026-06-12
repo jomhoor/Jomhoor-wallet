@@ -1,6 +1,3 @@
-/* eslint-env node */
-/* global process, require */
-
 const assert = require('node:assert/strict')
 const passport = require('../dist/passport')
 

@@ -52,7 +52,7 @@ export default function FaceComparisonStep(): JSX.Element {
   const insets = useSafeAreaInsets()
 
   const {
-    createIdentity,
+    createNidIdentity,
     docType,
     faceVerification,
     nidVerificationResult,
@@ -65,9 +65,8 @@ export default function FaceComparisonStep(): JSX.Element {
     verificationUserData,
   } = useDocumentScanContext()
   const isNidFlow = docType === DocType.ID
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const isDemoMode =
-    !isNidFlow && verificationUserData.session.mode === 'demo' && passportDemoModeEnabled
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const isDemoMode = verificationUserData.session.mode === 'demo' && documentDemoModeEnabled
   const storedBiometrics = verificationUserData.biometrics
   const storedNidVerificationResult =
     nidVerificationResult ?? verificationUserData.document.nid.verification
@@ -87,10 +86,10 @@ export default function FaceComparisonStep(): JSX.Element {
 
   const portraitUri = useMemo(
     () =>
-      isNidFlow
-        ? storedNidFrontImageUri
-        : isDemoMode
-          ? liveCaptureUri
+      isDemoMode
+        ? liveCaptureUri
+        : isNidFlow
+          ? storedNidFrontImageUri
           : buildPortraitUri(storedPassportNfcDetails?.portrait),
     [
       isDemoMode,
@@ -102,7 +101,7 @@ export default function FaceComparisonStep(): JSX.Element {
   )
 
   useEffect(() => {
-    if (!isDemoMode || !liveCaptureUri) return
+    if (!isDemoMode || isNidFlow || !liveCaptureUri) return
 
     setVerificationUserData(previous => {
       if (previous.document.passport.nfc?.portrait?.filePath === liveCaptureUri) {
@@ -126,7 +125,7 @@ export default function FaceComparisonStep(): JSX.Element {
         },
       }
     })
-  }, [isDemoMode, liveCaptureUri, setVerificationUserData])
+  }, [isDemoMode, isNidFlow, liveCaptureUri, setVerificationUserData])
 
   useEffect(() => {
     let mounted = true
@@ -351,7 +350,7 @@ export default function FaceComparisonStep(): JSX.Element {
         setNidVerificationResult(mergedFaceResult)
         setNidProofInputAdapter(toNidProofInputAdapterData(mergedFaceResult))
         setComparisonState('success')
-        await createIdentity()
+        await createNidIdentity(mergedFaceResult, result)
         return
       }
       setComparisonState('success')
@@ -414,11 +413,11 @@ export default function FaceComparisonStep(): JSX.Element {
       </View>
 
       <Text className='typography-body3 mt-3 text-textSecondary'>
-        {isNidFlow
-          ? 'Prepare the captured live face and compare it with the cropped face from NID front image.'
-          : isDemoMode
-            ? 'Prepare the captured live face and run the normal comparison path using it as the demo reference.'
-            : 'Prepare the captured live face, preview both 112x112 cropped faces, then run comparison.'}
+        {isDemoMode
+          ? 'Prepare the captured live face and run the normal comparison path using it as the demo reference.'
+          : isNidFlow
+            ? 'Prepare the captured live face and compare it with the face from NID front image.'
+            : 'Prepare the captured live face, preview both faces, then run comparison.'}
       </Text>
 
       {isDemoMode ? (
@@ -435,10 +434,10 @@ export default function FaceComparisonStep(): JSX.Element {
               style={{ width: 92, height: 92, borderRadius: 999 }}
             />
             <Text className='typography-body4 mt-2 text-textSecondary'>
-              {isNidFlow
-                ? 'NID front image loaded'
-                : isDemoMode
-                  ? 'Demo reference image loaded'
+              {isDemoMode
+                ? 'Demo reference image loaded'
+                : isNidFlow
+                  ? 'NID front image loaded'
                   : 'Passport portrait loaded'}
             </Text>
           </View>
@@ -452,11 +451,7 @@ export default function FaceComparisonStep(): JSX.Element {
                 style={{ width: 112, height: 112, borderRadius: 10 }}
               />
               <Text className='typography-body4 mt-2 text-textSecondary'>
-                {isNidFlow
-                  ? 'Card front crop'
-                  : isDemoMode
-                    ? 'Demo reference crop'
-                    : 'Passport crop'}
+                {isDemoMode ? 'Demo reference' : isNidFlow ? 'Card front' : 'Passport'}
               </Text>
             </View>
             <View className='items-center'>
@@ -464,7 +459,7 @@ export default function FaceComparisonStep(): JSX.Element {
                 source={{ uri: croppedPreviewUris.liveUri }}
                 style={{ width: 112, height: 112, borderRadius: 10 }}
               />
-              <Text className='typography-body4 mt-2 text-textSecondary'>Live crop</Text>
+              <Text className='typography-body4 mt-2 text-textSecondary'>Live face</Text>
             </View>
           </View>
         ) : null}
@@ -473,13 +468,13 @@ export default function FaceComparisonStep(): JSX.Element {
           {comparisonState === 'initializing'
             ? 'Preparing face model...'
             : comparisonState === 'capturing'
-              ? isNidFlow
-                ? 'Comparing live face with NID front image face crop...'
-                : isDemoMode
-                  ? 'Comparing live face with demo reference...'
+              ? isDemoMode
+                ? 'Comparing live face with demo reference...'
+                : isNidFlow
+                  ? 'Comparing live face with NID front image face...'
                   : 'Comparing live face with passport portrait...'
               : comparisonState === 'cropped'
-                ? 'Cropped previews ready. Review them, then compare.'
+                ? 'Previews ready. Review them, then compare.'
                 : comparisonState === 'success'
                   ? 'Face comparison passed.'
                   : comparisonState === 'failed'

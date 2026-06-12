@@ -8,27 +8,38 @@ export type DemoProofRegistrationRecord = {
   generatedAt: string
 }
 
-export type DemoPassportProfile = {
-  kind: 'demo-passport-profile'
+type DemoProfileBase = {
   firstName: string
   lastName: string
   birthDate: string
   expiryDate: string
-  documentNumber: string
   nationality: string
-  issuingAuthority: string
   createdAt: string
   proof: DemoProofRegistrationRecord
 }
 
+export type DemoPassportProfile = DemoProfileBase & {
+  kind: 'demo-passport-profile'
+  documentNumber: string
+  issuingAuthority: string
+}
+
+export type DemoNidProfile = DemoProfileBase & {
+  kind: 'demo-nid-profile'
+  nationalId: string
+  cardNumber: string
+}
+
+export type DemoDocumentProfile = DemoPassportProfile | DemoNidProfile
+
 const useDemoPassportProfileStore = create(
   combine(
     {
-      profile: undefined as DemoPassportProfile | undefined,
+      profile: undefined as DemoDocumentProfile | undefined,
       votedProposalIds: [] as string[],
     },
     (set, get) => ({
-      setProfile: (profile: DemoPassportProfile) => {
+      setProfile: (profile: DemoDocumentProfile) => {
         set({ profile, votedProposalIds: [] })
       },
       markProposalVoted: (proposalId: string) => {

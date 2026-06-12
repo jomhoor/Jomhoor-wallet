@@ -8,13 +8,13 @@ export default function DocumentsScreen({}: AppTabScreenProps<'Documents'>) {
   const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.profile,
   )
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
 
   if (identities.length) {
     return <DocumentsWithDocs />
   }
 
-  if (passportDemoModeEnabled && demoPassportProfile) {
+  if (documentDemoModeEnabled && demoPassportProfile) {
     return <DocumentsWithDemoProfile />
   }
 

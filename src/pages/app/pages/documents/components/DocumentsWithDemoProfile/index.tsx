@@ -43,18 +43,43 @@ export default function DocumentsWithDemoProfile() {
             <Text className='typography-h6 text-textPrimary'>
               {profile.firstName} {profile.lastName}
             </Text>
-            <Text className='typography-body3 mt-1 text-warningMain'>Demo profile</Text>
+            <Text className='typography-body3 mt-1 text-warningMain'>
+              {profile.kind === 'demo-nid-profile' ? 'Demo ID profile' : 'Demo passport profile'}
+            </Text>
           </View>
         </View>
 
         <UiHorizontalDivider className='my-5' />
 
         <View className='gap-3'>
-          <ProfileRow label='Document number' value={profile.documentNumber} />
+          {profile.kind === 'demo-nid-profile' ? (
+            <>
+              <ProfileRow label='National ID' value={profile.nationalId} />
+              <ProfileRow label='Card number' value={profile.cardNumber} />
+            </>
+          ) : (
+            <ProfileRow label='Document number' value={profile.documentNumber} />
+          )}
           <ProfileRow label='Nationality' value={profile.nationality} />
-          <ProfileRow label='Date of birth' value={formatMrzDate(profile.birthDate)} />
-          <ProfileRow label='Expiry date' value={formatMrzDate(profile.expiryDate)} />
-          <ProfileRow label='Issuing authority' value={profile.issuingAuthority} />
+          <ProfileRow
+            label='Date of birth'
+            value={
+              profile.kind === 'demo-nid-profile'
+                ? profile.birthDate
+                : formatMrzDate(profile.birthDate)
+            }
+          />
+          <ProfileRow
+            label='Expiry date'
+            value={
+              profile.kind === 'demo-nid-profile'
+                ? profile.expiryDate
+                : formatMrzDate(profile.expiryDate)
+            }
+          />
+          {profile.kind === 'demo-passport-profile' ? (
+            <ProfileRow label='Issuing authority' value={profile.issuingAuthority} />
+          ) : null}
         </View>
       </UiCard>
 

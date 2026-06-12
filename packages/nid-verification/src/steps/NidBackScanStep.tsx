@@ -8,6 +8,7 @@ import {
 } from 'react-native-vision-camera'
 
 import { parseNidBarcode } from '../barcode'
+import { NidDemoBanner } from './NidDemoBanner'
 
 const BARCODE_CODE_TYPES = [
   'code-39',
@@ -33,6 +34,7 @@ export type NidBackScanStepProps = {
   onSubmit: (barcodeRaw?: string) => void
   onBack: () => void
   onCancel?: () => void
+  demoMessage?: string
 }
 
 export function NidBackScanStep({
@@ -43,6 +45,7 @@ export function NidBackScanStep({
   onSubmit,
   onBack,
   onCancel,
+  demoMessage,
 }: NidBackScanStepProps): JSX.Element {
   const { hasPermission, requestPermission } = useCameraPermission()
   const device = useCameraDevice('back')
@@ -54,6 +57,8 @@ export function NidBackScanStep({
   }, [nationalIdHint])
 
   const [barcodeRaw, setBarcodeRaw] = useState(defaultBarcode)
+  const parsedBarcode = useMemo(() => parseNidBarcode(barcodeRaw.trim()), [barcodeRaw])
+  const hasValidBarcode = Boolean(parsedBarcode?.nidn)
 
   useEffect(() => {
     if (hasPermission) return
@@ -78,15 +83,24 @@ export function NidBackScanStep({
 
   return (
     <View style={styles.container}>
+      {demoMessage ? <NidDemoBanner message={demoMessage} /> : null}
       <Text style={styles.stepCounter}>{`Step ${stepIndex + 1}/${totalSteps}`}</Text>
       <Text style={styles.title}>Scan NID Back Barcode</Text>
       <Text style={styles.subtitle}>
-        Scan the back barcode with camera. You can also paste payload manually as fallback.
+        Scan the back barcode with camera. You can also enter the national ID number manually.
       </Text>
 
       <View style={styles.cameraFrame}>
         {hasPermission && device ? (
-          <Camera style={styles.camera} device={device} isActive codeScanner={codeScanner} />
+          <>
+            <Camera style={styles.camera} device={device} isActive codeScanner={codeScanner} />
+            <View pointerEvents='none' style={styles.cardGuide}>
+              <View style={[styles.cardGuideCorner, styles.cardGuideTopLeft]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideTopRight]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideBottomLeft]} />
+              <View style={[styles.cardGuideCorner, styles.cardGuideBottomRight]} />
+            </View>
+          </>
         ) : (
           <View style={styles.cameraPlaceholder}>
             <Text style={styles.placeholderText}>Camera permission is required.</Text>
@@ -107,7 +121,11 @@ export function NidBackScanStep({
 
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
 
-      <Pressable style={styles.primaryButton} onPress={() => onSubmit(barcodeRaw)}>
+      <Pressable
+        style={[styles.primaryButton, !hasValidBarcode ? styles.disabledButton : null]}
+        onPress={() => onSubmit(barcodeRaw)}
+        disabled={!hasValidBarcode}
+      >
         <Text style={styles.primaryButtonText}>Continue to NFC Read</Text>
       </Pressable>
 
@@ -142,12 +160,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
   },
+  cardGuide: {
+    bottom: '15%',
+    left: '8%',
+    position: 'absolute',
+    right: '8%',
+    top: '15%',
+  },
+  cardGuideBottomLeft: {
+    borderBottomLeftRadius: 14,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    bottom: 0,
+    left: 0,
+  },
+  cardGuideBottomRight: {
+    borderBottomRightRadius: 14,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    bottom: 0,
+    right: 0,
+  },
+  cardGuideCorner: {
+    borderColor: '#FFFFFF',
+    height: 34,
+    position: 'absolute',
+    width: 34,
+  },
+  cardGuideTopLeft: {
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 14,
+    borderTopWidth: 4,
+    left: 0,
+    top: 0,
+  },
+  cardGuideTopRight: {
+    borderRightWidth: 4,
+    borderTopRightRadius: 14,
+    borderTopWidth: 4,
+    right: 0,
+    top: 0,
+  },
   container: {
     flex: 1,
     gap: 12,
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 20,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   error: {
     color: '#DC2626',

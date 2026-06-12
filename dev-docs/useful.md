@@ -36,10 +36,11 @@ Quick verification after archive:
 
 ## Arman
 
-- Enable voting for iranian NIDC and passport
-- Replace Rarimo as much as we can
-- ZK documentation
-- Add report button to every user genrated content.
+- [ ] **Generate proof for passport**
+- [ ] Enable voting for iranian NIDC and passport
+- [ ] Replace Rarimo as much as we can
+- [x] ZK documentation
+- [ ] Add report button to every user genrated content.
 
 ## Shooresh
 
@@ -49,25 +50,30 @@ Quick verification after archive:
 - [x] Include proof gen required data
 - [x] Add a back button to selecet document page.
 - [x] Refactor face verification - one livness screen - automate likeness.
+- [x] Add the final waypoint at the center and take a photo to use in comparison.
 - [x] Improve MRZ reading - remove reading area limitation.
 - [x] Remove "prepare captured faces" button from face comparison
 - [x] Throughout the gaze challenge there should be only 1 face in the view. No less no more.
 - [x] Implement demo mode for App Store reviewers (see [demo-mode-plan.md](./demo-mode-plan.md))
-- [ ] Android NFC
-- [ ] read the docs and watch the video
-- [ ] Generate proof for passport
-- [ ] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
-- [ ]
+- [x] Android NFC
+- [x] read the docs and watch the video
+- [x] NIDN and other user identity info masking in UI - only show in user-info review by tap-and-hold the row of each field
+- [x] Improve country selction UI
 
 # Backlog
 
 - After successful NIDC verification, "Home Page" button navigates back to "Create your digital identity" page. This creates a loop.
-- Add the final waypoint at the center and take a photo to use in comparison.
+- [ ] Security audit and debug code cleanup
+- [ ] Provide documentation of encryptions used in the app to Apple.
+- [ ] New screenshots and NFC video in English (US)
+
+## UX navigation
+
+-
 
 ## Team
 
 - Add privacy policy document at `https://jomhoor.org/app/privacy.html`, including "User privacy choices".
--
 
 # Next release
 

@@ -30,8 +30,8 @@ function mapResultToFieldRecords(result: PassportMrzBarcodeResult): FieldRecords
 
 export default function ScanPassportMrzStep() {
   const { setTempMrz, setPassportMrzBarcode, verificationMode } = useDocumentScanContext()
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
-  const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
+  const isDemoMode = verificationMode === 'demo' && documentDemoModeEnabled
   const hasCompletedRef = useRef(false)
 
   const completeScan = useCallback(

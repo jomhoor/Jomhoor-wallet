@@ -2918,15 +2918,15 @@ __metadata:
 
 "@iland/nid-verification@file:./packages/nid-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/nid-verification@file:./packages/nid-verification#./packages/nid-verification::hash=5dc581&locator=jomhoor%40workspace%3A."
-  checksum: 10/b4d3c0fe6472fbbaaa7fc3338cfce159676652a1e1f67684b35b31893bd30959cf243e6dfc2068e821dbef7c548cbd893454c40706ec511dce97886bbc6a7d8b
+  resolution: "@iland/nid-verification@file:./packages/nid-verification#./packages/nid-verification::hash=690609&locator=jomhoor%40workspace%3A."
+  checksum: 10/66ae83cffdc4bb71ff0a200f715e51c9b3c0833802f93aa5d90c17c70946531a6fa0abafdeb83c7d151aaa6e66ef5068b786967dbf903e21b2f13c5cf4470804
   languageName: node
   linkType: hard
 
 "@iland/passport-verification@file:./packages/passport-verification::locator=jomhoor%40workspace%3A.":
   version: 0.1.0
-  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=a466e6&locator=jomhoor%40workspace%3A."
-  checksum: 10/1f8dc39125e6adfc59de0bac3ae62af30d38a7731ea85aa876b408e5e749c3f15159f38b7de4eff96849adfd2d49fee830d8f3fa273cd026a9e48b67da9b282b
+  resolution: "@iland/passport-verification@file:./packages/passport-verification#./packages/passport-verification::hash=46c747&locator=jomhoor%40workspace%3A."
+  checksum: 10/69b1e61f5cf78ad9fe343ef2170acaa711edb0d98ded270d73bdecbf34e2f72051e6fe5863f1da4fd5ac73c54ff26463fc67b67a4e6fdb1551ce62dd33be75be
   languageName: node
   linkType: hard
 
@@ -4462,6 +4462,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-community/netinfo@npm:11.4.1":
+  version: 11.4.1
+  resolution: "@react-native-community/netinfo@npm:11.4.1"
+  peerDependencies:
+    react-native: ">=0.59"
+  checksum: 10/47f0d61072ca04a545784daaa44a5b1927eb788a3521dce5462184855733485c3b58c52d2a9b790b5c784e806fb342c83bc14e348cc7e55263b63d31e1862f9d
+  languageName: node
+  linkType: hard
+
 "@react-native-community/slider@npm:^4.5.5":
   version: 4.5.7
   resolution: "@react-native-community/slider@npm:4.5.7"
@@ -5513,6 +5522,13 @@ __metadata:
   version: 1.0.8
   resolution: "@types/estree@npm:1.0.8"
   checksum: 10/25a4c16a6752538ffde2826c2cc0c6491d90e69cd6187bef4a006dd2c3c45469f049e643d7e516c515f21484dc3d48fd5c870be158a5beb72f5baf3dc43e4099
+  languageName: node
+  linkType: hard
+
+"@types/geojson@npm:^7946.0.13":
+  version: 7946.0.16
+  resolution: "@types/geojson@npm:7946.0.16"
+  checksum: 10/34d07421bdd60e7b99fa265441d17ac6e9aef48e3ce22d04324127d0de1daf7fbaa0bd3be1cece2092eb6995f21da84afa5231e24621a2910ff7340bc98f496f
   languageName: node
   linkType: hard
 
@@ -14201,6 +14217,7 @@ __metadata:
     "@quidone/react-native-wheel-picker": "npm:^1.5.2"
     "@react-native-async-storage/async-storage": "npm:1.23.1"
     "@react-native-community/hooks": "npm:^3.0.0"
+    "@react-native-community/netinfo": "npm:11.4.1"
     "@react-native-community/slider": "npm:^4.5.5"
     "@react-native-masked-view/masked-view": "npm:^0.3.2"
     "@react-native/js-polyfills": "npm:^0.74.85"
@@ -14315,8 +14332,9 @@ __metadata:
     react-native-get-random-values: "npm:^1.11.0"
     react-native-keyboard-controller: "npm:^1.21.7"
     react-native-linear-gradient: "npm:^2.8.3"
+    react-native-maps: "npm:1.18.0"
     react-native-mmkv: "npm:3.1.0"
-    react-native-nfc-manager: "npm:^3.16.2"
+    react-native-nfc-manager: "patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch"
     react-native-qrcode-svg: "npm:^6.3.21"
     react-native-reanimated: "npm:3.16.7"
     react-native-reanimated-carousel: "npm:4.0.2"
@@ -18298,6 +18316,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-maps@npm:1.18.0":
+  version: 1.18.0
+  resolution: "react-native-maps@npm:1.18.0"
+  dependencies:
+    "@types/geojson": "npm:^7946.0.13"
+  peerDependencies:
+    react: ">= 17.0.1"
+    react-native: ">= 0.64.3"
+    react-native-web: ">= 0.11"
+  peerDependenciesMeta:
+    react-native-web:
+      optional: true
+  checksum: 10/90db39bbdc5e09d6e5b90a5c9fafae733dc92e073ef46cf0244a20695b6c0db192f839b8e3edfc6ec6a7af837655f866731ded107ddb3dc4091127a9cde2cd9e
+  languageName: node
+  linkType: hard
+
 "react-native-mmkv@npm:3.1.0":
   version: 3.1.0
   resolution: "react-native-mmkv@npm:3.1.0"
@@ -18308,7 +18342,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-nfc-manager@npm:^3.16.2":
+"react-native-nfc-manager@npm:3.16.2":
   version: 3.16.2
   resolution: "react-native-nfc-manager@npm:3.16.2"
   peerDependencies:
@@ -18317,6 +18351,18 @@ __metadata:
     "@expo/config-plugins":
       optional: true
   checksum: 10/ef6bfbb54c4904232d24dcdab342e82066779b9118a560ec2d82ab3874cc58ed9f14e4b27c49bba7f241da79be6488c0dbb5835a48cf195eddf7fbeda7b175cb
+  languageName: node
+  linkType: hard
+
+"react-native-nfc-manager@patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch":
+  version: 3.16.2
+  resolution: "react-native-nfc-manager@patch:react-native-nfc-manager@npm%3A3.16.2#~/.yarn/patches/react-native-nfc-manager-npm-3.16.2-1ccd8a082e.patch::version=3.16.2&hash=a068b6"
+  peerDependencies:
+    "@expo/config-plugins": 9 || 10
+  peerDependenciesMeta:
+    "@expo/config-plugins":
+      optional: true
+  checksum: 10/ed4d0bc583b7fdbd058783c4ef5e61107024e908245148faa70f050a6dfad9d1e10abb381e4017cf68ba82d58dd55360d7186eeed887441b42b3cb874e5e3d7f
   languageName: node
   linkType: hard
 

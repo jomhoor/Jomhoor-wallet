@@ -195,6 +195,16 @@ const useIsWalletReady = () => {
   return hasHydrated && privateKey !== ''
 }
 
+/**
+ * Executes a wallet-domain operation without exposing the raw key through UI
+ * props, component state, route params, logs, analytics, or return values.
+ */
+const withPrivateKey = async <T>(operation: (privateKey: string) => Promise<T>): Promise<T> => {
+  const privateKey = useWalletStore.getState().privateKey
+  if (!privateKey) throw new Error('Wallet is not ready')
+  return operation(privateKey)
+}
+
 export const walletStore = {
   useWalletStore,
 
@@ -208,4 +218,5 @@ export const walletStore = {
   useWalletAddress,
   useHasHydrated,
   useIsWalletReady,
+  withPrivateKey,
 }

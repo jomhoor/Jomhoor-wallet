@@ -6,7 +6,11 @@
   "react-native": "src/index.ts",
   "types": "dist/index.d.ts",
   "files": [
+    "android",
     "dist",
+    "ios",
+    "NidVerification.podspec",
+    "react-native.config.js",
     "flow.js",
     "flow.d.ts",
     "types.js",

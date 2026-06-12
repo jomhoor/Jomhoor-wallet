@@ -4,13 +4,12 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native'
 
-import { useCopyToClipboard } from '@/hooks'
 import { AppTabScreenProps } from '@/route-types'
 import { authStore, identityStore, walletStore } from '@/store'
 import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
 import { cn, useAppPaddings } from '@/theme'
 import { UiBottomSheet, UiCard, UiHorizontalDivider, UiIcon, useUiBottomSheet } from '@/ui'
-import { recoverSsoWalletWithZk } from '@/utils/circuits/sso-zk-proof'
+import { recoverCurrentSsoWalletWithZk } from '@/utils/circuits/sso-zk-proof'
 
 import { AppStackScrollLayout } from '../../components/app-stack-scroll-layout'
 import { ProfileListButton } from '../../components/profile-list-button'
@@ -30,11 +29,10 @@ export default function ProfileScreen({}: AppTabScreenProps<'Profile'>) {
 
 function AdvancedCard() {
   const { t } = useTranslation()
-  const privateKey = walletStore.useWalletStore(state => state.privateKey)
   const walletAddress = walletStore.useWalletAddress()
+  const isWalletReady = walletStore.useIsWalletReady()
   const identities = identityStore.useIdentityStore(state => state.identities)
   const logout = authStore.useLogout()
-  const { isCopied, copy } = useCopyToClipboard()
   const appPaddings = useAppPaddings()
   const bottomSheet = useUiBottomSheet()
 
@@ -72,28 +70,36 @@ function AdvancedCard() {
         >
           <View className={cn('flex size-full flex-1 gap-2')}>
             <Text className='typography-caption2 ml-4 font-semibold text-textPrimary'>
-              {t('profile.private-key')}
+              {t('profile.wallet-key-status')}
             </Text>
-            <UiCard className='flex-row bg-backgroundPrimary py-6'>
-              <Text className='typography-body3 line-clamp-1 w-9/12 truncate whitespace-nowrap text-textPrimary'>
-                {privateKey}
+            <UiCard className='gap-2 bg-backgroundPrimary py-5'>
+              <View className='flex-row items-center justify-between'>
+                <Text className='typography-body3 font-semibold text-textPrimary'>
+                  {t('profile.identity-key')}
+                </Text>
+                <Text className='typography-caption2 text-textSecondary'>
+                  {isWalletReady ? t('profile.key-ready') : t('profile.key-unavailable')}
+                </Text>
+              </View>
+              {walletAddress ? (
+                <>
+                  <Text className='typography-caption2 text-textSecondary'>
+                    {t('profile.public-wallet-address')}
+                  </Text>
+                  <Text className='typography-caption2 text-textPrimary' selectable={false}>
+                    {walletAddress}
+                  </Text>
+                </>
+              ) : null}
+              <Text className='typography-caption2 text-textSecondary'>
+                {t('profile.private-key-protected')}
               </Text>
-
-              <TouchableOpacity className='ml-auto'>
-                <UiIcon
-                  customIcon={isCopied ? 'checkIcon' : 'copySimpleIcon'}
-                  className='text-textSecondary'
-                  size={5 * 4}
-                  onPress={() => copy(privateKey)}
-                />
-              </TouchableOpacity>
+              <Text className='typography-caption2 text-textSecondary'>
+                {t('profile.recovery-guidance')}
+              </Text>
             </UiCard>
 
-            <SsoRecoveryRow
-              walletAddress={walletAddress}
-              privateKey={privateKey}
-              identity={eidIdentity}
-            />
+            <SsoRecoveryRow walletAddress={walletAddress} identity={eidIdentity} />
 
             <ProfileListButton
               className='mt-auto rounded-full bg-componentPrimary p-3 px-4'
@@ -129,27 +135,22 @@ function AdvancedCard() {
  * Hidden entirely when the user has no INID identity yet — recovery requires
  * a re-scan first.
  */
-function SsoRecoveryRow(props: {
-  walletAddress: string
-  privateKey: string
-  identity: NoirEIDIdentity | undefined
-}) {
-  const { walletAddress, privateKey, identity } = props
+function SsoRecoveryRow(props: { walletAddress: string; identity: NoirEIDIdentity | undefined }) {
+  const { walletAddress, identity } = props
   const [busy, setBusy] = useState(false)
 
   if (!identity) return null
 
   const run = async () => {
-    if (!walletAddress || !privateKey) {
+    if (!walletAddress) {
       Alert.alert('Recovery unavailable', 'Wallet is not ready yet.')
       return
     }
     setBusy(true)
     try {
-      const { priorWalletExisted } = await recoverSsoWalletWithZk({
+      const { priorWalletExisted } = await recoverCurrentSsoWalletWithZk({
         identity,
         walletAddress,
-        privateKey,
       })
       Alert.alert(
         priorWalletExisted ? 'Identity restored' : 'No prior identity',
@@ -157,10 +158,11 @@ function SsoRecoveryRow(props: {
           ? 'Your previous SSO history has been linked to this wallet. Relying parties will keep seeing your existing account.'
           : 'No prior SSO identity was found for this document. This wallet starts fresh.',
       )
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error during SSO recovery'
-      console.error('[Profile] SSO recovery failed:', err)
-      Alert.alert('Recovery failed', message)
+    } catch {
+      // Proof errors may contain sensitive circuit inputs, so do not attach
+      // exception objects to logs or crash reports.
+      console.error('[Profile] SSO recovery failed')
+      Alert.alert('Recovery failed', 'Identity recovery could not be completed.')
     } finally {
       setBusy(false)
     }

@@ -1,7 +1,5 @@
 import { Time } from '@distributedlab/tools'
 import { useNavigation } from '@react-navigation/native'
-import { useQuery } from '@tanstack/react-query'
-import { JsonRpcProvider } from 'ethers'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Pressable, RefreshControl, Text, View } from 'react-native'
@@ -16,31 +14,15 @@ import Animated, {
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { RARIMO_CHAINS } from '@/api/modules/rarimo'
-import { Config } from '@/config'
-import { createProposalContract } from '@/helpers'
+import type { ProposalCatalogItem } from '@/api/modules/proposals'
 import { formatDateDMY } from '@/helpers/formatters'
+import { useProposalCatalog } from '@/hooks/useProposalCatalog'
 import AppContainer from '@/pages/app/components/AppContainer'
 import { ProposalStatus } from '@/pages/app/pages/poll/types'
-import { parseProposalFromContract } from '@/pages/app/pages/poll/utils'
 import type { AppTabScreenProps } from '@/route-types'
 import { appCapabilitiesStore, demoPassportProfileStore, identityStore } from '@/store'
 import { useAppPaddings, useBottomBarOffset } from '@/theme'
 import { UiCard, UiHorizontalDivider, UiIcon, UiScreenScrollable } from '@/ui'
-
-const rmoProvider = new JsonRpcProvider(RARIMO_CHAINS[Config.RMO_CHAIN_ID].rpcEvm)
-const proposalContract = createProposalContract(Config.PROPOSAL_STATE_CONTRACT_ADDRESS, rmoProvider)
-
-interface ProposalListItem {
-  id: number
-  title: string
-  description: string
-  status: ProposalStatus
-  startTimestamp: number
-  duration: number
-  nationalities: string[]
-  totalVotes: number
-}
 
 // Mapping from 2-letter (INID) to 3-letter (passport) ISO codes
 const ISO_2_TO_3: Record<string, string> = {
@@ -113,9 +95,9 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
   const demoPassportProfile = demoPassportProfileStore.useDemoPassportProfileStore(
     state => state.profile,
   )
-  const passportDemoModeEnabled = appCapabilitiesStore.usePassportDemoModeEnabled()
+  const documentDemoModeEnabled = appCapabilitiesStore.useDocumentDemoModeEnabled()
   const isDemoIdentityActive =
-    passportDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
+    documentDemoModeEnabled && identities.length === 0 && Boolean(demoPassportProfile)
   const hasIdentity = identities.length > 0 || isDemoIdentityActive
 
   // Real identities take precedence. The demo profile only participates in reviewer-facing UI.
@@ -138,100 +120,7 @@ export default function ProposalsScreen({}: AppTabScreenProps<'Proposals'>) {
 
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
 
-  const {
-    data: proposals,
-    isLoading,
-    isError,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ['proposalsList'],
-    queryFn: async (): Promise<ProposalListItem[]> => {
-      console.log(
-        '[Proposals] Fetching proposals from contract:',
-        Config.PROPOSAL_STATE_CONTRACT_ADDRESS,
-      )
-      console.log('[Proposals] RPC URL:', RARIMO_CHAINS[Config.RMO_CHAIN_ID]?.rpcEvm)
-      try {
-        const lastProposalId = await proposalContract.contractInstance.lastProposalId()
-        const proposalCount = Number(lastProposalId)
-        console.log('[Proposals] Found', proposalCount, 'proposals')
-
-        if (proposalCount === 0) return []
-
-        const proposalPromises: Promise<ProposalListItem | null>[] = []
-
-        for (let i = 1; i <= proposalCount; i++) {
-          proposalPromises.push(
-            (async () => {
-              try {
-                const raw = await proposalContract.contractInstance.getProposalInfo(BigInt(i))
-                const parsed = parseProposalFromContract(raw)
-                console.log(
-                  '[Proposals] Proposal',
-                  i,
-                  '- status:',
-                  parsed.status,
-                  'nationalities:',
-                  parsed.votingWhitelistData?.nationalities,
-                )
-
-                // Skip hidden proposals
-                if (
-                  parsed.status === ProposalStatus.DoNotShow ||
-                  parsed.status === ProposalStatus.None
-                ) {
-                  console.log('[Proposals] Skipping proposal', i, '- status is DoNotShow or None')
-                  return null
-                }
-
-                // Calculate total votes across all options
-                const totalVotes = parsed.voteResults.reduce(
-                  (sum, optionVotes) => sum + optionVotes.reduce((a, b) => a + b, 0),
-                  0,
-                )
-
-                // Extract title - try to parse JSON if description contains raw JSON
-                let title = t('proposals.proposal-number', { id: i })
-                let description = parsed.cid
-
-                if (parsed.cid.startsWith('{')) {
-                  try {
-                    const metadata = JSON.parse(parsed.cid)
-                    if (metadata.title) title = metadata.title
-                    if (metadata.description) description = metadata.description
-                  } catch {
-                    // Keep default title if JSON parsing fails
-                  }
-                }
-
-                return {
-                  id: i,
-                  title,
-                  description,
-                  status: parsed.status,
-                  startTimestamp: parsed.startTimestamp,
-                  duration: parsed.duration,
-                  nationalities: parsed.votingWhitelistData?.nationalities ?? [],
-                  totalVotes,
-                }
-              } catch (error) {
-                console.error(`Failed to fetch proposal ${i}:`, error)
-                return null
-              }
-            })(),
-          )
-        }
-
-        const results = await Promise.all(proposalPromises)
-        return results.filter((p): p is ProposalListItem => p !== null)
-      } catch (error) {
-        console.error('[Proposals] Failed to fetch proposals:', error)
-        throw error
-      }
-    },
-    staleTime: 30_000, // 30 seconds
-  })
+  const { data: proposals, isLoading, isError, refetch, isRefetching } = useProposalCatalog()
 
   // Filter proposals based on eligibility
   const filteredProposals = useMemo(() => {
@@ -496,7 +385,7 @@ function ProposalCard({
   formattedNationalities,
   isEligible,
 }: {
-  proposal: ProposalListItem
+  proposal: ProposalCatalogItem
   onPress: () => void
   statusLabel: string
   statusColorClass: string
