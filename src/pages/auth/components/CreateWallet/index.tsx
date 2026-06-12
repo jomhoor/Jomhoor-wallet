@@ -56,6 +56,7 @@ export default function CreateWallet({ route }: Props) {
     )
 
   const setIsFirstEnter = localAuthStore.useLocalAuthStore(state => state.setIsFirstEnter)
+  const disablePasscode = localAuthStore.useLocalAuthStore(state => state.disablePasscode)
 
   const submit = useCallback(async () => {
     disableForm()
@@ -67,6 +68,11 @@ export default function CreateWallet({ route }: Props) {
       // await login(privateKey)
 
       setIsFirstEnter(false)
+
+      // Skip the post-creation PIN setup prompt — the user was already offered
+      // PIN/security setup earlier in the flow, so showing EnablePasscode again
+      // here is a duplicate. Users can enable PIN from Settings at any time.
+      disablePasscode()
 
       // Non-blocking background registration with the SSO service.
       // The hook reads the freshly stored key from the wallet store.
@@ -90,6 +96,7 @@ export default function CreateWallet({ route }: Props) {
     setIsFirstEnter,
     setPrivateKey,
     registerWithSSO,
+    disablePasscode,
   ])
 
   // eslint-disable-next-line unused-imports/no-unused-vars
