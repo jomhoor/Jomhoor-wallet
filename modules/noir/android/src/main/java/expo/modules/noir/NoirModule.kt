@@ -40,5 +40,37 @@ class NoirModule : Module() {
 
       return@AsyncFunction proof.proof
     }
+
+    /**
+     * Generates a keccak-flavored UltraHonk proof using the Noir circuit.
+     * Used for the voting / query-identity path so proofs are verifiable by the
+     * on-chain Solidity HonkVerifier. Registration stays on [provePlonk].
+     *
+     * @param trustedSetupUri URI pointing to the SRS file (e.g. file://...)
+     * @param inputsJson JSON string representing a map of witness values
+     * @param manifestJson JSON manifest for the circuit bytecode
+     * @return A hex string representing the generated proof
+     * @throws IllegalArgumentException if the URI is invalid
+     * @throws Exception if proof generation fails
+     */
+    AsyncFunction("proveUltraHonkKeccak") { trustedSetupUri: String, inputsJson: String, manifestJson: String ->
+      val rawPath = trustedSetupUri.toUri().path
+        ?: throw IllegalArgumentException("Invalid URI: $trustedSetupUri")
+
+      val circuit = Circuit.fromJsonManifest(manifestJson).apply {
+        setupSrs(rawPath, false)
+      }
+
+      val type = object : TypeToken<Map<String, Any>>() {}.type
+      val inputsMap: Map<String, Any> = Gson().fromJson(inputsJson, type)
+
+      val proof = circuit.prove(
+        inputsMap,
+        proofType = "honk_keccak",
+        recursive = false
+      )
+
+      return@AsyncFunction proof.proof
+    }
   }
 }

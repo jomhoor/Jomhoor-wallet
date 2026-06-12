@@ -17,7 +17,7 @@ export type CompareFacesInput = {
   alreadyPreprocessed?: boolean
 }
 
-export const DEFAULT_FACE_COMPARISON_THRESHOLD = 0.1
+export const DEFAULT_FACE_COMPARISON_THRESHOLD = 0.03
 const FACE_MODEL_INPUT_SIZE = 112
 
 function isFaceDebugEnabled(): boolean {

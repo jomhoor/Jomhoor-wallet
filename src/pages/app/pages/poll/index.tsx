@@ -20,7 +20,7 @@ import { formatDateDMY } from '@/helpers/formatters'
 import { tryCatch } from '@/helpers/try-catch'
 import { AppStackScreenProps } from '@/route-types'
 import { appCapabilitiesStore, demoPassportProfileStore, identityStore, walletStore } from '@/store'
-import { NoirEIDIdentity } from '@/store/modules/identity/Identity'
+import { NoirEIDIdentity, NoirEpassportIdentity } from '@/store/modules/identity/Identity'
 import {
   UiBottomSheet,
   UiButton,
@@ -31,8 +31,13 @@ import {
   useUiBottomSheet,
 } from '@/ui'
 import { EIDBasedQueryIdentityCircuit } from '@/utils/circuits/eid-based-query-identity-circuit'
+import { PassportBasedQueryIdentityCircuit } from '@/utils/circuits/passport-based-query-identity-circuit'
 import { QueryProofParams } from '@/utils/circuits/types/QueryIdentity'
-import { computeInidCitizenshipMask, INID_MASKS } from '@/utils/citizenship-mask'
+import {
+  computeCitizenshipMask,
+  computeInidCitizenshipMask,
+  INID_MASKS,
+} from '@/utils/citizenship-mask'
 
 import PollStateScreen from './components/PollStateScreen'
 import { ZERO_DATE_HEX } from './constants'
@@ -140,6 +145,15 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       )
       if (!parsedProposal) return null
 
+      // Check if the CID field contains inline JSON metadata (not an IPFS hash)
+      try {
+        const inlineMetadata = JSON.parse(parsedProposal.cid) as ProposalMetadata
+        console.log('[Poll] CID contains inline JSON metadata, using directly')
+        return inlineMetadata
+      } catch {
+        // Not JSON — treat as IPFS CID or local fallback
+      }
+
       // Mock fallback for local testing (chain ID 31337)
       const isLocalChain = String(Config.RMO_CHAIN_ID) === '31337'
       if (isLocalChain) {
@@ -158,15 +172,6 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       }
 
       try {
-        // Check if the CID field contains inline JSON metadata (not an IPFS hash)
-        try {
-          const inlineMetadata = JSON.parse(parsedProposal.cid) as ProposalMetadata
-          console.log('[Poll] CID contains inline JSON metadata, using directly')
-          return inlineMetadata
-        } catch {
-          // Not JSON — treat as IPFS CID
-        }
-
         // Strip ipfs:// prefix if present
         const cleanCid = parsedProposal.cid.replace(/^ipfs:\/\//, '')
         const url = `${Config.IPFS_NODE_URL}/${cleanCid}`
@@ -243,7 +248,6 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
   const isVotedError = isDemoIdentityActive ? null : onChainIsVotedError
 
   const {
-    handleSubmit,
     watch,
     setValue,
     reset,
@@ -257,9 +261,9 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
 
   const submit = (vote: number) => {
     selectVote(currentQuestionIndex, vote)
-    handleSubmit(async ({ votes }) => {
-      await generateProof({ votes: votes.filter(v => v !== null) as number[] })
-    })
+    const finalVotes = [...votes]
+    finalVotes[currentQuestionIndex] = vote
+    generateProof({ votes: finalVotes.filter(v => v !== null) as number[] })
   }
 
   const goToNextQuestion = (vote: number) => {
@@ -296,14 +300,12 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
 
       if (!currentIdentity) throw new Error("Identity doesn't exist")
       console.log('[Poll] Current identity type:', currentIdentity.constructor.name)
-      if (!(currentIdentity instanceof NoirEIDIdentity))
-        throw new Error('Identity is not NoirEIDIdentity')
 
-      console.log('[Poll] Creating EIDBasedQueryIdentityCircuit')
-      const circuitParams = new EIDBasedQueryIdentityCircuit(
-        currentIdentity,
-        proposalContract.contractInstance,
-      )
+      const isInidIdentity = currentIdentity instanceof NoirEIDIdentity
+      const isPassportIdentity = currentIdentity instanceof NoirEpassportIdentity
+      if (!isInidIdentity && !isPassportIdentity) {
+        throw new Error('Identity is not a supported Noir voting identity')
+      }
       // Get whitelist data - prefer fresh decode from raw proposal to avoid stale cache issues
       let whitelistData: DecodedWhitelistData
       const cachedWhitelistData = parsedProposal?.votingWhitelistData
@@ -325,6 +327,17 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       } else {
         throw new Error('No whitelist data available for this proposal')
       }
+
+      const votingContractAddress = parsedProposal?.rawProposal?.[2]?.[5]?.[0]?.toString()
+      if (!votingContractAddress) throw new Error('No voting contract available for this proposal')
+
+      const circuitParams = isPassportIdentity
+        ? new PassportBasedQueryIdentityCircuit(
+            currentIdentity,
+            proposalContract.contractInstance,
+            votingContractAddress,
+          )
+        : new EIDBasedQueryIdentityCircuit(currentIdentity, proposalContract.contractInstance)
 
       // Diagnostic: verify selector value
       const selectorValue = whitelistData.selector
@@ -369,7 +382,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       const eventData = circuitParams.getEventData(votes)
       console.log('[Poll] Event - id:', eventId.toString(), 'data:', eventData)
 
-      // Compute citizenship mask for INID (2-letter country codes)
+      // Compute citizenship mask for the selected document circuit.
       // IMPORTANT: The circuit's citizenship_check is controlled by selector_bits[1]
       // In Noir's to_be_bits::<18>(), bit 1 is the 2nd MSB, so it corresponds to value 2^16 = 65536
       // If selector doesn't have bit 1 set, citizenship_check expects res == 0, so we MUST pass mask = 0
@@ -390,9 +403,13 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
         citizenshipMask = '0x0'
         console.log('[Poll] Citizenship check DISABLED by selector, using mask = 0')
       } else if (nationalities.length > 0) {
-        citizenshipMask = computeInidCitizenshipMask(nationalities)
+        citizenshipMask = isPassportIdentity
+          ? computeCitizenshipMask(nationalities)
+          : computeInidCitizenshipMask(nationalities)
       } else {
-        citizenshipMask = INID_MASKS.ALL
+        citizenshipMask = isPassportIdentity
+          ? '0x' + ((1n << 240n) - 1n).toString(16)
+          : INID_MASKS.ALL
       }
       console.log('[Poll] Citizenship mask for nationalities', nationalities, ':', citizenshipMask)
 
@@ -400,12 +417,25 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       // We use wide expiration bounds (expirationDateLower='000000', expirationDateUpper='999999')
       // to allow all expiration dates, but current_date must be accurate for contract validation
       // The contract checks that current_date is close to block.timestamp (within ~1 day)
-      const now = new Date()
-      const currentDateStr =
-        now.getFullYear().toString().slice(2) +
-        String(now.getMonth() + 1).padStart(2, '0') +
-        String(now.getDate()).padStart(2, '0')
-      console.log('[Poll] Using actual current date:', currentDateStr)
+      let currentDateStr: string
+      if (Config.RMO_CHAIN_ID === '31337') {
+        // On local Hardhat, use block timestamp instead of real date
+        // (Hardhat time may differ from wall clock after evm_increaseTime)
+        const block = await rmoProvider.getBlock('latest')
+        const blockDate = new Date((block?.timestamp ?? 0) * 1000)
+        currentDateStr =
+          blockDate.getUTCFullYear().toString().slice(2) +
+          String(blockDate.getUTCMonth() + 1).padStart(2, '0') +
+          String(blockDate.getUTCDate()).padStart(2, '0')
+        console.log('[Poll] Using Hardhat block date:', currentDateStr)
+      } else {
+        const now = new Date()
+        currentDateStr =
+          now.getFullYear().toString().slice(2) +
+          String(now.getMonth() + 1).padStart(2, '0') +
+          String(now.getDate()).padStart(2, '0')
+        console.log('[Poll] Using actual current date:', currentDateStr)
+      }
 
       // Use the freshly decoded selector value (converted via BigInt for safety)
       const selectorStr = BigInt(whitelistData.selector).toString()
@@ -435,7 +465,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
       console.log('[Poll] Query proof params:', JSON.stringify(params))
 
       console.log('[Poll] Calling prove()...')
-      const proof = await circuitParams.prove(params)
+      const proof = await circuitParams.prove(params, 'honk_keccak')
       console.log('[Poll] Proof generated, calling submitVote...')
       await circuitParams.submitVote({ proof, votes, proposalId })
 

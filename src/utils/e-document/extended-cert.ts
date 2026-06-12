@@ -15,7 +15,7 @@ import {
   namedCurveFromParameters,
 } from './helpers/crypto'
 import { extractPubKey } from './helpers/misc'
-import { ECDSA_ALGO_PREFIX } from './sod'
+import { ECDSA_ALGO_PREFIX } from './helpers/constants'
 
 export class ExtendedCertificate {
   constructor(public certificate: Certificate) {}

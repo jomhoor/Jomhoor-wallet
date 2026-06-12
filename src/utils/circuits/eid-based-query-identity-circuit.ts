@@ -109,8 +109,15 @@ export class EIDBasedQueryIdentityCircuit {
 
   /**
    * Generates a ZK proof given serialized inputs.
+   *
+   * @param proofType Proof flavor. Voting uses `honk_keccak` (verified on-chain by
+   *   the Solidity HonkVerifier); SSO uses `plonk` (verified by sso-svc). Defaults
+   *   to `plonk` so callers that don't opt in keep their current verifier.
    */
-  async prove(params: Partial<QueryProofParams>) {
+  async prove(
+    params: Partial<QueryProofParams>,
+    proofType: 'plonk' | 'honk_keccak' = 'plonk',
+  ) {
     console.log(
       '[EIDBasedQueryIdentityCircuit] prove() called with params:',
       JSON.stringify(params),
@@ -288,7 +295,7 @@ export class EIDBasedQueryIdentityCircuit {
 
     console.log('[EIDBasedQueryIdentityCircuit] Calling circuitParams.prove()...')
     try {
-      const proof = await this.circuitParams.prove(JSON.stringify(inputs), byteCode)
+      const proof = await this.circuitParams.prove(JSON.stringify(inputs), byteCode, proofType)
       console.log('[EIDBasedQueryIdentityCircuit] Proof generated successfully')
       if (!proof) {
         throw new Error(`Proof generation failed for circuit ${this.circuitParams.name}`)

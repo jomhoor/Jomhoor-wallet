@@ -16,7 +16,6 @@ import { ExtendedCertificate } from './extended-cert'
 import { extractRawPubKey } from './helpers/misc'
 
 // TODO: maybe move remove
-export const ECDSA_ALGO_PREFIX = '1.2.840.10045'
 
 export class Sod {
   private sodBytes: Uint8Array

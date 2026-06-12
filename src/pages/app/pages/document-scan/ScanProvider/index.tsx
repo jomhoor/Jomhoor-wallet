@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useState } from 'react'
 import { createContext, useContext } from 'react'
 
+import { CircomEPassportRegistration } from '@/api/modules/registration/variants/circom-epassport'
 import { NoirEIDRegistration } from '@/api/modules/registration/variants/noir-eid'
 import { NoirEPassportRegistration } from '@/api/modules/registration/variants/noir-epassport'
 import { ErrorHandler } from '@/core'
@@ -350,11 +351,33 @@ export function useDocumentScanContext() {
 }
 
 const eidRegistration = new NoirEIDRegistration()
-const epassportRegistration = new NoirEPassportRegistration()
+const epassportNoirRegistration = new NoirEPassportRegistration()
+const epassportCircomRegistration = new CircomEPassportRegistration()
 const sleep = (ms: number) =>
   new Promise<void>(resolve => {
     setTimeout(resolve, ms)
   })
+
+function shouldRetryPassportWithCircom(error: unknown): boolean {
+  const candidate = error as {
+    response?: { status?: number; data?: unknown }
+    message?: string
+  }
+
+  const status = candidate?.response?.status
+  const message = (candidate?.message ?? '').toLowerCase()
+  const responseData = JSON.stringify(candidate?.response?.data ?? '').toLowerCase()
+
+  if (status === 500) return true
+
+  return (
+    message.includes('status code 500') ||
+    responseData.includes('registration: invalid passport authentication') ||
+    responseData.includes('prooflengthwrong') ||
+    responseData.includes('sumcheckfailed') ||
+    responseData.includes('0xed74ac0a')
+  )
+}
 
 function createVerificationSessionId(): string {
   return `verification-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -792,13 +815,14 @@ export function ScanContextProvider({
       nextStep: 'GenerateProofStep',
     })
 
-    const strategy = selectedDocType === DocType.PASSPORT ? epassportRegistration : eidRegistration
+    const strategy =
+      selectedDocType === DocType.PASSPORT ? epassportNoirRegistration : eidRegistration
     logIdentityDiagnostic('IdentityProof', 'createIdentity:strategy-selected', {
       strategy:
         selectedDocType === DocType.PASSPORT ? 'NoirEPassportRegistration' : 'NoirEIDRegistration',
     })
 
-    const [identityItem, registrationError] = await tryCatch(
+    const [noirIdentityItem, registrationError] = await tryCatch(
       strategy.createIdentity(proofEDoc as EPassport, privateKey, publicKeyHash, {
         onDownloading: () => {
           logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onDownloading')
@@ -814,10 +838,73 @@ export function ScanContextProvider({
         },
       }),
     )
-    if (registrationError) {
+    let identityItem = noirIdentityItem
+    let finalRegistrationError = registrationError
+
+    if (
+      registrationError &&
+      selectedDocType === DocType.PASSPORT &&
+      shouldRetryPassportWithCircom(registrationError)
+    ) {
+      logIdentityDiagnostic('IdentityProof', 'createIdentity:passport-circom-fallback:start', {
+        reason: registrationError.message,
+      })
+
+      const [circomIdentityItem, circomError] = await tryCatch(
+        epassportCircomRegistration.createIdentity(proofEDoc as EPassport, privateKey, publicKeyHash, {
+          onDownloading: () => {
+            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onDownloading')
+            setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
+          },
+          onGenerateProof: () => {
+            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onGenerateProof')
+            setCreatingIdentityStep(GenProofSteps.GenerateProof)
+          },
+          onRegister: () => {
+            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onRegister')
+            setCreatingIdentityStep(GenProofSteps.CreateProfile)
+          },
+        }),
+      )
+
+      if (!circomError) {
+        identityItem = circomIdentityItem
+        finalRegistrationError = undefined
+        logIdentityDiagnostic('IdentityProof', 'createIdentity:passport-circom-fallback:success')
+      } else {
+        finalRegistrationError = circomError
+        const fallbackErrorData =
+          circomError && typeof circomError === 'object' && 'response' in circomError
+            ? (circomError as { response?: { data?: unknown } }).response?.data
+            : undefined
+
+        logIdentityDiagnosticError({
+          domain: 'IdentityProof',
+          event: 'createIdentity:passport-circom-fallback:failed',
+          stage: 'passport-circom-fallback',
+          classification: classifyIdentityCreationError({
+            stage: 'passport-circom-fallback',
+            error: circomError,
+          }),
+          error: circomError,
+          context: {
+            fallbackResponseDataType: typeof fallbackErrorData,
+            fallbackResponseData: fallbackErrorData,
+          },
+        })
+      }
+    }
+
+    if (finalRegistrationError) {
+      if (identityItem) {
+        logIdentityDiagnostic('IdentityProof', 'createIdentity:strategy-succeeded-after-fallback', {
+          identityType: identityItem.identityType,
+          hasRegistrationProof: Boolean(identityItem.registrationProof),
+        })
+      } else {
       const classification = classifyIdentityCreationError({
         stage: 'strategy-create-identity',
-        error: registrationError,
+        error: finalRegistrationError,
       })
 
       logIdentityDiagnosticError({
@@ -825,13 +912,13 @@ export function ScanContextProvider({
         event: 'createIdentity:strategy-failed',
         stage: 'strategy-create-identity',
         classification,
-        error: registrationError,
+        error: finalRegistrationError,
         context: baseContext,
       })
 
-      ErrorHandler.processWithoutFeedback(registrationError)
+      ErrorHandler.processWithoutFeedback(finalRegistrationError)
 
-      if (registrationError instanceof PassportRegisteredWithAnotherPKError) {
+      if (finalRegistrationError instanceof PassportRegisteredWithAnotherPKError) {
         logIdentityDiagnostic('IdentityProof', 'createIdentity:revocation-step-required', {
           reason: 'PassportRegisteredWithAnotherPKError',
           classification,
@@ -841,7 +928,7 @@ export function ScanContextProvider({
       }
 
       ErrorHandler.process(
-        registrationError,
+        finalRegistrationError,
         'Failed to create identity. Please check your NFC connection and try again.',
       )
       setCurrentStep(Steps.DocumentPreviewStep)
@@ -850,6 +937,7 @@ export function ScanContextProvider({
         classification,
       })
       return
+      }
     }
 
     logIdentityDiagnostic('IdentityProof', 'createIdentity:strategy-succeeded', {

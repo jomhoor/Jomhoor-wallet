@@ -1,6 +1,7 @@
 import type { Provider, Signer } from 'ethers'
 
 import {
+  BioPassportVoting__factory,
   NoirIdVoting__factory,
   PoseidonSMT__factory,
   ProposalState__factory,
@@ -92,6 +93,19 @@ export const createNoirIdVotingContract = (address: string, rawProvider: RawProv
     address,
     rawProvider,
     NoirIdVoting__factory,
+  )
+
+  return {
+    contractInstance,
+    contractInterface,
+  }
+}
+
+export const createBioPassportVotingContract = (address: string, rawProvider: RawProvider) => {
+  const { contractInstance, contractInterface } = createContract(
+    address,
+    rawProvider,
+    BioPassportVoting__factory,
   )
 
   return {

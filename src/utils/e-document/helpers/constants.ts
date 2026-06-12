@@ -1,0 +1,1 @@
+export const ECDSA_ALGO_PREFIX = '1.2.840.10045'

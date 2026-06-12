@@ -9,6 +9,8 @@ type MrzToNfcInputParams = {
   dateOfBirth: string
   expiryDate: string
   backend?: PassportNfcBackend
+  /** 8-byte (16 hex char) Active Authentication challenge. */
+  activeAuthenticationChallenge?: string
 }
 
 const normalizeDate = (value: string): string => {
@@ -22,6 +24,7 @@ export function createPackageNfcReadInput({
   dateOfBirth,
   expiryDate,
   backend,
+  activeAuthenticationChallenge,
 }: MrzToNfcInputParams): PassportNfcReadInput {
   const credentials = createPassportCredentials({
     documentNumber,
@@ -37,6 +40,7 @@ export function createPackageNfcReadInput({
     expiryDateYYMMDD: credentials.expiryDateYYMMDD,
     mrzKey: credentials.mrzKey,
     ...(backend ? { backend } : {}),
+    ...(activeAuthenticationChallenge ? { activeAuthenticationChallenge } : {}),
     requestedDataGroups: ['COM', 'SOD', 'DG1', 'DG2', 'DG11', 'DG12', 'DG13', 'DG15', 'CardAccess'],
     ...(isNativeBackend
       ? {

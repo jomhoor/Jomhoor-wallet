@@ -135,3 +135,17 @@ public class Swoir {
         return circuit
     }
 }
+import Foundation
+extension SwoirError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .errorLoadingManifest(let msg): return "Error loading manifest: \(msg)"
+        case .errorParsingManifest(let msg): return "Error parsing manifest: \(msg)"
+        case .circuitNotFound(let msg): return "Circuit not found: \(msg)"
+        case .missingInput(let msg): return "Missing input: \(msg)"
+        case .invalidInput(let msg): return "Invalid input: \(msg)"
+        case .srsNotSetup(let msg): return "SRS not setup: \(msg)"
+        case .general(let msg): return "General error: \(msg)"
+        }
+    }
+}

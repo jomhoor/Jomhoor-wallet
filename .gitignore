@@ -87,3 +87,4 @@ android/signing.properties
 android/app/signing.properties
 
 packages/**/.gradle/
+*.poseidon-bak/

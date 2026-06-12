@@ -58,7 +58,10 @@ export type PassportNfcScanOutput = {
 // ---------------------------------------------------------------------------
 function log(..._msg: unknown[]) {}
 
-function logNfcMetadata(_event: string, _metadata: Record<string, unknown>) {}
+function logNfcMetadata(event: string, metadata: Record<string, unknown>) {
+  // TEMP AA DEBUG: surface NFC plumbing diagnostics. Remove after AA works.
+  console.log(`[AA-DEBUG] ${event}`, JSON.stringify(metadata))
+}
 
 function logNfcJson(_event: string, _value: unknown) {}
 
@@ -799,6 +802,7 @@ async function readPassportWithPackageBackendOutput(
       dateOfBirth,
       expiryDate,
       backend,
+      activeAuthenticationChallenge: opts?.activeAuthenticationChallenge,
     })
 
     logNfcMetadata('native-request', {
@@ -806,11 +810,30 @@ async function readPassportWithPackageBackendOutput(
       requestedDataGroups: input.requestedDataGroups ?? [],
       includeImageBase64: input.includeImageBase64 === true,
       persistDg2ImageFile: input.persistDg2ImageFile === true,
+      hasAaChallenge: Boolean(input.activeAuthenticationChallenge),
+      aaChallengeLength: input.activeAuthenticationChallenge?.length ?? 0,
     })
 
     const result = await readPassportNfc(input)
     // only in debug mode
     logNfcJson('native-readPassportNfc-result', result)
+    const aaRaw =
+      result.raw && typeof result.raw === 'object'
+        ? (result.raw as Record<string, unknown>).activeAuthentication
+        : undefined
+    logNfcMetadata('native-active-authentication', {
+      hasActiveAuthenticationBlock: Boolean(aaRaw),
+      activeAuthentication:
+        aaRaw && typeof aaRaw === 'object'
+          ? {
+              ...(aaRaw as Record<string, unknown>),
+              signature:
+                typeof (aaRaw as Record<string, unknown>).signature === 'string'
+                  ? `present(${((aaRaw as Record<string, unknown>).signature as string).length})`
+                  : (aaRaw as Record<string, unknown>).signature,
+            }
+          : aaRaw,
+    })
     const dg2Entry = result.files.DG2
     const dg2Data =
       dg2Entry && dg2Entry.data && typeof dg2Entry.data === 'object'
@@ -890,6 +913,9 @@ export interface PassportReadOptions {
   onConnected?: () => void
   /** Called when BAC is complete and DG reading begins */
   onReading?: () => void
+  /** 8-byte (16 hex char) Active Authentication challenge. When provided, the
+   *  native reader performs AA and returns the chip's signature. */
+  activeAuthenticationChallenge?: string
 }
 
 /**
