@@ -7,6 +7,7 @@ import { AsnConvert } from '@peculiar/asn1-schema'
 import { Certificate } from '@peculiar/asn1-x509'
 import { getBytes, toBeArray, toBigInt, zeroPadBytes } from 'ethers'
 
+import { ECDSA_ALGO_PREFIX } from './helpers/constants'
 import {
   getPublicKeyFromEcParameters,
   hash512,
@@ -15,7 +16,6 @@ import {
   namedCurveFromParameters,
 } from './helpers/crypto'
 import { extractPubKey } from './helpers/misc'
-import { ECDSA_ALGO_PREFIX } from './sod'
 
 export class ExtendedCertificate {
   constructor(public certificate: Certificate) {}

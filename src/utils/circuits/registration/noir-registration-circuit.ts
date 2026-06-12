@@ -48,7 +48,7 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
         120,
         defaultChunkedParams.chunk_number,
         NoirEPassportBasedRegistrationCircuit.computeBarretReduction(
-          unpaddedModulus.length * 4 + 2,
+          unpaddedModulus.length * 8 + 2,
           toBigInt(unpaddedModulus),
         ),
       )
@@ -66,15 +66,56 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
 
     const byteCode = await this.noirCircuitParams.downloadByteCode()
 
+    let pk = this.chunkedParams.pk_chunked
+    let reduction = this.chunkedParams.reduction
+    let sig = this.chunkedParams.sig_chunked
+
+    const pubKey = extractPubKey(
+      this.eDoc.sod.slaveCertificate.certificate.tbsCertificate.subjectPublicKeyInfo,
+    )
+
+    if (pubKey instanceof RSAPublicKey) {
+      const unpaddedModulus = new Uint8Array(
+        pubKey.modulus[0] === 0x00 ? pubKey.modulus.slice(1) : pubKey.modulus,
+      )
+
+      const modulusBits = unpaddedModulus.length * 8
+
+      // Noir RSA circuits pack the modulus/signature into 120-bit limbs. Derive
+      // the limb count from the actual key size so 2048/3072/4096-bit keys all
+      // work (e.g. 3072-bit -> ceil(3072 / 120) = 26 limbs, matching the platform
+      // circuit `verify_rsa::<3072, 26, ...>`).
+      const chunkNumber = Math.ceil(modulusBits / 120)
+
+      pk = RegistrationCircuit.splitBigIntToChunks(120, chunkNumber, toBigInt(unpaddedModulus))
+
+      reduction = RegistrationCircuit.splitBigIntToChunks(
+        120,
+        chunkNumber,
+        NoirEPassportBasedRegistrationCircuit.computeBarretReduction(
+          modulusBits + 2,
+          toBigInt(unpaddedModulus),
+        ),
+      )
+
+      // The circuit verifies the DS cert's signature over the passport SOD
+      // signedAttributes (sod.signature) \u2014 NOT the CSCA signature on the DS cert.
+      sig = RegistrationCircuit.splitBigIntToChunks(
+        120,
+        chunkNumber,
+        toBigInt(new Uint8Array(this.eDoc.sod.signature)),
+      )
+    }
+
     const inputs = {
       dg1: Array.from(this.eDoc.dg1Bytes),
       dg15: this.eDoc.dg15Bytes?.length ? Array.from(this.eDoc.dg15Bytes) : [],
       ec: Array.from(this.eDoc.sod.encapsulatedContent),
       sa: Array.from(this.eDoc.sod.signedAttributes),
 
-      pk: this.chunkedParams.pk_chunked,
-      reduction: this.chunkedParams.reduction,
-      sig: this.chunkedParams.sig_chunked,
+      pk: pk,
+      reduction_pk: reduction,
+      sig: sig,
 
       sk_identity: params.skIdentity.toString(),
       icao_root: params.icaoRoot.toString(),
@@ -83,7 +124,7 @@ export class NoirEPassportBasedRegistrationCircuit extends EPassportBasedRegistr
 
     const inputsJson = JSON.stringify(inputs)
 
-    return this.noirCircuitParams.prove(inputsJson, byteCode)
+    return this.noirCircuitParams.prove(inputsJson, byteCode, 'honk_keccak')
   }
 }
 
@@ -178,8 +219,11 @@ export class NoirEIDBasedRegistrationCircuit extends EIDBasedRegistrationCircuit
     console.log('  sk_identity:', skIdentity.toString().slice(0, 20) + '...')
     console.log('  tbsRaw.byteLength:', this.tbsRaw.byteLength)
 
+    // The on-chain INID register verifier (NoirRegisterIdentity_ID_Card_I_Honk)
+    // is a keccak UltraHonk verifier, so the proof must be produced with the
+    // keccak honk backend — not the legacy plonk path.
     const [proof, getProofError] = await tryCatch(
-      this.noirCircuitParams.prove(JSON.stringify(inputs), byteCode),
+      this.noirCircuitParams.prove(JSON.stringify(inputs), byteCode, 'honk_keccak'),
     )
     if (getProofError) {
       throw getProofError

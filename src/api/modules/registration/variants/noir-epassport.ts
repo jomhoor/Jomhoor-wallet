@@ -1,9 +1,10 @@
+import { babyJub, poseidon } from '@iden3/js-crypto'
 import { NoirZKProof } from '@modules/noir'
 import { AxiosError } from 'axios'
-import { hexlify, keccak256 } from 'ethers'
+import { BytesLike, hexlify, keccak256 } from 'ethers'
 import { FieldRecords } from 'mrz'
 
-import { relayerRegister } from '@/api/modules/registration/relayer'
+import { extractRelayerTxHash, relayerRegister } from '@/api/modules/registration/relayer'
 import { PassportInfo, RegistrationStrategy } from '@/api/modules/registration/strategy'
 import { Config } from '@/config'
 import {
@@ -19,6 +20,111 @@ import { Registration2 } from '@/types/contracts/Registration'
 import { NoirEPassportBasedRegistrationCircuit } from '@/utils/circuits/registration/noir-registration-circuit'
 import { EDocument, EPassport } from '@/utils/e-document/e-document'
 
+const hash1024Strict = (publicKey: Uint8Array) => {
+  const decomposed = [0, 1, 2, 3, 4].map(chunkIndex => {
+    const start = chunkIndex * 25
+    const end = chunkIndex === 4 ? start + 28 : start + 25
+    const chunk = Buffer.from(publicKey.slice(start, end)).toString('hex')
+
+    return BigInt(`0x${chunk}`)
+  })
+
+  return (poseidon.hash(decomposed) as bigint).toString(16).padStart(64, '0')
+}
+
+/**
+ * Manual ABI encoder for `registerViaNoir`.
+ *
+ * Hermes (React Native JS engine) corrupts dynamic offset/length words when
+ * ethers.js's ABI coder round-trips values through typed arrays. This function
+ * builds the calldata entirely with string operations, bypassing the issue.
+ *
+ * Signature:
+ *   registerViaNoir(bytes32 certificatesRoot_, uint256 identityKey_, uint256 dgCommit_,
+ *                   Passport memory passport_, bytes memory zkPoints_)
+ *   Passport = { bytes32 dataType, bytes32 zkType, bytes signature, bytes publicKey, bytes32 passportHash }
+ */
+function manualEncodeRegisterViaNoir(
+  certificatesRoot: string | Uint8Array,
+  identityKey: string,
+  dgCommit: string,
+  passport: {
+    dataType: BytesLike
+    zkType: BytesLike
+    signature: BytesLike
+    publicKey: BytesLike
+    passportHash: BytesLike
+  },
+  zkPoints: string | Uint8Array,
+): string {
+  const SELECTOR = '5a0f28b1'
+
+  const word = (n: number | bigint): string => {
+    const h = BigInt(n).toString(16)
+    return '0'.repeat(64 - h.length) + h
+  }
+
+  const strip = (h: string): string => (h.startsWith('0x') ? h.slice(2) : h)
+
+  const toHex = (data: BytesLike): string => {
+    if (typeof data === 'string') return strip(data)
+    let result = ''
+    for (let i = 0; i < data.length; i++) {
+      result += (data as Uint8Array)[i].toString(16).padStart(2, '0')
+    }
+    return result
+  }
+
+  const padTo32 = (hex: string): string => {
+    const byteLen = hex.length / 2
+    const paddedLen = Math.ceil(byteLen / 32) * 32
+    return hex + '0'.repeat((paddedLen - byteLen) * 2)
+  }
+
+  // Convert inputs to hex
+  const certRootHex = toHex(certificatesRoot).padStart(64, '0')
+  const identityKeyHex = strip(identityKey).padStart(64, '0')
+  const dgCommitHex = strip(dgCommit).padStart(64, '0')
+
+  const sigHex = toHex(passport.signature)
+  const pkHex = toHex(passport.publicKey)
+  const zkPointsHex = toHex(zkPoints)
+
+  // Build Passport struct encoding (tuple with dynamic fields)
+  // Head: dataType(32) + zkType(32) + sigOffset(32) + pkOffset(32) + passportHash(32) = 160 bytes
+  const passportHeadBytes = 160
+  const sigSection = word(sigHex.length / 2) + padTo32(sigHex)
+  const sigSectionBytes = sigSection.length / 2
+  const pkSection = word(pkHex.length / 2) + padTo32(pkHex)
+
+  const passportSigOffset = passportHeadBytes // offset from start of passport tuple
+  const passportPkOffset = passportHeadBytes + sigSectionBytes
+
+  const passportEncoded =
+    toHex(passport.dataType).padStart(64, '0') +
+    toHex(passport.zkType).padStart(64, '0') +
+    word(passportSigOffset) +
+    word(passportPkOffset) +
+    toHex(passport.passportHash).padStart(64, '0') +
+    sigSection +
+    pkSection
+
+  const passportEncodedBytes = passportEncoded.length / 2
+
+  // Build zkPoints encoding
+  const zkPointsEncoded = word(zkPointsHex.length / 2) + padTo32(zkPointsHex)
+
+  // Top-level head: 5 words (certificatesRoot, identityKey, dgCommit, passportOffset, zkPointsOffset)
+  const topHeadBytes = 160
+  const passportOffset = topHeadBytes
+  const zkPointsOffset = topHeadBytes + passportEncodedBytes
+
+  const topHead =
+    certRootHex + identityKeyHex + dgCommitHex + word(passportOffset) + word(zkPointsOffset)
+
+  return '0x' + SELECTOR + topHead + passportEncoded + zkPointsEncoded
+}
+
 export class NoirEPassportRegistration extends RegistrationStrategy {
   buildRegisterCallData = async (
     identityItem: NoirEpassportIdentity,
@@ -33,7 +139,7 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       hasAaSignature: Boolean(identityItem.document.aaSignature?.length),
     })
 
-    if (typeof identityItem.registrationProof !== 'string') {
+    if (typeof identityItem.registrationProof.proof !== 'string') {
       throw new TypeError('Noir proof is not supported for Circom registration')
     }
 
@@ -41,6 +147,13 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
     const identityItemDocument = identityItem.document as EPassport
 
     const circuit = new NoirEPassportBasedRegistrationCircuit(identityItemDocument)
+
+    // NoirZKProof emits `proof` and each `pub_signals[i]` as raw hex without a
+    // leading `0x`. ethers' encodeFunctionData rejects unprefixed hex for both
+    // BigNumberish (pkIdentityHash, dg1Commitment) and BytesLike (passportHash,
+    // proof) arguments, so canonicalize to `0x`-prefixed. Idempotent: values
+    // sourced from the contract (e.g. the SMT root) already carry `0x`.
+    const ensureHexPrefix = (value: string) => (value.startsWith('0x') ? value : `0x${value}`)
 
     const aaSignature = identityItemDocument.getAASignature()
 
@@ -53,23 +166,36 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
     }
 
     // ZKTypePrefix represerts the circuit zk type prefix
-    const ZKTypePrefix = 'Z_PER_PASSPORT'
+    const ZKTypePrefix = 'Z_NOIR_PASSPORT'
 
     const zkTypeSuffix = parts.slice(1).join('_') // support for multi-underscore suffix
     const zkTypeName = `${ZKTypePrefix}_${zkTypeSuffix}`
 
     const passport: Registration2.PassportStruct = {
       dataType: identityItemDocument.getAADataType(circuit.eDoc.sod.slaveCertificate.keySize),
-      zkType: keccak256(zkTypeName),
+      zkType: keccak256(Buffer.from(zkTypeName, 'utf-8')),
       signature: aaSignature,
       publicKey: (() => {
         const aaPublicKey = identityItemDocument.getAAPublicKey()
 
-        if (!aaPublicKey) return identityItem.publicKey
+        if (!aaPublicKey) return ensureHexPrefix(identityItem.publicKey)
 
         return aaPublicKey
       })(),
-      passportHash: identityItem.passportHash,
+      passportHash: ensureHexPrefix(identityItem.passportHash),
+    }
+
+    try {
+      const passportPublicKey = identityItemDocument.getAAPublicKey()
+      const passportKeyFromPublicKey = passportPublicKey ? hash1024Strict(passportPublicKey) : null
+
+      if (__DEV__) {
+        console.log('[noir-epassport] Registration proof generated (PII redacted)')
+      }
+    } catch (diagErr) {
+      if (__DEV__) {
+        console.log('[noir-epassport] diagnostic error:', diagErr)
+      }
     }
 
     if (isRevoked) {
@@ -77,10 +203,10 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         'reissueIdentityViaNoir',
         [
           slaveCertSmtProof.root,
-          identityItem.pkIdentityHash,
-          identityItem.dg1Commitment,
+          ensureHexPrefix(identityItem.pkIdentityHash),
+          ensureHexPrefix(identityItem.dg1Commitment),
           passport,
-          registrationProof.proof,
+          ensureHexPrefix(registrationProof.proof),
         ],
       )
       logIdentityDiagnostic('IdentityProof', 'buildRegisterCallData:success', {
@@ -90,15 +216,12 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       return callData
     }
 
-    const callData = RegistrationStrategy.registrationContractInterface.encodeFunctionData(
-      'registerViaNoir',
-      [
-        slaveCertSmtProof.root,
-        identityItem.pkIdentityHash,
-        identityItem.dg1Commitment,
-        passport,
-        registrationProof.proof,
-      ],
+    const callData = manualEncodeRegisterViaNoir(
+      slaveCertSmtProof.root as string,
+      ensureHexPrefix(identityItem.pkIdentityHash),
+      ensureHexPrefix(identityItem.dg1Commitment),
+      passport,
+      ensureHexPrefix(registrationProof.proof),
     )
     logIdentityDiagnostic('IdentityProof', 'buildRegisterCallData:success', {
       mode: 'registerViaNoir',
@@ -114,6 +237,10 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
   ): Promise<NoirEpassportIdentity> => {
     const eDocument = _eDocument as EPassport
     let stage = 'passport-data-check'
+
+    // TEMP DIAGNOSTIC: verify which AA hash matches for the on-chain challenge
+    // (last 8 bytes of publicKeyHash). Remove after debugging.
+    eDocument.debugVerifyAA(publicKeyHash.slice(-8))
 
     logIdentityDiagnostic('IdentityProof', 'NoirEPassportRegistration.createIdentity:start', {
       hasPrivateKey: Boolean(privateKey),
@@ -206,6 +333,28 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         hasDg15: Boolean(eDocument.dg15Bytes?.length),
       })
 
+      // === CIRCUIT-DUMP (temporary) =========================================
+      // One-time export of the raw passport material in the exact shape the
+      // platform circuit generator (passport-zk-circuits-noir/.../process_passport.js)
+      // expects as `tmp.json`. Copy the JSON between the BEGIN/END markers into
+      // that file to autogenerate the Variant B (Type 9) circuit `main.nr`.
+      // Remove this block once the circuit is compiled.
+      try {
+        const circuitDump = {
+          sod: Buffer.from(eDocument.sodBytes).toString('base64'),
+          dg1: Buffer.from(eDocument.dg1Bytes).toString('base64'),
+          dg15: eDocument.dg15Bytes?.length
+            ? Buffer.from(eDocument.dg15Bytes).toString('base64')
+            : '',
+        }
+        console.log('=========== CIRCUIT-DUMP BEGIN (tmp.json) ===========')
+        console.log(JSON.stringify(circuitDump))
+        console.log('=========== CIRCUIT-DUMP END (tmp.json) =============')
+      } catch (dumpErr) {
+        console.log('[CircuitDump] failed to serialize passport dump', dumpErr)
+      }
+      // === /CIRCUIT-DUMP ====================================================
+
       stage = 'proof-generate'
       const registrationProof = await circuit.prove({
         skIdentity,
@@ -220,6 +369,34 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
             : 0,
       })
 
+      // === DIAG: compare wallet publicKeyHash vs circuit pub_signals[3] ===
+      try {
+        const diagPoint = babyJub.mulPointEScalar(babyJub.Base8, skIdentity) as [bigint, bigint]
+        const diagHash = poseidon.hash(diagPoint) as bigint
+        const diagHashHex = diagHash.toString(16).padStart(64, '0')
+        const circuitPubSig3 = registrationProof.pub_signals[3]
+        const walletHashFromParam = Buffer.from(publicKeyHash).toString('hex')
+        console.log('[DIAG-IDENTITY-KEY] ======================================')
+        console.log(
+          '[DIAG-IDENTITY-KEY] skIdentity (first 20 hex):',
+          skIdentity.toString(16).slice(0, 20),
+        )
+        console.log('[DIAG-IDENTITY-KEY] JS poseidon(point):', diagHashHex)
+        console.log('[DIAG-IDENTITY-KEY] circuit pub_signals[3]:', circuitPubSig3)
+        console.log('[DIAG-IDENTITY-KEY] wallet publicKeyHash param:', walletHashFromParam)
+        console.log('[DIAG-IDENTITY-KEY] JS==circuit?', diagHashHex === circuitPubSig3)
+        console.log('[DIAG-IDENTITY-KEY] JS==walletParam?', diagHashHex === walletHashFromParam)
+        console.log('[DIAG-IDENTITY-KEY] challenge from JS (last 8):', diagHashHex.slice(-16))
+        console.log(
+          '[DIAG-IDENTITY-KEY] challenge from param (last 8):',
+          walletHashFromParam.slice(-16),
+        )
+        console.log('[DIAG-IDENTITY-KEY] ======================================')
+      } catch (diagErr) {
+        console.log('[DIAG-IDENTITY-KEY] diagnostic failed:', diagErr)
+      }
+      // === /DIAG ============================================================
+
       stage = 'credential-identity-item-create'
       const identityItem = new NoirEpassportIdentity(eDocument, registrationProof)
       logIdentityDiagnostic('WalletCredential', 'identity-item-created', {
@@ -227,13 +404,13 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       })
 
       stage = 'passport-info-fetch'
-      const passportInfo = await identityItem.getPassportInfo()
+      let passportInfo = await identityItem.getPassportInfo()
 
       const currentIdentityKeyHex = hexlify(publicKeyHash)
-      const isPassportNotRegistered =
+      let isPassportNotRegistered =
         !passportInfo ||
         passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
-      const isPassportRegisteredWithCurrentPK =
+      let isPassportRegisteredWithCurrentPK =
         passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
 
       logIdentityDiagnostic('IdentityProof', 'passport-info-evaluated', {
@@ -258,6 +435,20 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         stage = 'register-via-relayer-api'
         await RegistrationStrategy.requestRelayerRegisterMethod(registerCallData)
         logIdentityDiagnostic('IdentityProof', 'register-via-relayer:success')
+
+        passportInfo = await identityItem.getPassportInfo()
+        isPassportNotRegistered =
+          !passportInfo ||
+          passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
+        isPassportRegisteredWithCurrentPK =
+          passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
+
+        logIdentityDiagnostic('IdentityProof', 'passport-info-refetched', {
+          hasPassportInfo: Boolean(passportInfo),
+          hasActiveIdentity: Boolean(passportInfo?.passportInfo_.activeIdentity),
+          isPassportNotRegistered,
+          isPassportRegisteredWithCurrentPK,
+        })
       }
 
       stage = 'passport-owner-validate'
@@ -377,7 +568,8 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       try {
         const { data } = await relayerRegister(txCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
 
-        const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+        const txHash = extractRelayerTxHash(data)
+        const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(txHash)
 
         if (!tx) throw new TypeError('Transaction not found')
 

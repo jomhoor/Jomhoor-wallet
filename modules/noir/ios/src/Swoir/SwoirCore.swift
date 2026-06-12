@@ -33,3 +33,22 @@ public enum SwoirCore {
       static func execute(bytecode: Data, witnessMap: [String]) throws -> [String]
   }
 }
+import Foundation
+extension SwoirCore.SwoirBackendError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .errorProving(let msg): return "Error proving: \(msg)"
+        case .errorVerifying(let msg): return "Error verifying: \(msg)"
+        case .errorExecuting(let msg): return "Error executing: \(msg)"
+        case .networkError(let msg): return "Network error: \(msg)"
+        case .memoryLimitExceeded: return "Memory limit exceeded"
+        case .invalidBytecode: return "Invalid bytecode"
+        case .emptyBytecode: return "Empty bytecode"
+        case .emptyWitnessMap: return "Empty witness map"
+        case .emptyProofData: return "Empty proof data"
+        case .emptyVerificationKey: return "Empty verification key"
+        case .emptyProofType: return "Empty proof type"
+        case .errorSettingUpSRS: return "Error setting up SRS"
+        }
+    }
+}

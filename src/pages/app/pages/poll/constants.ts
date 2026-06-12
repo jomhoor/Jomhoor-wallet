@@ -2,7 +2,7 @@ export const PRIME = '2188824287183927522224640574525727508854836440041603434369
 
 export const MAX_UINT_32_HEX = '0xFFFFFFFF'
 export const DEFAULT_MASK_HEX = '0x20000000000000000000000000' // Iran mask
-export const ZERO_DATE_HEX = '0x303030303030' // "000000" in ASCII - minimum date (as integer: 52983525093424)
+export const ZERO_DATE_HEX = '0x303030303030' // "000000" in ASCII - minimum date (as integer: 52983525027888)
 export const MAX_DATE_HEX = '0x393939393939' // "999999" in ASCII - maximum date for upper bounds (as integer: 63342393552185)
 
 // MAX_FIELD_VALUE is PRIME-1, but this should NOT be used for date bounds!

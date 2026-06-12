@@ -9,9 +9,10 @@ import forge from 'node-forge'
 import superjson from 'superjson'
 
 import { ExtendedCertificate } from './extended-cert'
+import { ECDSA_ALGO_PREFIX } from './helpers/constants'
 import { namedCurveFromParameters } from './helpers/crypto'
 import { figureOutRSAAAHashAlgorithm } from './helpers/misc'
-import { ECDSA_ALGO_PREFIX, Sod } from './sod'
+import { Sod } from './sod'
 
 export type PersonDetails = {
   firstName: string | null
@@ -49,6 +50,7 @@ type EPassportSerialized = {
   dg1Bytes: string
   dg15Bytes?: string
   dg11Bytes?: string
+  aaSignature?: string
 }
 
 export class EPassport implements EDocument {
@@ -109,6 +111,9 @@ export class EPassport implements EDocument {
       dg1Bytes: Buffer.from(this.dg1Bytes).toString('base64'),
       dg15Bytes: this.dg15Bytes ? Buffer.from(this.dg15Bytes).toString('base64') : undefined,
       dg11Bytes: this.dg11Bytes ? Buffer.from(this.dg11Bytes).toString('base64') : undefined,
+      // AA signature is required on-chain by the passport dispatcher, so it must
+      // survive persistence between scan and registration.
+      aaSignature: this.aaSignature ? Buffer.from(this.aaSignature).toString('base64') : undefined,
     }
     const serialized = superjson.stringify(target)
 
@@ -126,6 +131,7 @@ export class EPassport implements EDocument {
         dg1Bytes: decodeBase64(parsed.dg1Bytes),
         dg15Bytes: parsed.dg15Bytes ? decodeBase64(parsed.dg15Bytes) : undefined,
         dg11Bytes: parsed.dg11Bytes ? decodeBase64(parsed.dg11Bytes) : undefined,
+        aaSignature: parsed.aaSignature ? decodeBase64(parsed.aaSignature) : undefined,
       })
 
       return res
@@ -169,13 +175,35 @@ export class EPassport implements EDocument {
       }
 
       const exponentHex = Buffer.from(rsaPubKey.publicExponent).toString('hex')
+      const unpaddedModulus =
+        rsaPubKey.modulus[0] === 0x00 ? rsaPubKey.modulus.slice(1) : rsaPubKey.modulus
 
       const e = new forge.jsbn.BigInteger(exponentHex, 16)
 
-      const dispatcherName = `P_RSA_${hashAlg}_${EPassport.ECMaxSizeInBits > ecSizeInBits ? EPassport.ECMaxSizeInBits : ecSizeInBits}`
-      if (e.intValue() === 3) {
-        dispatcherName.concat('_3')
+      // The passport (AA) dispatcher size component is a fixed circuit constant
+      // (ECMaxSizeInBits = 2688), NOT the DS certificate key size. Only
+      // `P_RSA_<hash>_2688[_3]` dispatchers are registered on-chain, so larger DS
+      // keys (e.g. 3072-bit) must still map to 2688.
+      let dispatcherName = `P_RSA_${hashAlg}_${EPassport.ECMaxSizeInBits}`
+      const exponentInt = e.intValue()
+      if (exponentInt === 3) {
+        dispatcherName += '_3'
+      } else if (exponentInt !== 65537) {
+        // Non-standard AA exponents (e.g. Iranian passports use 51279 / 0xc84f)
+        // need a dedicated dispatcher whose authenticator is initialized with that
+        // exact exponent. Encode it in the name; the on-chain registration must
+        // register a matching `P_RSA_<hash>_2688_<exponent>` dispatcher.
+        dispatcherName += `_${exponentInt}`
       }
+
+      // eslint-disable-next-line no-console
+      console.log('[AA-DISPATCHER]', {
+        hashAlg,
+        exponent: e.intValue(),
+        exponentHex,
+        modulusBits: Buffer.from(unpaddedModulus).length * 8,
+        dispatcherName,
+      })
 
       return getBytes(keccak256(Buffer.from(dispatcherName, 'utf-8')))
     }
@@ -187,6 +215,73 @@ export class EPassport implements EDocument {
     }
 
     throw new TypeError('Unsupported DG15 public key algorithm')
+  }
+
+  // TEMP DIAGNOSTIC: decrypts the RSA AA signature and tests which hash
+  // (SHA-1 vs SHA-256) reproduces the embedded digest for the given on-chain
+  // challenge. Mirrors PRSASHAAuthenticator.authenticate. Remove after debugging.
+  debugVerifyAA(challenge: Uint8Array) {
+    try {
+      if (!this.dg15PubKey || !this.aaSignature) {
+        // eslint-disable-next-line no-console
+        console.log('[AA-VERIFY] missing dg15PubKey or aaSignature')
+        return
+      }
+      const rsaPubKey = AsnConvert.parse(this.dg15PubKey.subjectPublicKey, RSAPublicKey)
+      const n = new forge.jsbn.BigInteger(Buffer.from(rsaPubKey.modulus).toString('hex'), 16)
+      const e = new forge.jsbn.BigInteger(Buffer.from(rsaPubKey.publicExponent).toString('hex'), 16)
+      const sig = new forge.jsbn.BigInteger(Buffer.from(this.aaSignature).toString('hex'), 16)
+
+      let F = Buffer.from(sig.modPow(e, n).toByteArray())
+      if (F[0] === 0x00) F = F.subarray(1)
+
+      const chal = Buffer.from(challenge)
+
+      const tryHash = (
+        label: string,
+        hashLen: number,
+        suffixLen: number,
+        md: forge.md.MessageDigest,
+      ) => {
+        const L = F.length - suffixLen
+        if (L - hashLen - 1 < 0) {
+          // eslint-disable-next-line no-console
+          console.log(`[AA-VERIFY] ${label}: too short`)
+          return
+        }
+        const prepared = Buffer.from(F.subarray(1, L - hashLen))
+        const digest = Buffer.from(F.subarray(L - hashLen, L))
+        md.start()
+        md.update(Buffer.concat([prepared, chal]).toString('binary'))
+        const computed = Buffer.from(md.digest().toHex(), 'hex')
+        const match = computed.equals(digest)
+        // eslint-disable-next-line no-console
+        console.log(
+          `[AA-VERIFY] ${label}: match=${match} digest=${digest.toString('hex').slice(0, 16)} computed=${computed.toString('hex').slice(0, 16)}`,
+        )
+      }
+
+      // eslint-disable-next-line no-console
+      console.log(
+        '[AA-VERIFY] F.len',
+        F.length,
+        'first',
+        F[0]?.toString(16),
+        'last2',
+        F[F.length - 2]?.toString(16),
+        F[F.length - 1]?.toString(16),
+        'challenge',
+        chal.toString('hex'),
+      )
+      // eslint-disable-next-line no-console
+      console.log('[AA-VERIFY] F.hex', Buffer.from(F).toString('hex'))
+      tryHash('SHA1 (suffix1,hash20)', 20, 1, forge.md.sha1.create())
+      tryHash('SHA256 (suffix2,hash32)', 32, 2, forge.md.sha256.create())
+      tryHash('SHA256 (suffix1,hash32)', 32, 1, forge.md.sha256.create())
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log('[AA-VERIFY] error', String(err))
+    }
   }
 
   getAASignature() {
@@ -235,7 +330,9 @@ export class EPassport implements EDocument {
         return null
       }
 
-      return new Uint8Array(rsaPubKey.modulus)
+      return new Uint8Array(
+        rsaPubKey.modulus[0] === 0x00 ? rsaPubKey.modulus.slice(1) : rsaPubKey.modulus,
+      )
     }
 
     // TODO: not tested yet

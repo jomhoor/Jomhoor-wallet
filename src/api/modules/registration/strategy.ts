@@ -26,6 +26,7 @@ import {
   Contract,
   encodeBytes32String,
   getBytes,
+  hexlify,
   JsonRpcProvider,
   keccak256,
   toBeArray,
@@ -42,7 +43,7 @@ import {
   PassportRegistrationPublicKeyAlgorithm,
   resolvePassportRegistrationPath,
 } from '@/api/modules/registration/passport-registration-path'
-import { relayerRegister } from '@/api/modules/registration/relayer'
+import { extractRelayerTxHash, relayerRegister } from '@/api/modules/registration/relayer'
 import { Config } from '@/config'
 import { createPoseidonSMTContract } from '@/helpers/contracts'
 import {
@@ -57,9 +58,82 @@ import { Registration2 } from '@/types/contracts/Registration'
 import { StateKeeper } from '@/types/contracts/StateKeeper'
 import { EDocument } from '@/utils/e-document/e-document'
 import { ExtendedCertificate } from '@/utils/e-document/extended-cert'
+import { ECDSA_ALGO_PREFIX } from '@/utils/e-document/helpers/constants'
 import { getPublicKeyFromEcParameters, hashPacked } from '@/utils/e-document/helpers/crypto'
 import { extractPubKey } from '@/utils/e-document/helpers/misc'
-import { ECDSA_ALGO_PREFIX, Sod } from '@/utils/e-document/sod'
+import { Sod } from '@/utils/e-document/sod'
+
+/**
+ * Manual ABI encoder for `registerCertificate`.
+ *
+ * Hermes (React Native JS engine) corrupts certain offset/length words when
+ * ethers.js's ABI coder round-trips values through typed arrays. This function
+ * builds the calldata entirely with string operations, bypassing the issue.
+ */
+function manualEncodeRegisterCertificate(
+  dataType: string,
+  signedAttributes: Uint8Array,
+  keyOffset: number,
+  expirationOffset: number,
+  signature: Uint8Array,
+  publicKey: Uint8Array,
+  proof: Uint8Array[],
+): string {
+  const SELECTOR = 'ccd0b62a'
+
+  const word = (n: number | bigint): string => {
+    const h = BigInt(n).toString(16)
+    return '0'.repeat(64 - h.length) + h
+  }
+
+  const bytesToHex = (data: Uint8Array): string => {
+    let result = ''
+    for (let i = 0; i < data.length; i++) {
+      result += data[i].toString(16).padStart(2, '0')
+    }
+    return result
+  }
+
+  const padTo32 = (hex: string): string => {
+    const byteLen = hex.length / 2
+    const paddedLen = Math.ceil(byteLen / 32) * 32
+    return hex + '0'.repeat((paddedLen - byteLen) * 2)
+  }
+
+  const strip = (h: string): string => (h.startsWith('0x') ? h.slice(2) : h)
+
+  // Certificate tuple: (bytes32 dataType, bytes signedAttributes, uint256 keyOffset, uint256 expirationOffset)
+  const saHex = bytesToHex(signedAttributes)
+  const certSaOffset = 128 // head = 4 * 32
+  const certTuple =
+    strip(dataType).padStart(64, '0') +
+    word(certSaOffset) +
+    word(keyOffset) +
+    word(expirationOffset) +
+    word(signedAttributes.length) +
+    padTo32(saHex)
+
+  // ICAOMember tuple: (bytes signature, bytes publicKey)
+  const sigHex = bytesToHex(signature)
+  const pkHex = bytesToHex(publicKey)
+  const icaoSigOffset = 64 // head = 2 * 32
+  const sigSection = word(signature.length) + padTo32(sigHex)
+  const icaoPkOffset = icaoSigOffset + sigSection.length / 2
+  const icaoTuple =
+    word(icaoSigOffset) + word(icaoPkOffset) + sigSection + word(publicKey.length) + padTo32(pkHex)
+
+  // Proof: bytes32[]
+  const proofHex = word(proof.length) + proof.map(p => bytesToHex(p).padStart(64, '0')).join('')
+
+  // Top-level offsets
+  const headBytes = 96
+  const certBytes = certTuple.length / 2
+  const icaoBytes = icaoTuple.length / 2
+  const topLevel =
+    word(headBytes) + word(headBytes + certBytes) + word(headBytes + certBytes + icaoBytes)
+
+  return '0x' + SELECTOR + topLevel + certTuple + icaoTuple + proofHex
+}
 
 export type PassportInfo = {
   passportInfo_: StateKeeper.PassportInfoStructOutput
@@ -694,9 +768,16 @@ export abstract class RegistrationStrategy {
       publicKey: Sod.getSlaveCertIcaoMemberKey(masterCert),
     }
 
-    return RegistrationStrategy.registrationContractInterface.encodeFunctionData(
-      'registerCertificate',
-      [certificate, icaoMember, inclusionProofSiblings.map(el => Buffer.from(el, 'hex'))],
+    // Use manual ABI encoding to work around Hermes typed-array corruption
+    // in ethers.js's ABI coder (offset/length words get nibble-swapped).
+    return manualEncodeRegisterCertificate(
+      hexlify(dispatcherHash),
+      certificate.signedAttributes as Uint8Array,
+      Number(cert.slaveCertPubKeyOffset),
+      Number(cert.slaveCertExpOffset),
+      icaoMember.signature as Uint8Array,
+      icaoMember.publicKey as Uint8Array,
+      inclusionProofSiblings.map(el => new Uint8Array(Buffer.from(el, 'hex'))),
     )
   }
 
@@ -738,16 +819,19 @@ export abstract class RegistrationStrategy {
 
       stage = 'register-certificate-relayer-request'
       const { data } = await relayerRegister(callData, Config.REGISTRATION_CONTRACT_ADDRESS)
+
+      const txHash = extractRelayerTxHash(data)
+
       logIdentityDiagnostic(
         'IdentityProof',
         'RegistrationStrategy.registerCertificate:relayer-accepted',
         {
-          hasTxHash: Boolean(data?.tx_hash),
+          hasTxHash: Boolean(txHash),
         },
       )
 
       stage = 'register-certificate-transaction-lookup'
-      const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+      const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(txHash)
 
       if (!tx) throw new TypeError('Transaction not found')
 
@@ -820,12 +904,15 @@ export abstract class RegistrationStrategy {
 
     try {
       const { data } = await relayerRegister(registerCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
+
+      const txHash = extractRelayerTxHash(data)
+
       logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:relayer-accepted', {
-        hasTxHash: Boolean(data?.tx_hash),
+        hasTxHash: Boolean(txHash),
       })
 
       stage = 'register-transaction-lookup'
-      const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+      const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(txHash)
 
       if (!tx) throw new TypeError('Transaction not found')
 

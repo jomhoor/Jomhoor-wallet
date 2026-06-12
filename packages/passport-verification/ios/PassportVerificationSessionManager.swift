@@ -70,6 +70,10 @@ private struct PassportVerificationActiveAuthenticationState {
     var performed = false
     var passed = false
     var signatureHex: String?
+    // DIAGNOSTIC: the challenge bytes the chip actually signed (override-or-random),
+    // distinct from `challengeHex` which only echoes our input. Used to confirm the
+    // AA override reached the chip. Remove after debugging.
+    var actualChallengeHex: String?
 
     mutating func merge(passport: NFCPassportModel?) {
         guard let passport = passport else {
@@ -84,6 +88,12 @@ private struct PassportVerificationActiveAuthenticationState {
             passed = passed || passport.activeAuthenticationPassed
             if signatureHex == nil {
                 signatureHex = signature.map { String(format: "%02X", $0) }.joined()
+            }
+            if actualChallengeHex == nil {
+                let actual = passport.activeAuthenticationChallenge
+                if !actual.isEmpty {
+                    actualChallengeHex = actual.map { String(format: "%02X", $0) }.joined()
+                }
             }
         }
     }
@@ -107,6 +117,7 @@ private struct PassportVerificationActiveAuthenticationState {
             "performed": performed,
             "passed": passed,
             "challenge": challengeHex,
+            "actualChallenge": actualChallengeHex ?? NSNull(),
             "signature": signatureHex ?? NSNull(),
         ]
     }
@@ -841,6 +852,7 @@ final class PassportVerificationSessionManager {
                 skipCA: false,
                 skipPACE: skipPACE,
                 useExtendedMode: false,
+                aaChallenge: aaChallenge,
                 customDisplayMessage: { displayMessage in
                 switch displayMessage {
                 case .requestPresentPassport:

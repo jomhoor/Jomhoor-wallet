@@ -15,7 +15,7 @@ import { X509Certificate } from '@peculiar/x509'
 import { toBeArray } from 'ethers'
 import forge from 'node-forge'
 
-import { ECDSA_ALGO_PREFIX } from '../sod'
+import { ECDSA_ALGO_PREFIX } from './constants'
 import { getPublicKeyFromEcParameters } from './crypto'
 
 export function toPem(buf: ArrayBuffer, header: string): string {
@@ -62,6 +62,15 @@ export function figureOutRSAAAHashAlgorithm(
   if (flagByte === 0xcc) {
     flagByte = decryptedBytes[decryptedBytes.length - 2]
   }
+
+  // eslint-disable-next-line no-console
+  console.log('[AA-HASH-DETECT]', {
+    decryptedLen: decryptedBytes.length,
+    firstByte: decryptedBytes[0]?.toString(16),
+    lastByte: decryptedBytes[decryptedBytes.length - 1]?.toString(16),
+    secondLastByte: decryptedBytes[decryptedBytes.length - 2]?.toString(16),
+    flagByte: flagByte?.toString(16),
+  })
 
   switch (flagByte) {
     case 0x33:

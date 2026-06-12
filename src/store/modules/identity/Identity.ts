@@ -196,6 +196,13 @@ export class NoirEpassportIdentity extends IdentityItem {
     )
   }
 
+  public static get registrationPoseidonSMTContract() {
+    return createPoseidonSMTContract(
+      Config.REGISTRATION_POSEIDON_SMT_CONTRACT_ADDRESS,
+      RegistrationStrategy.rmoEvmJsonRpcProvider,
+    )
+  }
+
   get publicKey() {
     return this.registrationProof.pub_signals[0]
   }
@@ -210,6 +217,32 @@ export class NoirEpassportIdentity extends IdentityItem {
   }
   get identityKey() {
     return this.document.dg15Bytes?.length ? this.publicKey : this.passportHash
+  }
+
+  public getPassportProofIndex = async (
+    identityKey: string,
+    pkIdentityHash: string,
+  ): Promise<string> => {
+    try {
+      const sanitizedIdentityKey = identityKey.startsWith('0x') ? identityKey : `0x${identityKey}`
+      const sanitizedPkIdentityHash = pkIdentityHash.startsWith('0x')
+        ? pkIdentityHash
+        : `0x${pkIdentityHash}`
+
+      const hash = poseidon.hash([BigInt(sanitizedIdentityKey), BigInt(sanitizedPkIdentityHash)])
+      const hex = hash.toString(16).padStart(64, '0')
+
+      return '0x' + hex
+    } catch (error) {
+      ErrorHandler.process(error)
+      throw error
+    }
+  }
+
+  public getPassportRegistrationProof = async (proofIndex: string) => {
+    return NoirEpassportIdentity.registrationPoseidonSMTContract.contractInstance.getProof(
+      proofIndex,
+    )
   }
 }
 

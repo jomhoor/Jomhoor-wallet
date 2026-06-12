@@ -2,7 +2,7 @@ import { AxiosError } from 'axios'
 import { hexlify, keccak256 } from 'ethers'
 import { FieldRecords } from 'mrz'
 
-import { relayerRegister } from '@/api/modules/registration/relayer'
+import { extractRelayerTxHash, relayerRegister } from '@/api/modules/registration/relayer'
 import { PassportInfo, RegistrationStrategy } from '@/api/modules/registration/strategy'
 import { Config } from '@/config'
 import { tryCatch } from '@/helpers/try-catch'
@@ -132,16 +132,16 @@ export class CircomEPassportRegistration extends RegistrationStrategy {
 
     const identityItem = new CircomEpassportIdentity(eDocument, registrationProof)
 
-    const passportInfo = await identityItem.getPassportInfo()
+    let passportInfo = await identityItem.getPassportInfo()
 
     const currentIdentityKey = publicKeyHash
     const currentIdentityKeyHex = hexlify(currentIdentityKey)
 
-    const isPassportNotRegistered =
+    let isPassportNotRegistered =
       !passportInfo ||
       passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
 
-    const isPassportRegisteredWithCurrentPK =
+    let isPassportRegisteredWithCurrentPK =
       passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
 
     if (isPassportNotRegistered) {
@@ -152,6 +152,13 @@ export class CircomEPassportRegistration extends RegistrationStrategy {
       )
 
       await RegistrationStrategy.requestRelayerRegisterMethod(registerCallData)
+
+      passportInfo = await identityItem.getPassportInfo()
+      isPassportNotRegistered =
+        !passportInfo ||
+        passportInfo.passportInfo_.activeIdentity === RegistrationStrategy.ZERO_BYTES32_HEX
+      isPassportRegisteredWithCurrentPK =
+        passportInfo?.passportInfo_.activeIdentity === currentIdentityKeyHex
     }
 
     if (!isPassportRegisteredWithCurrentPK) {
@@ -241,7 +248,8 @@ export class CircomEPassportRegistration extends RegistrationStrategy {
       try {
         const { data } = await relayerRegister(txCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
 
-        const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(data.tx_hash)
+        const txHash = extractRelayerTxHash(data)
+        const tx = await RegistrationStrategy.rmoEvmJsonRpcProvider.getTransaction(txHash)
 
         if (!tx) throw new TypeError('Transaction not found')
 

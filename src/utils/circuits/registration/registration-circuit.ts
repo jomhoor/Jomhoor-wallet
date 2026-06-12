@@ -184,6 +184,12 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
 
       const unpaddedModulusHex = Hex.encodeString(unpaddedModulus)
 
+      console.log(
+        `[RegistrationCircuit] RSA DS profile: modulus=${unpaddedModulusHex.length * 4}-bit, ` +
+          `exponent=0x${exponent} (${BigInt(`0x${exponent}`).toString(10)}), ` +
+          `hash=SHA-${hashAlgLen * 8 === 160 ? '1' : String(hashAlgLen * 8)}`,
+      )
+
       if (this.eDoc.sod.slaveCertificate.certificate.signatureAlgorithm.parameters) {
         if (!this.eDoc.sod.signatures[0].signatureAlgorithm.parameters) {
           throw new TypeError('RSASSA-PSS public key does not have parameters')
@@ -252,13 +258,36 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
         return 3
       }
 
-      // RSA-3072 + SHA-1 passport profile used by Iranian passports.
-      // This maps to the Noir circuit family registerIdentity_6_160_*.
-      if (unpaddedModulusHex.length === 768 && hashAlgLen === 20) {
+      // Iranian Passport Variant A — RSA-2048 / exponent 58333 (0xE3DD) / SHA-1.
+      // Maps to the Noir circuit family registerIdentity_6_160_* (SIG_TYPE 6).
+      if (unpaddedModulusHex.length === 512 && exponent === 'e3dd' && hashAlgLen === 20) {
         return 6
       }
 
-      return 0
+      // Iranian Passport Variant B — RSA-3072 / exponent 33259 (0x81EB) / SHA-1.
+      // Maps to the Noir circuit family registerIdentity_9_160_* (SIG_TYPE 9).
+      //
+      // IMPORTANT: this MUST NOT be collapsed into the 2048-bit Type-6 circuit.
+      // The on-device Noir circuit hard-codes BOTH the modulus size and the RSA
+      // exponent (see platform passport-zk-circuits-noir
+      // .../not_passports_zk_circuits.nr: `verify_rsa::<3072, 26, HASH_ALGO, 33259>`),
+      // so feeding a 3072-bit/E33259 key into the 2048-bit/E58333 Type-6 circuit
+      // yields a witness that can never satisfy the constraints, surfacing as the
+      // generic native "Error generating proof".
+      if (unpaddedModulusHex.length === 768 && exponent === '81eb' && hashAlgLen === 20) {
+        return 9
+      }
+
+      // No registration circuit matches this RSA profile. Fail loudly with an
+      // actionable message instead of silently returning 0 (and later mismapping
+      // to a wrong circuit, which only surfaces as a cryptic prover failure).
+      throw new TypeError(
+        `[RegistrationCircuit] Unsupported RSA passport profile: ` +
+          `${unpaddedModulusHex.length * 4}-bit modulus, exponent 0x${exponent} ` +
+          `(${BigInt(`0x${exponent}`).toString(10)}), ` +
+          `SHA-${hashAlgLen * 8 === 160 ? '1' : String(hashAlgLen * 8)}. ` +
+          `No matching registration circuit/dispatcher is available.`,
+      )
     }
 
     if (
@@ -322,8 +351,20 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
       dg1DigestPositionShiftBits,
     ]
 
+    const logExtraction = (circuitStr: string) => {
+      console.log('================= PASSPORT CIRCUIT PARAMS =================')
+      console.log('Variant Circuit String:', circuitStr)
+      console.log('EC Length (bytes):', this.eDoc.sod.encapsulatedContent.length)
+      console.log('SA Length (bytes):', this.eDoc.sod.signedAttributes.length)
+      console.log('EC Shift / encapContentShift:', this.encapContentShift)
+      console.log('DG1 Shift:', this.dg1Shift)
+      if (this.eDoc.dg15Bytes) console.log('DG15 Shift:', this.dg15Shift)
+      console.log('===========================================================')
+      return circuitStr
+    }
+
     if (!this.eDoc.dg15Bytes) {
-      return [...defaultNameParts, 'NA'].join('_')
+      return logExtraction([...defaultNameParts, 'NA'].join('_'))
     }
 
     if (!this.eDoc.dg15PubKey) {
@@ -390,13 +431,11 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
         ? Math.ceil((this.eDoc.dg15Bytes.length + 8) / 64)
         : Math.ceil((this.eDoc.dg15Bytes.length + 8) / 128)
 
-    return [
-      ...defaultNameParts,
-      aaSigType,
-      dg15ShiftBits,
-      dg15EcChunkNumber,
-      aaShiftBytes * 8,
-    ].join('_')
+    return logExtraction(
+      [...defaultNameParts, aaSigType, dg15ShiftBits, dg15EcChunkNumber, aaShiftBytes * 8].join(
+        '_',
+      ),
+    )
   }
 
   constructor(public eDoc: EPassport) {

@@ -56,19 +56,12 @@ function computeDg1Commitment(dg1: Uint8Array, skIdentity: bigint): string {
     current *= 256n
   }
 
-  console.log('[computeDg1Commitment] Chunks:')
-  for (let i = 0; i < 4; i++) {
-    console.log(`  chunk[${i}]: ${chunks[i].toString(16)}`)
-  }
-
-  // Hash sk_identity first
+  // Hash sk_identity first (PII - not logged)
   const skIdentityHash = poseidon.hash([skIdentity])
-  console.log('[computeDg1Commitment] poseidon(sk_identity):', skIdentityHash.toString(16))
 
   // Hash all 5 values: chunks[0..4] + poseidon(sk_identity)
   const dg1Commitment = poseidon.hash([chunks[0], chunks[1], chunks[2], chunks[3], skIdentityHash])
   const hexResult = dg1Commitment.toString(16).padStart(64, '0')
-  console.log('[computeDg1Commitment] dg1_commitment:', hexResult)
 
   return hexResult
 }
@@ -109,8 +102,12 @@ export class EIDBasedQueryIdentityCircuit {
 
   /**
    * Generates a ZK proof given serialized inputs.
+   *
+   * @param proofType Proof flavor. Voting uses `honk_keccak` (verified on-chain by
+   *   the Solidity HonkVerifier); SSO uses `plonk` (verified by sso-svc). Defaults
+   *   to `plonk` so callers that don't opt in keep their current verifier.
    */
-  async prove(params: Partial<QueryProofParams>) {
+  async prove(params: Partial<QueryProofParams>, proofType: 'plonk' | 'honk_keccak' = 'plonk') {
     console.log(
       '[EIDBasedQueryIdentityCircuit] prove() called with params:',
       JSON.stringify(params),
@@ -140,110 +137,39 @@ export class EIDBasedQueryIdentityCircuit {
     const rawTbsCertBytes = new Uint8Array(
       AsnConvert.serialize(currentIdentity.document.sigCertificate.certificate.tbsCertificate),
     )
-    console.log('[EIDBasedQueryIdentityCircuit] rawTbsCertBytes length:', rawTbsCertBytes.length)
-
     console.log('[EIDBasedQueryIdentityCircuit] Getting passportProofIndexHex...')
     const passportProofIndexHex = await currentIdentity.getPassportProofIndex(
       currentIdentity.identityKey, // passport hash  (passportKey)
       currentIdentity.pkIdentityHash, // registrationProof.pub_signals[3] (IdentityKey)
     )
-    console.log('[EIDBasedQueryIdentityCircuit] passportProofIndexHex:', passportProofIndexHex)
-
-    console.log('[EIDBasedQueryIdentityCircuit] Getting passportRegistrationProof...')
+    if (__DEV__) {
+      console.log('[EIDBasedQueryIdentityCircuit] Getting passportRegistrationProof...')
+    }
     const passportRegistrationProof =
       await currentIdentity.getPassportRegistrationProof(passportProofIndexHex)
 
-    // === DEBUG: Examine raw siblings from contract ===
     const rawSiblings = passportRegistrationProof.siblings
-    console.log('[EIDBasedQueryIdentityCircuit] === RAW SIBLINGS DEBUG ===')
-    console.log('  Type of siblings array:', typeof rawSiblings, Array.isArray(rawSiblings))
-    console.log('  Siblings length:', rawSiblings?.length)
-    if (rawSiblings && rawSiblings.length > 0) {
-      console.log('  Type of first sibling:', typeof rawSiblings[0])
-      console.log('  First sibling raw value:', rawSiblings[0])
-      console.log('  First sibling toString():', rawSiblings[0]?.toString())
-      console.log(
-        '  First 5 siblings raw:',
-        rawSiblings.slice(0, 5).map((s: unknown) => String(s)),
-      )
-      // Check if any are non-zero by comparing to various zero representations
-      const nonZeroCount = rawSiblings.filter((s: unknown) => {
-        const strVal = String(s)
-        return strVal !== '0' && strVal !== '0x0' && strVal !== '0x00' && BigInt(strVal) !== 0n
-      }).length
-      console.log('  Non-zero siblings (strict check):', nonZeroCount)
-    }
-    // === END DEBUG ===
-
-    console.log(
-      '[EIDBasedQueryIdentityCircuit] passportRegistrationProof:',
-      JSON.stringify({
-        root: passportRegistrationProof.root?.toString(),
-        existence: passportRegistrationProof.existence,
-        key: passportRegistrationProof.key?.toString(),
-        value: passportRegistrationProof.value?.toString(),
-        siblingsLength: passportRegistrationProof.siblings?.length,
-        siblingsNonZero: passportRegistrationProof.siblings?.filter(
-          (s: { toString: () => string }) => s.toString() !== '0',
-        ).length,
-      }),
-    )
 
     this._passportRegistrationProof = passportRegistrationProof
 
-    // Log the stored dg1Commitment from registration for comparison
-    console.log('[EIDBasedQueryIdentityCircuit] === REGISTRATION VALUES (stored on-chain) ===')
-    console.log('  passportHash:', currentIdentity.passportHash)
-    console.log('  pkIdentityHash:', currentIdentity.pkIdentityHash)
-    console.log('  dg1Commitment (from registration):', currentIdentity.dg1Commitment)
-    console.log('  identityKey:', currentIdentity.identityKey)
-
-    // Log the SMT value that was stored (poseidon(dg1_commit, identity_counter, timestamp))
-    console.log('[EIDBasedQueryIdentityCircuit] === SMT PROOF ===')
-    console.log('  SMT root:', passportRegistrationProof.root?.toString())
-    console.log('  SMT existence:', passportRegistrationProof.existence)
-    console.log('  SMT key (tree_position):', passportRegistrationProof.key?.toString())
-    console.log('  SMT value (stored):', passportRegistrationProof.value?.toString())
+    // Stored registration values and proof data (PII - not logged)
 
     const dg1 = Array.from(this.getDg1(rawTbsCertBytes)).map(String)
-    console.log('[EIDBasedQueryIdentityCircuit] dg1 length:', dg1.length)
+    if (__DEV__) {
+      console.log('[EIDBasedQueryIdentityCircuit] DG1 loaded, length:', dg1.length)
+    }
 
-    // === DEBUG: Compute dg1_commitment in TypeScript and compare with stored value ===
+    // Compute dg1_commitment for proof (not logged due to PII)
     const dg1Bytes = new Uint8Array(dg1.map(Number))
     const skIdentity = params?.skIdentity ? BigInt(params.skIdentity) : BigInt(0)
-    console.log(
-      '[EIDBasedQueryIdentityCircuit] Using sk_identity for commitment check:',
-      skIdentity.toString(10),
-    )
 
     const computedDg1Commitment = computeDg1Commitment(dg1Bytes, skIdentity)
-    console.log('[EIDBasedQueryIdentityCircuit] === DG1 COMMITMENT COMPARISON ===')
-    console.log('  Stored (from registration): ', currentIdentity.dg1Commitment)
-    console.log('  Computed (TypeScript):      ', computedDg1Commitment)
-    console.log(
-      '  Match:',
-      currentIdentity.dg1Commitment === computedDg1Commitment ? '✓ YES' : '✗ NO - MISMATCH!',
-    )
 
-    // === DEBUG: Verify SMT value computation ===
+    // Verify SMT value computation (internals not logged)
     const dg1CommitBigInt = BigInt('0x' + computedDg1Commitment)
     const identityCounter = BigInt(params?.identityCounter ?? '0')
     const timestamp = BigInt(params?.timestamp ?? '0')
     const computedSmtValue = poseidon.hash([dg1CommitBigInt, identityCounter, timestamp])
-    const computedSmtValueHex = '0x' + computedSmtValue.toString(16).padStart(64, '0')
-    console.log('[EIDBasedQueryIdentityCircuit] === SMT VALUE COMPARISON ===')
-    console.log('  Stored SMT value:           ', passportRegistrationProof.value?.toString())
-    console.log('  Computed SMT value:         ', computedSmtValueHex)
-    console.log('  dg1_commit used:', '0x' + computedDg1Commitment)
-    console.log('  identity_counter used:', identityCounter.toString())
-    console.log('  timestamp used:', timestamp.toString())
-    console.log(
-      '  Match:',
-      passportRegistrationProof.value?.toString().toLowerCase() ===
-        computedSmtValueHex.toLowerCase()
-        ? '✓ YES'
-        : '✗ NO - MISMATCH!',
-    )
     // === END DEBUG ===
 
     // Convert BigInt siblings from contract to strings for circuit input
@@ -288,7 +214,7 @@ export class EIDBasedQueryIdentityCircuit {
 
     console.log('[EIDBasedQueryIdentityCircuit] Calling circuitParams.prove()...')
     try {
-      const proof = await this.circuitParams.prove(JSON.stringify(inputs), byteCode)
+      const proof = await this.circuitParams.prove(JSON.stringify(inputs), byteCode, proofType)
       console.log('[EIDBasedQueryIdentityCircuit] Proof generated successfully')
       if (!proof) {
         throw new Error(`Proof generation failed for circuit ${this.circuitParams.name}`)

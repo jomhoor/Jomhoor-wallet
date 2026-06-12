@@ -78,6 +78,10 @@ credentials.json
 # Secrets
 *.keystore
 *.jks
+
+# Backup frameworks (e.g., Xcode framework backups)
+*.xcframework.*-bak/
+*.poseidon-bak/
 *.pem
 *.p8
 *.p12
@@ -87,3 +91,4 @@ android/signing.properties
 android/app/signing.properties
 
 packages/**/.gradle/
+*.poseidon-bak/

@@ -12,7 +12,7 @@ export const RARIMO_CHAINS: Record<string, ChainInfo> = {
     chainName: 'Local Hardhat',
     chainSymbolImageUrl:
       'https://raw.githubusercontent.com/rarimo/js-sdk/2.0.0-rc.14/assets/logos/ra-dark-logo.png',
-    rpcEvm: 'http://192.168.0.130:8545', // Local Hardhat node via host IP
+    rpcEvm: 'http://192.168.0.127:8545', // Local Hardhat node via host IP
     explorerUrl: '',
   },
   [RarimoChains.Testnet]: {

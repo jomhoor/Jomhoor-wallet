@@ -228,12 +228,16 @@ export function logIdentityDiagnostic(
   event: string,
   metadata?: Record<string, unknown>,
 ): void {
-  if (metadata && Object.keys(metadata).length > 0) {
-    console.warn(`[${domain}] ${event}`, metadata)
+  if (!__DEV__) {
     return
   }
 
-  console.warn(`[${domain}] ${event}`)
+  if (metadata && Object.keys(metadata).length > 0) {
+    console.log(`[${domain}] ${event}`, metadata)
+    return
+  }
+
+  console.log(`[${domain}] ${event}`)
 }
 
 export function logIdentityDiagnosticError(params: {

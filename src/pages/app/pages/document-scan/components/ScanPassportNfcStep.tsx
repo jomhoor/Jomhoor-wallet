@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { storage } from '@/core'
 import {
   mapPassportNfcErrorToMessage,
   resolvePassportNfcBackend,
@@ -14,7 +15,9 @@ import {
 } from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { appCapabilitiesStore } from '@/store'
+import { walletStore } from '@/store/modules/wallet'
 import { UiButton, UiIcon } from '@/ui'
+import { EPassport } from '@/utils/e-document/e-document'
 import {
   clearPassportNfcTemporaryData,
   readPassportScanOutput,
@@ -22,6 +25,24 @@ import {
 } from '@/utils/e-document/passport-nfc-reader'
 
 import DemoModeBanner from './DemoModeBanner'
+
+// ---------------------------------------------------------------------------
+// Dev-only scan replay (never enabled in production builds)
+//
+// A real chip's Active Authentication signature signs (chip_random || challenge)
+// where challenge = last 8 bytes of poseidon(walletPubKey). That signature stays
+// valid as long as the wallet key is unchanged (it persists in secure storage),
+// so a single serialized EPassport from one real scan can be replayed offline
+// while iterating on registration/dispatcher code — no repeated NFC taps.
+//
+// Enable by setting EXPO_PUBLIC_PASSPORT_DEV_REPLAY=1 in .env.local. Scan once;
+// the dump is captured to MMKV. Thereafter a "Replay last scan (dev)" button
+// loads it. WARNING: the dump contains real passport PII — keep it local only.
+// ---------------------------------------------------------------------------
+const PASSPORT_DEV_REPLAY_ENABLED =
+  process.env.EXPO_PUBLIC_PASSPORT_DEV_REPLAY === '1' ||
+  process.env.EXPO_PUBLIC_PASSPORT_DEV_REPLAY === 'true'
+const PASSPORT_DEV_DUMP_KEY = 'dev.passportScanDump.v1'
 
 type ReadState = 'idle' | 'waiting' | 'found' | 'authorizing' | 'reading' | 'error'
 
@@ -69,6 +90,16 @@ export default function ScanPassportNfcStep() {
   const isDemoMode = verificationMode === 'demo' && passportDemoModeEnabled
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
+
+  // 8-byte AA challenge = last 8 bytes of the wallet identity key (pkIdentityHash).
+  // Must match Registration2 / PRSASHADispatcher.getPassportChallenge on-chain.
+  const aaChallengeBytes = walletStore.useRegistrationChallenge()
+  const aaChallengeHex = Buffer.from(aaChallengeBytes).toString('hex')
+
+  // DIAG: log the private key and publicKeyHash used for the challenge
+  const diagPrivateKey = walletStore.useWalletStore(state => state.privateKey)
+  console.log('[DIAG-NFC-CHALLENGE] privateKey (first 20):', diagPrivateKey?.slice(0, 20))
+  console.log('[DIAG-NFC-CHALLENGE] aaChallengeHex:', aaChallengeHex)
 
   const [readState, setReadState] = useState<ReadState>('idle')
   const [errorMsg, setErrorMsg] = useState<string>('')
@@ -143,6 +174,7 @@ export default function ScanPassportNfcStep() {
     try {
       await stopPassportNfc()
       const passportOutput = await readPassportScanOutput(docNumber, birthDate, expiryDate, {
+        activeAuthenticationChallenge: aaChallengeHex,
         onScanStatus: event => {
           switch (event.status) {
             case 'waiting_for_tag':
@@ -165,6 +197,17 @@ export default function ScanPassportNfcStep() {
 
       setPassportNfcScanOutput(passportOutput)
       await clearPassportNfcTemporaryData()
+
+      if (PASSPORT_DEV_REPLAY_ENABLED) {
+        try {
+          storage.set(PASSPORT_DEV_DUMP_KEY, passportOutput.ePassport.serialize())
+          // eslint-disable-next-line no-console
+          console.log('[PASSPORT-DEV-REPLAY] captured scan dump for offline replay')
+        } catch (dumpErr) {
+          // eslint-disable-next-line no-console
+          console.log('[PASSPORT-DEV-REPLAY] failed to capture dump', dumpErr)
+        }
+      }
     } catch (e: unknown) {
       const mappedError = mapPassportNfcErrorToMessage(e, { debugEnabled })
       setErrorMsg(mappedError.primary)
@@ -183,6 +226,7 @@ export default function ScanPassportNfcStep() {
     setPassportNfcScanOutput,
     debugEnabled,
     isDemoMode,
+    aaChallengeHex,
   ])
 
   useEffect(() => {
@@ -190,6 +234,29 @@ export default function ScanPassportNfcStep() {
       cancelRead()
     }
   }, [cancelRead])
+
+  // Dev-only: replay the last captured real scan without touching NFC. Requires
+  // EXPO_PUBLIC_PASSPORT_DEV_REPLAY=1 and a previously captured dump in MMKV.
+  const hasReplayDump =
+    PASSPORT_DEV_REPLAY_ENABLED && Boolean(storage.getString(PASSPORT_DEV_DUMP_KEY))
+  const onReplayPress = useCallback(() => {
+    const dump = storage.getString(PASSPORT_DEV_DUMP_KEY)
+    if (!dump) {
+      setErrorMsg('No captured scan dump found. Do one real NFC read first.')
+      setReadState('error')
+      return
+    }
+    try {
+      const ePassport = EPassport.deserialize(dump)
+      // eslint-disable-next-line no-console
+      console.log('[PASSPORT-DEV-REPLAY] replaying captured scan dump')
+      setPassportNfcScanOutput({ ePassport })
+    } catch (replayErr) {
+      setErrorMsg('Failed to load captured scan dump.')
+      setErrorDetail(replayErr instanceof Error ? replayErr.message : String(replayErr))
+      setReadState('error')
+    }
+  }, [setPassportNfcScanOutput])
 
   const scanStatus =
     readState === 'waiting' ||
@@ -316,6 +383,15 @@ export default function ScanPassportNfcStep() {
           className='w-full'
           disabled={isScanning}
         />
+        {hasReplayDump ? (
+          <UiButton
+            onPress={onReplayPress}
+            title='Replay last scan (dev)'
+            variant='outlined'
+            className='w-full'
+            disabled={isScanning}
+          />
+        ) : null}
       </View>
     </View>
   )

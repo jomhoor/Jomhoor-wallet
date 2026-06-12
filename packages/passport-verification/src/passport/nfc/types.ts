@@ -41,6 +41,9 @@ export type PassportNfcReadInput = Omit<PassportCredentials, 'mrzKey'> & {
   requestedDataGroups?: string[]
   includeImageBase64?: boolean
   persistDg2ImageFile?: boolean
+  /** 8-byte (16 hex char) Active Authentication challenge. When set, the native
+   *  reader performs AA and returns the chip's signature. */
+  activeAuthenticationChallenge?: string
 }
 
 export type PassportNfcReadResult = {

@@ -89,6 +89,11 @@ public class PassportReader : NSObject {
     // Extended mode is used for reading eMRTD's that support extended length APDUs
     private var useExtendedMode = false
 
+    // When set, this exact challenge is used for Active Authentication instead of a
+    // random one, so the recovered AA signature can be verified on-chain against a
+    // challenge derived from the wallet identity key.
+    private var aaChallengeOverride : [UInt8]? = nil
+
     private var bacHandler : BACHandler?
     private var caHandler : ChipAuthenticationHandler?
     private var paceHandler : PACEHandler?
@@ -130,13 +135,14 @@ public class PassportReader : NSObject {
         dataAmountToReadOverride = amount
     }
     
-    public func readPassport( mrzKey : String, tags : [DataGroupId] = [], skipSecureElements : Bool = true, skipCA : Bool = false, skipPACE : Bool = false, useExtendedMode : Bool = false, customDisplayMessage : ((NFCViewDisplayMessage) -> String?)? = nil) async throws -> NFCPassportModel {
+    public func readPassport( mrzKey : String, tags : [DataGroupId] = [], skipSecureElements : Bool = true, skipCA : Bool = false, skipPACE : Bool = false, useExtendedMode : Bool = false, aaChallenge : [UInt8]? = nil, customDisplayMessage : ((NFCViewDisplayMessage) -> String?)? = nil) async throws -> NFCPassportModel {
         
         self.passport = NFCPassportModel()
         self.mrzKey = mrzKey
         self.skipCA = skipCA
         self.skipPACE = skipPACE
         self.useExtendedMode = useExtendedMode
+        self.aaChallengeOverride = aaChallenge
         
         self.dataGroupsToRead.removeAll()
         self.dataGroupsToRead.append( contentsOf:tags)
@@ -538,8 +544,8 @@ extension PassportReader {
 
         Logger.passportReader.info( "Performing Active Authentication" )
 
-        let challenge = generateRandomUInt8Array(8)
-        Logger.passportReader.debug( "Generated Active Authentication challange - \(binToHexRep(challenge))")
+        let challenge = self.aaChallengeOverride ?? generateRandomUInt8Array(8)
+        Logger.passportReader.debug( "Active Authentication challenge (override=\(self.aaChallengeOverride != nil)) - \(binToHexRep(challenge))")
         let response = try await tagReader.doInternalAuthentication(challenge: challenge, useExtendedMode: useExtendedMode)
         self.passport.verifyActiveAuthentication( challenge:challenge, signature:response.data )
     }
