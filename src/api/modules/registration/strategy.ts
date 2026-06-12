@@ -60,7 +60,7 @@ import { EDocument } from '@/utils/e-document/e-document'
 import { ExtendedCertificate } from '@/utils/e-document/extended-cert'
 import { getPublicKeyFromEcParameters, hashPacked } from '@/utils/e-document/helpers/crypto'
 import { extractPubKey } from '@/utils/e-document/helpers/misc'
-import { Sod } from '@/utils/e-document/sod';
+import { Sod } from '@/utils/e-document/sod'
 import { ECDSA_ALGO_PREFIX } from '@/utils/e-document/helpers/constants'
 
 /**
@@ -120,15 +120,10 @@ function manualEncodeRegisterCertificate(
   const sigSection = word(signature.length) + padTo32(sigHex)
   const icaoPkOffset = icaoSigOffset + sigSection.length / 2
   const icaoTuple =
-    word(icaoSigOffset) +
-    word(icaoPkOffset) +
-    sigSection +
-    word(publicKey.length) +
-    padTo32(pkHex)
+    word(icaoSigOffset) + word(icaoPkOffset) + sigSection + word(publicKey.length) + padTo32(pkHex)
 
   // Proof: bytes32[]
-  const proofHex =
-    word(proof.length) + proof.map(p => bytesToHex(p).padStart(64, '0')).join('')
+  const proofHex = word(proof.length) + proof.map(p => bytesToHex(p).padStart(64, '0')).join('')
 
   // Top-level offsets
   const headBytes = 96
@@ -826,7 +821,7 @@ export abstract class RegistrationStrategy {
       const { data } = await relayerRegister(callData, Config.REGISTRATION_CONTRACT_ADDRESS)
 
       const txHash = extractRelayerTxHash(data)
-      
+
       logIdentityDiagnostic(
         'IdentityProof',
         'RegistrationStrategy.registerCertificate:relayer-accepted',
@@ -911,7 +906,7 @@ export abstract class RegistrationStrategy {
       const { data } = await relayerRegister(registerCallData, Config.REGISTRATION_CONTRACT_ADDRESS)
 
       const txHash = extractRelayerTxHash(data)
-      
+
       logIdentityDiagnostic('IdentityProof', 'requestRelayerRegisterMethod:relayer-accepted', {
         hasTxHash: Boolean(txHash),
       })

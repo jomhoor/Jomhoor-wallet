@@ -431,13 +431,11 @@ export abstract class EPassportBasedRegistrationCircuit extends RegistrationCirc
         ? Math.ceil((this.eDoc.dg15Bytes.length + 8) / 64)
         : Math.ceil((this.eDoc.dg15Bytes.length + 8) / 128)
 
-    return logExtraction([
-      ...defaultNameParts,
-      aaSigType,
-      dg15ShiftBits,
-      dg15EcChunkNumber,
-      aaShiftBytes * 8,
-    ].join('_'))
+    return logExtraction(
+      [...defaultNameParts, aaSigType, dg15ShiftBits, dg15EcChunkNumber, aaShiftBytes * 8].join(
+        '_',
+      ),
+    )
   }
 
   constructor(public eDoc: EPassport) {

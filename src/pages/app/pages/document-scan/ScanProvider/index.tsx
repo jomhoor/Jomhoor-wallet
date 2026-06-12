@@ -851,20 +851,25 @@ export function ScanContextProvider({
       })
 
       const [circomIdentityItem, circomError] = await tryCatch(
-        epassportCircomRegistration.createIdentity(proofEDoc as EPassport, privateKey, publicKeyHash, {
-          onDownloading: () => {
-            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onDownloading')
-            setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
+        epassportCircomRegistration.createIdentity(
+          proofEDoc as EPassport,
+          privateKey,
+          publicKeyHash,
+          {
+            onDownloading: () => {
+              logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onDownloading')
+              setCreatingIdentityStep(GenProofSteps.DownloadCircuit)
+            },
+            onGenerateProof: () => {
+              logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onGenerateProof')
+              setCreatingIdentityStep(GenProofSteps.GenerateProof)
+            },
+            onRegister: () => {
+              logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onRegister')
+              setCreatingIdentityStep(GenProofSteps.CreateProfile)
+            },
           },
-          onGenerateProof: () => {
-            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onGenerateProof')
-            setCreatingIdentityStep(GenProofSteps.GenerateProof)
-          },
-          onRegister: () => {
-            logIdentityDiagnostic('IdentityProof', 'createIdentity:callback-onRegister')
-            setCreatingIdentityStep(GenProofSteps.CreateProfile)
-          },
-        }),
+        ),
       )
 
       if (!circomError) {
@@ -902,41 +907,41 @@ export function ScanContextProvider({
           hasRegistrationProof: Boolean(identityItem.registrationProof),
         })
       } else {
-      const classification = classifyIdentityCreationError({
-        stage: 'strategy-create-identity',
-        error: finalRegistrationError,
-      })
+        const classification = classifyIdentityCreationError({
+          stage: 'strategy-create-identity',
+          error: finalRegistrationError,
+        })
 
-      logIdentityDiagnosticError({
-        domain: 'IdentityProof',
-        event: 'createIdentity:strategy-failed',
-        stage: 'strategy-create-identity',
-        classification,
-        error: finalRegistrationError,
-        context: baseContext,
-      })
+        logIdentityDiagnosticError({
+          domain: 'IdentityProof',
+          event: 'createIdentity:strategy-failed',
+          stage: 'strategy-create-identity',
+          classification,
+          error: finalRegistrationError,
+          context: baseContext,
+        })
 
-      ErrorHandler.processWithoutFeedback(finalRegistrationError)
+        ErrorHandler.processWithoutFeedback(finalRegistrationError)
 
-      if (finalRegistrationError instanceof PassportRegisteredWithAnotherPKError) {
-        logIdentityDiagnostic('IdentityProof', 'createIdentity:revocation-step-required', {
-          reason: 'PassportRegisteredWithAnotherPKError',
+        if (finalRegistrationError instanceof PassportRegisteredWithAnotherPKError) {
+          logIdentityDiagnostic('IdentityProof', 'createIdentity:revocation-step-required', {
+            reason: 'PassportRegisteredWithAnotherPKError',
+            classification,
+          })
+          setCurrentStep(Steps.RevocationStep)
+          return
+        }
+
+        ErrorHandler.process(
+          finalRegistrationError,
+          'Failed to create identity. Please check your NFC connection and try again.',
+        )
+        setCurrentStep(Steps.DocumentPreviewStep)
+        logIdentityDiagnostic('IdentityProof', 'createIdentity:step-updated', {
+          nextStep: 'DocumentPreviewStep',
           classification,
         })
-        setCurrentStep(Steps.RevocationStep)
         return
-      }
-
-      ErrorHandler.process(
-        finalRegistrationError,
-        'Failed to create identity. Please check your NFC connection and try again.',
-      )
-      setCurrentStep(Steps.DocumentPreviewStep)
-      logIdentityDiagnostic('IdentityProof', 'createIdentity:step-updated', {
-        nextStep: 'DocumentPreviewStep',
-        classification,
-      })
-      return
       }
     }
 

@@ -11,7 +11,7 @@ import superjson from 'superjson'
 import { ExtendedCertificate } from './extended-cert'
 import { namedCurveFromParameters } from './helpers/crypto'
 import { figureOutRSAAAHashAlgorithm } from './helpers/misc'
-import { Sod } from './sod';
+import { Sod } from './sod'
 import { ECDSA_ALGO_PREFIX } from './helpers/constants'
 
 export type PersonDetails = {
@@ -237,7 +237,12 @@ export class EPassport implements EDocument {
 
       const chal = Buffer.from(challenge)
 
-      const tryHash = (label: string, hashLen: number, suffixLen: number, md: forge.md.MessageDigest) => {
+      const tryHash = (
+        label: string,
+        hashLen: number,
+        suffixLen: number,
+        md: forge.md.MessageDigest,
+      ) => {
         const L = F.length - suffixLen
         if (L - hashLen - 1 < 0) {
           // eslint-disable-next-line no-console
@@ -251,11 +256,23 @@ export class EPassport implements EDocument {
         const computed = Buffer.from(md.digest().toHex(), 'hex')
         const match = computed.equals(digest)
         // eslint-disable-next-line no-console
-        console.log(`[AA-VERIFY] ${label}: match=${match} digest=${digest.toString('hex').slice(0, 16)} computed=${computed.toString('hex').slice(0, 16)}`)
+        console.log(
+          `[AA-VERIFY] ${label}: match=${match} digest=${digest.toString('hex').slice(0, 16)} computed=${computed.toString('hex').slice(0, 16)}`,
+        )
       }
 
       // eslint-disable-next-line no-console
-      console.log('[AA-VERIFY] F.len', F.length, 'first', F[0]?.toString(16), 'last2', F[F.length - 2]?.toString(16), F[F.length - 1]?.toString(16), 'challenge', chal.toString('hex'))
+      console.log(
+        '[AA-VERIFY] F.len',
+        F.length,
+        'first',
+        F[0]?.toString(16),
+        'last2',
+        F[F.length - 2]?.toString(16),
+        F[F.length - 1]?.toString(16),
+        'challenge',
+        chal.toString('hex'),
+      )
       // eslint-disable-next-line no-console
       console.log('[AA-VERIFY] F.hex', Buffer.from(F).toString('hex'))
       tryHash('SHA1 (suffix1,hash20)', 20, 1, forge.md.sha1.create())

@@ -44,7 +44,6 @@ const PASSPORT_DEV_REPLAY_ENABLED =
   process.env.EXPO_PUBLIC_PASSPORT_DEV_REPLAY === 'true'
 const PASSPORT_DEV_DUMP_KEY = 'dev.passportScanDump.v1'
 
-
 type ReadState = 'idle' | 'waiting' | 'found' | 'authorizing' | 'reading' | 'error'
 
 const scanStatusContent: Record<

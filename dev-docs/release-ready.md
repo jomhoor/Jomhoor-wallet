@@ -2,22 +2,22 @@
 
 **Date:** 2026-06-12  
 **Scope:** jomhoor-wallet (`release` branch) + platform (`feat/sso` branch)  
-**Status:** Pre-release snapshot created; cleanup in progress  
+**Status:** Pre-release snapshot created; cleanup in progress
 
 ---
 
 ## What Was Shipped (Pre-Release Snapshot)
 
-| Feature | Status |
-|---------|--------|
-| Iranian Passport Variant B (RSA-3072 SHA-1, sigType 9) — Registration | ✅ End-to-end tested |
-| Iranian Passport Variant B — Voting via Noir Ultra Honk (queryIdentity) | ✅ End-to-end tested |
-| Iranian National ID card (INID) — Registration (`registerIdentity_inid_ca`) | ✅ Tested previously |
-| INID — Voting via `executeINID` + 23-signal builder | ✅ Tested previously |
-| Iranian Passport Variant A (RSA-2048 exponent 0xE3DD SHA-1, sigType 6) | ⚠️ Code path exists, not yet tested end-to-end |
-| ECDSA brainpoolP384r1 passports (German) | ❌ Registration WIP on separate branch |
-| Circom/Groth16 fallback for passport registration | ✅ Fallback in ScanProvider |
-| `ZERO_DATE` proposal creation | ✅ Fixed (Proposal 2 on local Hardhat) |
+| Feature                                                                     | Status                                         |
+| --------------------------------------------------------------------------- | ---------------------------------------------- |
+| Iranian Passport Variant B (RSA-3072 SHA-1, sigType 9) — Registration       | ✅ End-to-end tested                           |
+| Iranian Passport Variant B — Voting via Noir Ultra Honk (queryIdentity)     | ✅ End-to-end tested                           |
+| Iranian National ID card (INID) — Registration (`registerIdentity_inid_ca`) | ✅ Tested previously                           |
+| INID — Voting via `executeINID` + 23-signal builder                         | ✅ Tested previously                           |
+| Iranian Passport Variant A (RSA-2048 exponent 0xE3DD SHA-1, sigType 6)      | ⚠️ Code path exists, not yet tested end-to-end |
+| ECDSA brainpoolP384r1 passports (German)                                    | ❌ Registration WIP on separate branch         |
+| Circom/Groth16 fallback for passport registration                           | ✅ Fallback in ScanProvider                    |
+| `ZERO_DATE` proposal creation                                               | ✅ Fixed (Proposal 2 on local Hardhat)         |
 
 ---
 
@@ -26,6 +26,7 @@
 ### 🔴 HIGH — PII and proof material logged on client
 
 **Files affected:**
+
 - [`src/utils/circuits/passport-based-query-identity-circuit.ts`](../src/utils/circuits/passport-based-query-identity-circuit.ts) — line ~108: logs full normalized inputs including `sk_identity`, `dg1` byte array, SMT siblings, and passport hash context
 - [`src/utils/circuits/eid-based-query-identity-circuit.ts`](../src/utils/circuits/eid-based-query-identity-circuit.ts) — lines ~180–250: logs raw proof inputs, DG1 commitment comparisons, SMT value comparisons, full siblings array
 - [`src/api/modules/registration/variants/noir-epassport.ts`](../src/api/modules/registration/variants/noir-epassport.ts) — `[DIAG-NOIR-PUBLIC-INPUTS]` block: logs all pub_signals and proof byte count
@@ -62,7 +63,7 @@
 
 **File:** [`src/pages/app/pages/poll/index.tsx`](../src/pages/app/pages/poll/index.tsx)
 
-- Line ~158: `String(Config.RMO_CHAIN_ID) === '31337'` — string-safe ✅  
+- Line ~158: `String(Config.RMO_CHAIN_ID) === '31337'` — string-safe ✅
 - Line ~421: `Config.RMO_CHAIN_ID === '31337'` — direct string compare, but `Config.RMO_CHAIN_ID` comes from `Env` which is typed as `string`, so consistent. Still, both should use the same pattern.
 
 **Fix:** Define `const isLocalChain = String(Config.RMO_CHAIN_ID) === '31337'` once at module level and reuse.
@@ -96,8 +97,9 @@ Uses `console.warn` even for routine diagnostic events (dispatcher selection, ce
 ### 🟢 LOW — Debug/temp files in platform
 
 Untracked files that should be gitignored or removed before merge:
+
 - `platform/services/passport-contracts/curl_payload.json`
-- Various debug scripts in `platform/services/passport-contracts/scripts/` (analyze-*, debug-*, check-*)
+- Various debug scripts in `platform/services/passport-contracts/scripts/` (analyze-_, debug-_, check-\*)
 - `modules/noir/ios/Frameworks/SwoirenbergLib.xcframework.poseidon-bak/` (backup directory)
 
 ---
@@ -112,26 +114,26 @@ Untracked files that should be gitignored or removed before merge:
 
 ## Commit Plan (Post Snapshot, In Order)
 
-1. **`chore: remove/redact PII and proof material from client logs`**  
+1. **`chore: remove/redact PII and proof material from client logs`**
    - `src/utils/circuits/passport-based-query-identity-circuit.ts`
    - `src/utils/circuits/eid-based-query-identity-circuit.ts`
    - `src/api/modules/registration/variants/noir-epassport.ts`
    - `src/helpers/identity-proof-diagnostics.ts`
 
-2. **`fix(relayer): remove raw calldata from vote_v3 log fields`**  
+2. **`fix(relayer): remove raw calldata from vote_v3 log fields`**
    - `platform/services/proof-verification-relayer/internal/service/api/handlers/vote_v3.go`
 
-3. **`fix(relayer): add 4-field INID tuple decode for executeINID`**  
+3. **`fix(relayer): add 4-field INID tuple decode for executeINID`**
    - `platform/services/proof-verification-relayer/internal/service/api/handlers/vote_v3.go`
 
-4. **`fix: correct ZERO_DATE comment, unify local-chain chain-id checks`**  
+4. **`fix: correct ZERO_DATE comment, unify local-chain chain-id checks`**
    - `src/pages/app/pages/poll/constants.ts`
    - `src/pages/app/pages/poll/index.tsx`
 
-5. **`chore: gitignore debug artifacts, remove poseidon-bak`**  
+5. **`chore: gitignore debug artifacts, remove poseidon-bak`**
    - `.gitignore` updates in both repos
 
-6. **`feat: NoirPassportQueryHonkVerifier + queryIdentity circuit integration`**  
+6. **`feat: NoirPassportQueryHonkVerifier + queryIdentity circuit integration`**
    - All new/modified verifier and circuit files (platform + wallet)
 
 ---
@@ -139,11 +141,13 @@ Untracked files that should be gitignored or removed before merge:
 ## Variant A (Iranian Passport RSA-2048 exponent 0xE3DD) — Status
 
 Code path exists:
+
 - sigType 6 mapped in `registration-circuit.ts` (line ~263)
 - Dispatcher name resolves to `C_RSA_SHA1_2048_58333`
 - Registration uses same `NoirEPassportRegistration.createIdentity` flow
 
 **Not yet tested end-to-end because:**
+
 - Variant A passport not physically available during current session
 - On Rarimo mainnet the `C_RSA_SHA1_2048_58333` dispatcher exists (deployed by Rarimo)
 - Local Hardhat: dispatcher needs to be registered if testing locally
@@ -158,7 +162,7 @@ Contract entry point: `IDCardVoting.executeINID(bytes32 root, uint256 date, byte
 Circuit: `queryIdentity_inid_ca` — 23 public signals, TD3-style layout  
 UserData tuple: `(nullifier, citizenship, identityCreationTimestamp, personalNumber)` — 4 fields  
 Selector for IR voting: `65569` (0x10021 = bits 0 + 5 + 16)  
-All date bounds must be `ZERO_DATE` (0x303030303030)  
+All date bounds must be `ZERO_DATE` (0x303030303030)
 
 ## Passport B Voting Architecture Notes (Reference)
 
@@ -166,4 +170,4 @@ Contract entry point: `BioPassportVoting.executeNoir(bytes32 root, uint256 date,
 Circuit: `queryIdentity` — 23 public signals  
 UserData tuple: `(nullifier, citizenship, identityCreationTimestamp)` — 3 fields  
 Selector for IR voting: `33` (bits 0 + 5)  
-All date bounds in proposal must be `ZERO_DATE` (0x303030303030) — NOT numeric 0  
+All date bounds in proposal must be `ZERO_DATE` (0x303030303030) — NOT numeric 0

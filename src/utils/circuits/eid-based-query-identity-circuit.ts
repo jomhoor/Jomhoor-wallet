@@ -114,10 +114,7 @@ export class EIDBasedQueryIdentityCircuit {
    *   the Solidity HonkVerifier); SSO uses `plonk` (verified by sso-svc). Defaults
    *   to `plonk` so callers that don't opt in keep their current verifier.
    */
-  async prove(
-    params: Partial<QueryProofParams>,
-    proofType: 'plonk' | 'honk_keccak' = 'plonk',
-  ) {
+  async prove(params: Partial<QueryProofParams>, proofType: 'plonk' | 'honk_keccak' = 'plonk') {
     console.log(
       '[EIDBasedQueryIdentityCircuit] prove() called with params:',
       JSON.stringify(params),

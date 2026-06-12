@@ -48,7 +48,13 @@ function manualEncodeRegisterViaNoir(
   certificatesRoot: string | Uint8Array,
   identityKey: string,
   dgCommit: string,
-  passport: { dataType: BytesLike; zkType: BytesLike; signature: BytesLike; publicKey: BytesLike; passportHash: BytesLike },
+  passport: {
+    dataType: BytesLike
+    zkType: BytesLike
+    signature: BytesLike
+    publicKey: BytesLike
+    passportHash: BytesLike
+  },
   zkPoints: string | Uint8Array,
 ): string {
   const SELECTOR = '5a0f28b1'
@@ -114,11 +120,7 @@ function manualEncodeRegisterViaNoir(
   const zkPointsOffset = topHeadBytes + passportEncodedBytes
 
   const topHead =
-    certRootHex +
-    identityKeyHex +
-    dgCommitHex +
-    word(passportOffset) +
-    word(zkPointsOffset)
+    certRootHex + identityKeyHex + dgCommitHex + word(passportOffset) + word(zkPointsOffset)
 
   return '0x' + SELECTOR + topHead + passportEncoded + zkPointsEncoded
 }
@@ -191,12 +193,18 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
       registrationProof.pub_signals.forEach((signal, index) => {
         console.log(`[DIAG-NOIR-PUBLIC-INPUTS] pub_signals[${index}]:`, signal)
       })
-      console.log('[DIAG-NOIR-PUBLIC-INPUTS] contract passportKey candidate:', passportKeyFromPublicKey)
+      console.log(
+        '[DIAG-NOIR-PUBLIC-INPUTS] contract passportKey candidate:',
+        passportKeyFromPublicKey,
+      )
       console.log(
         '[DIAG-NOIR-PUBLIC-INPUTS] passportKey==pub_signals[0]?',
         passportKeyFromPublicKey === registrationProof.pub_signals[0],
       )
-      console.log('[DIAG-NOIR-PUBLIC-INPUTS] proof bytes:', ensureHexPrefix(registrationProof.proof).length / 2 - 1)
+      console.log(
+        '[DIAG-NOIR-PUBLIC-INPUTS] proof bytes:',
+        ensureHexPrefix(registrationProof.proof).length / 2 - 1,
+      )
       console.log('[DIAG-NOIR-PUBLIC-INPUTS] =====================================')
     } catch (diagErr) {
       console.log('[DIAG-NOIR-PUBLIC-INPUTS] diagnostic failed:', diagErr)
@@ -381,14 +389,20 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
         const circuitPubSig3 = registrationProof.pub_signals[3]
         const walletHashFromParam = Buffer.from(publicKeyHash).toString('hex')
         console.log('[DIAG-IDENTITY-KEY] ======================================')
-        console.log('[DIAG-IDENTITY-KEY] skIdentity (first 20 hex):', skIdentity.toString(16).slice(0, 20))
+        console.log(
+          '[DIAG-IDENTITY-KEY] skIdentity (first 20 hex):',
+          skIdentity.toString(16).slice(0, 20),
+        )
         console.log('[DIAG-IDENTITY-KEY] JS poseidon(point):', diagHashHex)
         console.log('[DIAG-IDENTITY-KEY] circuit pub_signals[3]:', circuitPubSig3)
         console.log('[DIAG-IDENTITY-KEY] wallet publicKeyHash param:', walletHashFromParam)
         console.log('[DIAG-IDENTITY-KEY] JS==circuit?', diagHashHex === circuitPubSig3)
         console.log('[DIAG-IDENTITY-KEY] JS==walletParam?', diagHashHex === walletHashFromParam)
         console.log('[DIAG-IDENTITY-KEY] challenge from JS (last 8):', diagHashHex.slice(-16))
-        console.log('[DIAG-IDENTITY-KEY] challenge from param (last 8):', walletHashFromParam.slice(-16))
+        console.log(
+          '[DIAG-IDENTITY-KEY] challenge from param (last 8):',
+          walletHashFromParam.slice(-16),
+        )
         console.log('[DIAG-IDENTITY-KEY] ======================================')
       } catch (diagErr) {
         console.log('[DIAG-IDENTITY-KEY] diagnostic failed:', diagErr)
