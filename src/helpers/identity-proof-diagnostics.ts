@@ -233,10 +233,12 @@ export function logIdentityDiagnostic(
   }
 
   if (metadata && Object.keys(metadata).length > 0) {
+    // eslint-disable-next-line no-console
     console.log(`[${domain}] ${event}`, metadata)
     return
   }
 
+  // eslint-disable-next-line no-console
   console.log(`[${domain}] ${event}`)
 }
 

@@ -148,7 +148,7 @@ export class EIDBasedQueryIdentityCircuit {
     const passportRegistrationProof =
       await currentIdentity.getPassportRegistrationProof(passportProofIndexHex)
 
-    const rawSiblings = passportRegistrationProof.siblings
+    const _rawSiblings = passportRegistrationProof.siblings
 
     this._passportRegistrationProof = passportRegistrationProof
 
@@ -169,7 +169,7 @@ export class EIDBasedQueryIdentityCircuit {
     const dg1CommitBigInt = BigInt('0x' + computedDg1Commitment)
     const identityCounter = BigInt(params?.identityCounter ?? '0')
     const timestamp = BigInt(params?.timestamp ?? '0')
-    const computedSmtValue = poseidon.hash([dg1CommitBigInt, identityCounter, timestamp])
+    const _computedSmtValue = poseidon.hash([dg1CommitBigInt, identityCounter, timestamp])
     // === END DEBUG ===
 
     // Convert BigInt siblings from contract to strings for circuit input

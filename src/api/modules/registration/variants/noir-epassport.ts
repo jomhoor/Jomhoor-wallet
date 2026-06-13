@@ -187,7 +187,7 @@ export class NoirEPassportRegistration extends RegistrationStrategy {
 
     try {
       const passportPublicKey = identityItemDocument.getAAPublicKey()
-      const passportKeyFromPublicKey = passportPublicKey ? hash1024Strict(passportPublicKey) : null
+      const _passportKeyFromPublicKey = passportPublicKey ? hash1024Strict(passportPublicKey) : null
 
       if (__DEV__) {
         console.log('[noir-epassport] Registration proof generated (PII redacted)')

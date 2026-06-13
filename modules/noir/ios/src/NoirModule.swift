@@ -43,6 +43,22 @@ public class NoirModule: Module {
         proofType: "honk_keccak"
       )
     }
+
+    /**
+     * Returns the verification key (hex) for a circuit bytecode.
+     * Used for debugging VK mismatch with on-chain verifier.
+     */
+    AsyncFunction("getVerificationKey") { (manifestJson: String) -> String in
+      guard let jsonData = manifestJson.data(using: .utf8),
+            let manifest = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+            let bytecodeBase64 = manifest["bytecode"] as? String,
+            let bytecodeData = Data(base64Encoded: bytecodeBase64) else {
+        throw NSError(domain: "NoirModule", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid manifest"])
+      }
+      let vkHex = try Swoirenberg.get_verification_key(bytecode: bytecodeData)
+      NSLog("[NoirModule] getVerificationKey result length: %d", vkHex.count)
+      return vkHex
+    }
   }
 
   /// Shared proof-generation routine used by both the plonk and keccak-honk arms.
@@ -116,8 +132,19 @@ public class NoirModule: Module {
         let proof = try circuit.prove(inputsMap, proof_type: proofType)
 
         print("[NoirModule] Generated proof: \(proof)")
-        NSLog("[NoirModule] prove:done proofBytes=%d", proof.proof.count)
+        NSLog("[NoirModule] prove:done proofBytes=%d vkeyBytes=%d", proof.proof.count, proof.vkey.count)
         let hexProof = proof.proof.map { String(format: "%02x", $0) }.joined()
+        let hexVkey = proof.vkey.map { String(format: "%02x", $0) }.joined()
+
+        // Log VK for verifier debugging (first 512 chars = first 8 field elements)
+        NSLog("[NoirModule] VK_HEX_START=%@", String(hexVkey.prefix(1024)))
+        NSLog("[NoirModule] VK_HEX_LEN=%d", hexVkey.count)
+        // Write full VK to file for extraction
+        if let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let vkPath = docsDir.appendingPathComponent("noir_vk_dump.hex")
+            try? hexVkey.write(to: vkPath, atomically: true, encoding: .utf8)
+            NSLog("[NoirModule] VK written to: %@", vkPath.path)
+        }
 
         return hexProof
       } catch let error as NSError {

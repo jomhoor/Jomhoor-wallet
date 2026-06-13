@@ -60,7 +60,8 @@ function log(..._msg: unknown[]) {}
 
 function logNfcMetadata(event: string, metadata: Record<string, unknown>) {
   // TEMP AA DEBUG: surface NFC plumbing diagnostics. Remove after AA works.
-  console.log(`[AA-DEBUG] ${event}`, JSON.stringify(metadata))
+  // eslint-disable-next-line no-console
+  if (__DEV__) console.log(`[AA-DEBUG] ${event}`, JSON.stringify(metadata))
 }
 
 function logNfcJson(_event: string, _value: unknown) {}

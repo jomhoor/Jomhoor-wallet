@@ -7,6 +7,7 @@ declare class NoirModule extends NativeModule<{
     inputs: Uint8Array,
     byteCode: string,
   ) => Promise<string>
+  getVerificationKey: (manifestJson: string) => Promise<string>
 }> {}
 
 // This call loads the native module object from the JSI.

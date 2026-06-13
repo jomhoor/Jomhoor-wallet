@@ -26,7 +26,7 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       dataType: identityItem.document.AADataType,
       zkType: keccak256(Buffer.from('Z_NOIR_PASSPORT_ID_CARD_I', 'utf-8')),
       signature: new Uint8Array(),
-      publicKey: new Uint8Array(),
+      publicKey: passportHash,
       passportHash: passportHash,
     }
 
@@ -42,6 +42,17 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       ? identityItem.registrationProof.proof
       : `0x${identityItem.registrationProof.proof}`
 
+    console.log('[NoirEID] === buildRegisterCallData - VALUES SENT TO CONTRACT ===')
+    console.log('[NoirEID] passport.publicKey (→ pubSignals[0]):', passportHash)
+    console.log('[NoirEID] passport.passportHash (→ pubSignals[1]):', passportHash)
+    console.log('[NoirEID] dg1Commitment (→ pubSignals[2]):', dg1Commitment)
+    console.log('[NoirEID] pkIdentityHash (→ pubSignals[3]):', pkIdentityHash)
+    console.log('[NoirEID] certificatesRoot (→ pubSignals[4]):', slaveCertSmtProof.root)
+    console.log('[NoirEID] pub_signals from proof for comparison:')
+    identityItem.registrationProof.pub_signals.forEach((sig, i) => {
+      console.log(`[NoirEID]   proof pub_signals[${i}] = 0x${sig}`)
+    })
+
     if (isRevoked) {
       return RegistrationStrategy.registrationContractInterface.encodeFunctionData(
         'reissueIdentityViaNoir',
@@ -54,6 +65,13 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       [slaveCertSmtProof.root, pkIdentityHash, dg1Commitment, passport, proof],
     )
   }
+
+  // Contract will compute pubSignals as:
+  // [0] = passportKey = dispatcher.getPassportKey(passport.publicKey) = uint256(bytes32(passportHash))
+  // [1] = uint256(passport.passportHash)
+  // [2] = dgCommit
+  // [3] = identityKey (pkIdentityHash)
+  // [4] = certificatesRoot
 
   createIdentity = async (
     _eDocument: EDocument,
@@ -114,6 +132,13 @@ export class NoirEIDRegistration extends RegistrationStrategy {
       icaoRoot: BigInt(currentSmtProof.root),
       inclusionBranches: currentSmtProof.siblings.map(el => BigInt(el)),
     })
+
+    console.log('[NoirEID] === ALL 5 PUB SIGNALS FROM PROOF ===')
+    registrationProof.pub_signals.forEach((sig, i) => {
+      console.log(`[NoirEID] pub_signals[${i}] = 0x${sig}`)
+    })
+    console.log('[NoirEID] proof hex length:', registrationProof.proof.length)
+    console.log('[NoirEID] certificatesRoot (icaoRoot passed to circuit):', currentSmtProof.root)
 
     const identityItem = new NoirEIDIdentity(eDocument, registrationProof)
 

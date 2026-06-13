@@ -124,21 +124,30 @@ export class NoirCircuitParams {
     if (cachedUri) {
       const cached = await FileSystem.readAsStringAsync(cachedUri)
       const valid = NoirCircuitParams.isValidCircuitJson(cached)
-      console.log(
-        `[NoirCircuit] cache present for ${this.name}: len=${cached?.length ?? 0} valid=${valid}`,
-      )
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[NoirCircuit] cache present for ${this.name}: len=${cached?.length ?? 0} valid=${valid}`,
+        )
+      }
       if (!valid) {
         await FileSystem.deleteAsync(cachedUri, { idempotent: true })
-        console.log(`[NoirCircuit] evicted invalid cache for ${this.name}`)
+        // eslint-disable-next-line no-console
+        if (__DEV__) console.log(`[NoirCircuit] evicted invalid cache for ${this.name}`)
       }
     } else {
-      console.log(`[NoirCircuit] no cache for ${this.name}`)
+      // eslint-disable-next-line no-console
+      if (__DEV__) console.log(`[NoirCircuit] no cache for ${this.name}`)
     }
 
     if (!(await NoirCircuitParams.getByteCodeUri(fileName))) {
-      console.log(`[NoirCircuit] downloading ${this.name} from ${this.byteCodeUri}`)
+      // eslint-disable-next-line no-console
+      if (__DEV__) console.log(`[NoirCircuit] downloading ${this.name} from ${this.byteCodeUri}`)
       const result = await downloadResumable.downloadAsync()
-      console.log(`[NoirCircuit] download ${this.name} status=${result?.status ?? 'unknown'}`)
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(`[NoirCircuit] download ${this.name} status=${result?.status ?? 'unknown'}`)
+      }
 
       if (!result || result.status !== 200) {
         // Don't leave a non-200 body cached for the next run.
@@ -244,14 +253,17 @@ export class NoirCircuitParams {
     }
 
     if (this.name === 'registerIdentity_9_160_3_3_336_216_1_1080_3_256') {
-      console.log('[NoirCircuit] type9 honk parse', {
-        prefixBytes: prefixLen / 2,
-        metaWords: metaWords.map(word => `0x${word}`),
-        pubSignalsCount: pubSignals.length,
-        pubSignal0: pubSignals[0] ? `0x${pubSignals[0]}` : null,
-        commitFields: commitHex.length / FIELD,
-        proofFields: (metaHex.length + commitHex.length) / FIELD,
-      })
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log('[NoirCircuit] type9 honk parse', {
+          prefixBytes: prefixLen / 2,
+          metaWords: metaWords.map(word => `0x${word}`),
+          pubSignalsCount: pubSignals.length,
+          pubSignal0: pubSignals[0] ? `0x${pubSignals[0]}` : null,
+          commitFields: commitHex.length / FIELD,
+          proofFields: (metaHex.length + commitHex.length) / FIELD,
+        })
+      }
     }
 
     return {
