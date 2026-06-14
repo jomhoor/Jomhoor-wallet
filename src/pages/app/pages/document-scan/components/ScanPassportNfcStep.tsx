@@ -1,6 +1,6 @@
 import { probePassportChip } from '@iland/passport-verification'
 import { useNavigation } from '@react-navigation/core'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, TextInput, View } from 'react-native'
 import { Pressable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -16,6 +16,7 @@ import {
 } from '@/pages/app/pages/document-scan/demo/passport-demo-fixtures'
 import { Steps, useDocumentScanContext } from '@/pages/app/pages/document-scan/ScanProvider'
 import { appCapabilitiesStore } from '@/store'
+import { walletStore } from '@/store/modules/wallet'
 import { UiButton, UiIcon } from '@/ui'
 import {
   clearPassportNfcTemporaryData,
@@ -81,6 +82,14 @@ export default function ScanPassportNfcStep() {
   const isDemoMode = verificationMode === 'demo' && documentDemoModeEnabled
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
+
+  // 8-byte AA challenge = last 8 bytes of the wallet identity key (pkIdentityHash).
+  // Must match Registration2 / PRSASHADispatcher.getPassportChallenge on-chain.
+  const aaChallengeBytes = walletStore.useRegistrationChallenge()
+  const aaChallengeHex = useMemo(
+    () => Buffer.from(aaChallengeBytes).toString('hex'),
+    [aaChallengeBytes],
+  )
 
   const [readState, setReadState] = useState<ReadState>('idle')
   const [errorMsg, setErrorMsg] = useState<string>('')
@@ -170,6 +179,7 @@ export default function ScanPassportNfcStep() {
     try {
       await stopPassportNfc()
       const passportOutput = await readPassportScanOutput(docNumber, birthDate, expiryDate, {
+        activeAuthenticationChallenge: aaChallengeHex,
         onScanStatus: event => {
           switch (event.status) {
             case 'waiting_for_tag':
@@ -227,6 +237,7 @@ export default function ScanPassportNfcStep() {
     setPassportNfcScanOutput,
     debugEnabled,
     isDemoMode,
+    aaChallengeHex,
     nfcEvidenceLabel,
     refreshEvidenceSummary,
   ])

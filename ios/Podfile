@@ -15,7 +15,8 @@ prepare_react_native_project!
 
 target 'Jomhoor' do
   use_expo_modules!
-  # Local pods required by @iland verification native iOS module.
+
+  # Local pods required by @iland/passport-verification
   pod 'OpenSSLLocal', :path => '../node_modules/@iland/passport-verification/ios/LocalPods/OpenSSLLocal'
   pod 'NFCPassportReader', :path => '../node_modules/@iland/passport-verification/ios/LocalPods/NFCPassportReader'
 
@@ -55,24 +56,19 @@ target 'Jomhoor' do
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
-    # Fix: fmt 11.0.x enables consteval for Apple clang >= 14, but Xcode 16's clang
-    # enforces stricter rules that cause "not a constant expression" errors in format-inl.h.
-    # Patch base.h to also disable consteval for Apple clang 16+ (Xcode 16).
-    # The -DFMT_USE_CONSTEVAL=0 flag doesn't work because base.h unconditionally #define's
-    # it, overriding any command-line define.
-    fmt_base_h = "#{installer.sandbox.root}/fmt/include/fmt/base.h"
-    if File.exist?(fmt_base_h)
-      content = File.read(fmt_base_h)
-      patched = content.gsub(
-        '#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L',
-        '#elif defined(__apple_build_version__) && (__apple_build_version__ < 14000029L || __apple_build_version__ >= 16000000L)'
-      )
-      if patched != content
-        File.chmod(0644, fmt_base_h)
-        File.write(fmt_base_h, patched)
-        puts "[fmt patch] Disabled consteval for Apple clang 16+ in #{fmt_base_h}"
-      else
-        puts "[fmt patch] Pattern not found or already patched in #{fmt_base_h}"
+    # Fix fmt consteval errors with Xcode 16+ (Apple Clang misreports consteval support)
+    # Patch the header directly since post_install runs after pods are downloaded
+    fmt_base = File.join(installer.sandbox.root, 'fmt/include/fmt/base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      patched = content.sub('#  define FMT_CONSTEVAL consteval', '#  define FMT_CONSTEVAL constexpr')
+      File.write(fmt_base, patched) if patched != content
+    end
+
+    # Ensure all pod targets use C++20 (required by RCT-Folly/React Native)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |bc|
+        bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
       end
     end
 
