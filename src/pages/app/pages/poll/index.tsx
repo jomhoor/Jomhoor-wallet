@@ -588,7 +588,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
     <>
       <UiScreenScrollable style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <View className='flex-row p-4'>
-          <View className='relative w-full gap-6 overflow-hidden rounded-3xl'>
+          <View className='relative w-full gap-6 rounded-3xl'>
             <UiCard className='flex-1 gap-4 p-6'>
               {isDemoIdentityActive ? (
                 <View className='bg-warningMain/10 rounded-xl px-4 py-3'>
@@ -598,7 +598,7 @@ export default function PollScreen({ route }: AppStackScreenProps<'Poll'>) {
                   </Text>
                 </View>
               ) : null}
-              <View className='flex-col gap-2'>
+              <View className='flex-col gap-2 pr-12'>
                 <Text className='typography-h6 text-textPrimary'>{proposalMetadata.title}</Text>
                 <Text className='typography-body3 text-textSecondary'>
                   {proposalMetadata.description}
